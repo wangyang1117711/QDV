@@ -1,0 +1,23 @@
+# 在项目 CMakeLists.txt 中添加 OpenCV 支持
+# 在 find_package(Qt6 ...) 之后添加以下内容：
+
+# [OpenCV集成] 查找 OpenCV 库
+find_package(OpenCV QUIET)
+if(OpenCV_FOUND)
+    message(STATUS "OpenCV found: ${OpenCV_VERSION}")
+    message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
+    message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
+    set(HAS_OPENCV TRUE)
+else()
+    message(WARNING "OpenCV not found. Building without OpenCV support.")
+    message(STATUS "To enable OpenCV:")
+    message(STATUS "  1. Install OpenCV via vcpkg:")
+    message(STATUS "     D:\\vcpkg\\vcpkg.exe install opencv4[contrib,nonfree]:x64-mingw-dynamic")
+    message(STATUS "  2. Or set OpenCV_DIR to your OpenCV CMake config directory")
+    set(HAS_OPENCV FALSE)
+endif()
+
+# 在主 CMakeLists.txt 末尾添加:
+if(HAS_OPENCV)
+    add_definitions(-DHAS_OPENCV)
+endif()

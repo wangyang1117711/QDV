@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/LoginView.qml</file>
+        <file>qml/CentralWindow.qml</file>
+        <file>qml/NavBar.qml</file>
+        <file>qml/ToolBox.qml</file>
+        <file>qml/RenderWidget.qml</file>
+        <file>qml/PropertyPanel.qml</file>
+        <file>images/logo.png</file>
+        <file>images/icons/camera.png</file>
+        <file>images/icons/scheme.png</file>
+        <file>images/icons/tools.png</file>
+        <file>images/icons/io.png</file>
+        <file>images/icons/communication.png</file>
+        <file>images/icons/monitor.png</file>
+    </qresource>
+</RCC>

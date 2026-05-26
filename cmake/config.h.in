@@ -1,0 +1,18 @@
+#ifndef QDV_CONFIG_H
+#define QDV_CONFIG_H
+
+#define QDV_VERSION_MAJOR @QDetectVision_VERSION_MAJOR@
+#define QDV_VERSION_MINOR @QDetectVision_VERSION_MINOR@
+#define QDV_VERSION_PATCH @QDetectVision_VERSION_PATCH@
+#define QDV_VERSION "@QDetectVision_VERSION@"
+
+#define QDV_DATA_DIR "@CMAKE_INSTALL_DATADIR@/QDetectVision"
+#define QDV_PLUGIN_DIR "@CMAKE_INSTALL_LIBDIR@/QDetectVision/plugins"
+
+#ifdef QDV_DEBUG
+#define QDV_DEBUG_BUILD 1
+#else
+#define QDV_DEBUG_BUILD 0
+#endif
+
+#endif // QDV_CONFIG_H

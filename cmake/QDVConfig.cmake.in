@@ -1,0 +1,31 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Qt依赖
+find_dependency(Qt6 6.5 REQUIRED COMPONENTS
+    Core
+    Gui
+    Widgets
+    Quick
+    Qml
+    Network
+    Sql
+)
+
+# OpenCV依赖
+find_dependency(OpenCV 4.8 REQUIRED COMPONENTS
+    core
+    imgproc
+    imgcodecs
+    features2d
+)
+
+# 其他依赖
+find_dependency(spdlog 1.10 REQUIRED)
+find_dependency(nlohmann_json 3.10 REQUIRED)
+
+# 导入目标
+include("${CMAKE_CURRENT_LIST_DIR}/QDVTargets.cmake")
+
+check_required_components(QDV)
