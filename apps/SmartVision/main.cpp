@@ -1,13 +1,53 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QDir>
+#include <QFileInfo>
+#include <QCoreApplication>
 #include "MainWindow.h"
+#include "AuthService.h"
 #include "Logger.h"
+#include "UI/OperatorDescriptors.h"
+#include "UI/AutoTestRunner.h"
 
 using namespace QDV;
 
 int main(int argc, char *argv[]) {
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
+
     QApplication app(argc, argv);
+
+    // --- 命令行模式：--export-operators 导出算子元数据 ---
+    for (int i = 1; i < argc; ++i) {
+        const QString a = QString::fromLocal8Bit(argv[i]);
+        if (a == "--export-operators" && i + 1 < argc) {
+            const QString exportPath = QString::fromLocal8Bit(argv[i + 1]);
+            QDir().mkpath(QFileInfo(exportPath).absolutePath());
+            const bool ok = UI::OperatorDescriptors::exportToJson(exportPath);
+            if (ok) {
+                qInfo().noquote() << "[export] wrote" << exportPath;
+                return 0;
+            }
+            qCritical().noquote() << "[export] FAILED to write" << exportPath;
+            return 2;
+        }
+    }
+
+    // --- 命令行模式：--auto-test <png> [--add-op <type>...] ---
+    {
+        QString autoTestPng;
+        QStringList addOps;
+        for (int i = 1; i < argc; ++i) {
+            const QString a = QString::fromLocal8Bit(argv[i]);
+            if (a == "--auto-test" && i + 1 < argc)
+                autoTestPng = QString::fromLocal8Bit(argv[i + 1]);
+            else if (a == "--add-op" && i + 1 < argc)
+                addOps << QString::fromLocal8Bit(argv[i + 1]);
+        }
+        const int testRc = AutoTestRunner::run(app, autoTestPng, addOps);
+        if (testRc >= 0) {
+            return testRc;
+        }
+    }
 
     app.setStyleSheet(R"(
         QWidget { background-color: #1e1e1e; color: #e0e0e0; }
@@ -25,6 +65,8 @@ int main(int argc, char *argv[]) {
         QTableWidget::item, QTreeWidget::item { color: #e0e0e0; }
         QTableWidget::item:selected, QTreeWidget::item:selected { background-color: #660874; color: #fff; }
         QHeaderView::section { background-color: #333; color: #e0e0e0; border: 1px solid #444; padding: 4px 8px; }
+        QProgressBar { background-color: #2d2d2d; border: 1px solid #444; border-radius: 4px; text-align: center; color: #e0e0e0; }
+        QProgressBar::chunk { background-color: #660874; border-radius: 3px; }
         QScrollBar:vertical { background: #252525; width: 12px; margin: 0; }
         QScrollBar::handle:vertical { background: #555; border-radius: 6px; min-height: 20px; }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
@@ -38,15 +80,30 @@ int main(int argc, char *argv[]) {
         QMenu::item { padding: 6px 32px 6px 16px; }
         QMenu::item:selected { background-color: #660874; color: #fff; }
         QMenu::separator { height: 1px; background-color: #555; margin: 4px 8px; }
+        QDialog { background-color: #1e1e1e; }
     )");
 
     QDir().mkdir("logs");
     Logger::info("Q-DetectVision v1.0 starting...");
-    
+
+    // 预热 OperatorDescriptors
+    (void)UI::OperatorDescriptors::all();
+
     try {
         MainWindow window;
+
+        if (AuthService::instance()->isFirstRun()) {
+            window.showFirstRunSetup();
+        }
+
         window.show();
-        
+
+        app.processEvents();
+
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
+            Logger::shutdown();
+        });
+
         Logger::info("Main window displayed successfully");
         return app.exec();
     } catch (const std::exception& e) {
