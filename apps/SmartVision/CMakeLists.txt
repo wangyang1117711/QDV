@@ -2,6 +2,7 @@
 
 set(SMARTVISION_SOURCES
     main.cpp
+    resources/styles.qrc
 )
 
 add_executable(QDetectVision
