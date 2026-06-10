@@ -273,20 +273,13 @@ Item {
 
     // 4a: FilePath — TextField + 浏览按钮（v3.2.0 算子参数编辑器增强）
     //     适用于参数名 == "filePath" 的 String 字段
+    //     paramLoader 在 onLoaded 中注入 spec 和 currentValue；
+    //     valuePicked 信号直接回传 setValue（不走 paramLoader）。
     Component {
         id: filePathFieldComp
-        Loader {
-            id: fpLoader
-            source: "qrc:/qml/EditView/FilePathField.qml"
-            onLoaded: {
-                if (item) {
-                    item.spec = modelData
-                    item.currentValue = currentValue !== undefined && currentValue !== null
-                                         ? String(currentValue) : ""
-                    item.valuePicked.connect(function(newVal) {
-                        root.setValue(item.paramName, newVal)
-                    })
-                }
+        FilePathField {
+            onValuePicked: function(newVal) {
+                root.setValue(modelData ? (modelData.name || "") : "", newVal)
             }
         }
     }

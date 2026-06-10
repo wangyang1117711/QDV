@@ -13,3 +13,4 @@ FloatingPanel 1.0 FloatingPanel.qml
 ImagePreviewWindow 1.0 ImagePreviewWindow.qml
 AnnotateOverlay 1.0 AnnotateOverlay.qml
 ResultTable 1.0 ResultTable.qml
+FilePathField 1.0 FilePathField.qml

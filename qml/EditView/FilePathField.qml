@@ -30,7 +30,7 @@ import QDV.EditView 3.0 as Tok
 RowLayout {
     id: root
     property var    spec
-    property string paramName: spec.name
+    property string paramName: spec ? (spec.name || "") : ""
     property var    currentValue
     spacing: 6
     Layout.fillWidth: true
