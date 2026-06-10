@@ -162,8 +162,8 @@ void ImageViewWidget::paintEvent(QPaintEvent* event)
         QPen cropPen(QColor(102, 8, 116), 2, Qt::DashLine);
 
         QTransform invTransform = transform.inverted();
-        QPoint p1 = invTransform.map(m_drawStart).toPoint();
-        QPoint p2 = invTransform.map(m_drawEnd).toPoint();
+        QPoint p1 = invTransform.map(m_drawStart);
+        QPoint p2 = invTransform.map(m_drawEnd);
         QRect cropRect = QRect(p1, p2).normalized();
 
         painter.setTransform(QTransform());

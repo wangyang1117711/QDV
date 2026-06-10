@@ -1,16 +1,29 @@
 #include "TrainingInference/InferencePanel.h"
 #include "AI/InferenceEngine.h"
+#include "AI/ModelManager.h"
+#include "Core/Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QLabel>
 #include <QListWidgetItem>
+#include <QFileInfo>
 
 
 
 InferencePanel::InferencePanel(QWidget* parent) : QWidget(parent) {
     setupUI();
+    
+    // 连接停止按钮
+    connect(m_stopBtn, &QPushButton::clicked, this, &InferencePanel::onStopInference);
+    
+    // 连接ModelManager的信号
+    connect(ModelManager::instance(), &ModelManager::defaultModelLoadFailed,
+            this, &InferencePanel::onDefaultModelLoadFailed);
+    
+    // 初始化模型列表
+    refreshModelList();
 }
 
 void InferencePanel::setupUI() {
@@ -46,6 +59,12 @@ void InferencePanel::setupUI() {
     connect(m_modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &InferencePanel::onModelChanged);
     modelLayout->addWidget(m_modelCombo);
+    
+    // 添加模型路径显示标签
+    m_modelPathLabel = new QLabel("路径: -");
+    m_modelPathLabel->setStyleSheet("color: #888; font-size: 11px; padding: 4px 0;");
+    m_modelPathLabel->setWordWrap(true);
+    modelLayout->addWidget(m_modelPathLabel);
 
     m_modelInfoList = new QListWidget();
     m_modelInfoList->setMaximumHeight(120);
@@ -132,6 +151,41 @@ void InferencePanel::setupUI() {
     layout->addStretch();
 }
 
+void InferencePanel::refreshModelList() {
+    QStringList models = ModelManager::instance()->getAvailableModelNames();
+    
+    if (models.isEmpty()) {
+        models << "未找到模型";
+        m_runBtn->setEnabled(false);
+    } else {
+        m_runBtn->setEnabled(true);
+    }
+    
+    m_modelCombo->clear();
+    m_modelCombo->addItems(models);
+    
+    // 优先选择"YOLO"，其次选择包含"yolo"的模型，最后选择默认模型
+    int defaultIndex = m_modelCombo->findText("YOLO", Qt::MatchExactly);
+    if (defaultIndex < 0) {
+        // 查找包含yolo的模型
+        for (int i = 0; i < m_modelCombo->count(); ++i) {
+            QString text = m_modelCombo->itemText(i).toLower();
+            if (text.contains("yolo")) {
+                defaultIndex = i;
+                break;
+            }
+        }
+    }
+    if (defaultIndex < 0) {
+        // 最后尝试默认模型名称
+        defaultIndex = m_modelCombo->findText(QString::fromLatin1(ModelManager::DEFAULT_MODEL_NAME));
+    }
+    
+    if (defaultIndex >= 0) {
+        m_modelCombo->setCurrentIndex(defaultIndex);
+    }
+}
+
 void InferencePanel::setModelList(const QStringList& models) {
     m_modelCombo->clear();
     m_modelCombo->addItems(models);
@@ -141,44 +195,100 @@ QString InferencePanel::currentModel() const {
     return m_modelCombo->currentText();
 }
 
+QString InferencePanel::currentModelPath() const {
+    return ModelManager::instance()->getModelPathByName(currentModel());
+}
+
 bool InferencePanel::isBatchMode() const {
     return m_batchCheckBox->isChecked();
 }
 
-void InferencePanel::onRunInference() {
-    QString model = m_modelCombo->currentText();
-    if (model.isEmpty()) {
-        m_statusLabel->setText("请先选择模型");
+void InferencePanel::setStatus(const QString& text, bool isError) {
+    m_statusLabel->setText(text);
+    if (isError) {
         m_statusLabel->setStyleSheet("color: #F44336; font-size: 12px; padding: 4px;");
+    } else {
+        m_statusLabel->setStyleSheet("color: #aaa; font-size: 12px; padding: 4px;");
+    }
+}
+
+void InferencePanel::onRunInference() {
+    QString modelName = m_modelCombo->currentText();
+    if (modelName.isEmpty() || modelName == "未找到模型") {
+        setStatus("请先选择模型", true);
+        return;
+    }
+    
+    QString modelPath = currentModelPath();
+    if (modelPath.isEmpty()) {
+        setStatus("无法获取模型路径", true);
         return;
     }
 
-    m_statusLabel->setText("推理中...");
-    m_statusLabel->setStyleSheet("color: #42A5F5; font-size: 12px; padding: 4px;");
+    setStatus("推理中...");
     m_runBtn->setEnabled(false);
     m_stopBtn->setEnabled(true);
     m_progressBar->setVisible(true);
     m_progressBar->setRange(0, 0);
 
-    emit inferenceRequested(model, QStringList());
+    emit inferenceRequested(modelPath, QStringList());
 }
 
 void InferencePanel::onModelChanged(int index) {
     Q_UNUSED(index);
     m_modelInfoList->clear();
 
-    QString model = m_modelCombo->currentText();
-    if (model.isEmpty()) return;
+    QString modelName = m_modelCombo->currentText();
+    if (modelName.isEmpty() || modelName == "未找到模型") {
+        m_modelPathLabel->setText("路径: -");
+        return;
+    }
+    
+    updateModelInfo(modelName);
+    emit modelSelected(currentModelPath());
+}
 
-    emit modelSelected(model);
+void InferencePanel::updateModelInfo(const QString& modelName) {
+    QString modelPath = ModelManager::instance()->getModelPathByName(modelName);
+    
+    // 更新路径显示
+    if (!modelPath.isEmpty()) {
+        m_modelPathLabel->setText(QString("路径: %1").arg(modelPath));
+    } else {
+        m_modelPathLabel->setText("路径: -");
+    }
 
-    m_modelInfoList->addItem(QString("模型: %1").arg(model));
+    m_modelInfoList->addItem(QString("模型: %1").arg(modelName));
+    
+    if (!modelPath.isEmpty()) {
+        QFileInfo fi(modelPath);
+        m_modelInfoList->addItem(QString("文件: %1").arg(fi.fileName()));
+        m_modelInfoList->addItem(QString("大小: %1 KB").arg(fi.size() / 1024));
+    }
+    
     m_modelInfoList->addItem("类型: 图像分类");
     m_modelInfoList->addItem("输入: 224x224 RGB");
-    m_modelInfoList->addItem("参数量: ~3.5M");
 }
 
 void InferencePanel::onBatchToggled(bool checked) {
     Q_UNUSED(checked);
+}
+
+void InferencePanel::onStopInference() {
+    setStatus("正在停止...");
+    emit stopInferenceRequested();
+    resetButtons();
+}
+
+void InferencePanel::resetButtons() {
+    m_runBtn->setEnabled(true);
+    m_stopBtn->setEnabled(false);
+    m_progressBar->setVisible(false);
+    setStatus("就绪");
+}
+
+void InferencePanel::onDefaultModelLoadFailed(const QString& error) {
+    setStatus(QString("错误: %1").arg(error), true);
+    QDV::Logger::error(QString("InferencePanel: %1").arg(error));
 }
 

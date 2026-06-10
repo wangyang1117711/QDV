@@ -4,13 +4,29 @@
 #include <QString>
 #include <QList>
 #include <QMap>
+#include <QDateTime>
+#include <QJsonArray>
+#include <QJsonObject>
 
 struct CategoryNode {
     QString   id;
     QString   name;
     QString   parentId;
+    QString   color       = "#CCCCCC";
+    QString   description;
     QList<CategoryNode> children;
     QStringList sampleImages;
+    bool      isPublic    = true;
+    int       depth       = 0;
+    QDateTime createdAt;
+    QDateTime modifiedAt;
+};
+
+struct ImportResult {
+    int     total       = 0;
+    int     imported    = 0;
+    int     skipped     = 0;
+    QStringList errors;
 };
 
 class CategoryManager : public QObject {
@@ -19,15 +35,42 @@ class CategoryManager : public QObject {
 public:
     static CategoryManager* instance();
 
-    QString createCategory(const QString& name, const QString& parentId = QString());
-    bool updateCategory(const QString& id, const QString& newName);
+    QString createCategory(const QString& name,
+                           const QString& parentId = QString(),
+                           const QString& color = "#CCCCCC",
+                           const QString& description = QString(),
+                           const QStringList& sampleImages = QStringList(),
+                           bool isPublic = true);
+    bool updateCategory(const QString& id,
+                        const QString& newName,
+                        const QString& newColor = QString(),
+                        const QString& newDescription = QString(),
+                        bool newIsPublic = true);
     bool deleteCategory(const QString& id);
     QList<CategoryNode> allCategories() const;
     QList<CategoryNode> searchCategories(const QString& keyword) const;
     CategoryNode categoryById(const QString& id) const;
     int categoryCount() const;
+    int categoryCountByParent(const QString& parentId) const;
+
+    bool hasSiblingWithName(const QString& name, const QString& parentId, const QString& excludeId = QString()) const;
+
     bool saveToFile(const QString& filePath);
     bool loadFromFile(const QString& filePath);
+
+    ImportResult importFromJSON(const QString& filePath);
+    ImportResult importFromCSV(const QString& filePath);
+    bool exportToJSON(const QString& filePath);
+    bool exportToCSV(const QString& filePath);
+
+    int loadPresetCategories(const QString& jsonFilePath);
+    bool isAccessible(const QString& categoryId) const;
+
+    static QString validateCategoryName(const QString& name, const QString& parentId = QString());
+    static QString validateCategoryColor(const QString& color);
+    static QString calculateNodeId(int nextId);
+
+    int maxDepth() const { return 2; }
 
 signals:
     void categoryCreated(const QString& id, const QString& name);
@@ -38,6 +81,11 @@ private:
     CategoryManager(QObject* parent = nullptr);
     QList<CategoryNode> flattenTree(const QList<CategoryNode>& nodes) const;
     CategoryNode* findNode(const QString& id, QList<CategoryNode>& nodes);
+    const CategoryNode* findNode(const QString& id, const QList<CategoryNode>& nodes) const;
+    int calculateDepth(const QString& id) const;
+    void rebuildChildren(QList<CategoryNode>& roots, const QList<CategoryNode>& all) const;
+    QList<CategoryNode> buildTree() const;
+
     QMap<QString, CategoryNode> m_categories;
     int m_nextId = 1;
     static CategoryManager* s_instance;

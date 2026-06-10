@@ -6,6 +6,7 @@
 #include <QList>
 #include <QPixmap>
 #include <QMap>
+#include <QSet>
 
 struct ImageEntry {
     QString filePath;
@@ -13,6 +14,7 @@ struct ImageEntry {
     QPixmap icon;
     bool isAnnotated = false;
     QString label;
+    bool isSelected = false;
 };
 
 class ImageManager : public QObject {
@@ -30,11 +32,27 @@ public:
     ImageEntry imageInfo(const QString& filePath) const;
     int imageCount() const;
     QStringList allPaths() const;
+    
+    // 选择相关功能
+    void setSelected(const QString& filePath, bool selected);
+    bool isSelected(const QString& filePath) const;
+    void setAllSelected(bool selected);
+    QStringList selectedPaths() const;
+    int selectedCount() const;
+    void toggleSelection(const QString& filePath);
+
+    // 标签相关功能
+    void setLabel(const QString& filePath, const QString& label);
+    QString getLabel(const QString& filePath) const;
+    bool hasLabel(const QString& filePath) const;
+    void clearLabel(const QString& filePath);
 
 signals:
     void imagesImported(int count);
     void imageRemoved(const QString& filePath);
     void imagesCleared();
+    void selectionChanged();
+    void labelChanged(const QString& filePath);
 
 private:
     ImageManager(QObject* parent = nullptr);

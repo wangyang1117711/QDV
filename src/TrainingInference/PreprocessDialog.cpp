@@ -7,8 +7,9 @@
 #include <QFormLayout>
 #include <QScrollArea>
 #include <QSplitter>
-
-namespace QDV {
+#include <QPushButton>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
 
 PreprocessDialog::PreprocessDialog(const QImage& image, QWidget* parent)
     : QDialog(parent), m_sourceImage(image)
@@ -275,5 +276,3 @@ PreprocessParams PreprocessDialog::currentParams() const {
 QImage PreprocessDialog::processedImage() const {
     return m_processedImage;
 }
-
-} // namespace QDV

@@ -6,7 +6,7 @@
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QLabel>
-
+#include <QWidget>
 
 
 CategoryPanel::CategoryPanel(QWidget* parent) : QWidget(parent) {
@@ -133,10 +133,76 @@ QTreeWidgetItem* CategoryPanel::createCategoryItem(const QString& name, const QS
     QTreeWidgetItem* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(m_tree);
     item->setText(0, name);
     item->setData(0, Qt::UserRole, id);
+    
+    // 创建自定义widget，包含类别名称和"加入类别"按钮
+    QWidget* widget = new QWidget();
+    QHBoxLayout* widgetLayout = new QHBoxLayout(widget);
+    widgetLayout->setContentsMargins(4, 2, 4, 2);
+    widgetLayout->setSpacing(8);
+    
+    QLabel* nameLabel = new QLabel(name);
+    nameLabel->setStyleSheet("color: #e0e0e0; font-size: 13px;");
+    nameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    widgetLayout->addWidget(nameLabel);
+    
+    QPushButton* addBtn = new QPushButton("加入");
+    addBtn->setProperty("categoryId", id);
+    addBtn->setProperty("categoryName", name);
+    addBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #660874;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #7d1a8f;
+        }
+        QPushButton:pressed {
+            background-color: #4d065a;
+        }
+        QPushButton:disabled {
+            background-color: #555;
+            color: #888;
+        }
+    )");
+    addBtn->setEnabled(false); // 默认禁用，等待有选择时启用
+    connect(addBtn, &QPushButton::clicked, this, &CategoryPanel::onAddToCategoryClicked);
+    widgetLayout->addWidget(addBtn);
+    
+    m_tree->setItemWidget(item, 0, widget);
+    
     return item;
 }
 
-void CategoryPanel::onAddCategory() {
+void CategoryPanel::updateAddToCategoryButtons(bool hasSelection) {
+    // 遍历所有项，更新"加入"按钮状态
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = m_tree->topLevelItem(i);
+        updateButtonForItem(item, hasSelection);
+        
+        // 递归更新子项
+        for (int j = 0; j < item->childCount(); ++j) {
+            updateButtonForItem(item->child(j), hasSelection);
+        }
+    }
+}
+
+void CategoryPanel::updateButtonForItem(QTreeWidgetItem* item, bool hasSelection) {
+    QWidget* widget = m_tree->itemWidget(item, 0);
+    if (!widget) return;
+    
+    QPushButton* btn = widget->findChild<QPushButton*>();
+    if (btn) {
+        btn->setEnabled(hasSelection);
+    }
+}
+
+void CategoryPanel::onAddCategory()
+{
     bool ok;
     QString name = QInputDialog::getText(this, "添加类别", "类别名称:", QLineEdit::Normal, "", &ok);
     if (!ok || name.trimmed().isEmpty()) return;
@@ -147,7 +213,17 @@ void CategoryPanel::onAddCategory() {
         parentId = current->data(0, Qt::UserRole).toString();
     }
 
-    CategoryManager::instance()->createCategory(name.trimmed(), parentId);
+    QString result = CategoryManager::instance()->createCategory(name.trimmed(), parentId);
+    if (result.isEmpty()) {
+        QString validationError = CategoryManager::validateCategoryName(name.trimmed());
+        if (!validationError.isEmpty()) {
+            QMessageBox::warning(this, "添加失败", validationError);
+        } else if (CategoryManager::instance()->hasSiblingWithName(name.trimmed(), parentId)) {
+            QMessageBox::warning(this, "添加失败", "同级下已存在相同名称的类别");
+        } else {
+            QMessageBox::warning(this, "添加失败", "无法创建类别，请检查输入或稍后重试");
+        }
+    }
 }
 
 void CategoryPanel::onEditCategory() {
@@ -160,7 +236,15 @@ void CategoryPanel::onEditCategory() {
                                          QLineEdit::Normal, current->text(0), &ok);
     if (!ok || name.trimmed().isEmpty()) return;
 
-    CategoryManager::instance()->updateCategory(id, name.trimmed());
+    bool success = CategoryManager::instance()->updateCategory(id, name.trimmed());
+    if (!success) {
+        QString validationError = CategoryManager::validateCategoryName(name.trimmed());
+        if (!validationError.isEmpty()) {
+            QMessageBox::warning(this, "编辑失败", validationError);
+        } else {
+            QMessageBox::warning(this, "编辑失败", "无法更新类别，请检查输入或稍后重试");
+        }
+    }
 }
 
 void CategoryPanel::onDeleteCategory() {
@@ -196,6 +280,15 @@ void CategoryPanel::onItemClicked(QTreeWidgetItem* item, int column) {
     if (item) {
         QString id = item->data(0, Qt::UserRole).toString();
         emit categorySelected(id, item->text(0));
+    }
+}
+
+void CategoryPanel::onAddToCategoryClicked() {
+    QPushButton* btn = qobject_cast<QPushButton*>(sender());
+    if (btn) {
+        QString categoryId = btn->property("categoryId").toString();
+        QString categoryName = btn->property("categoryName").toString();
+        emit addToCategoryRequested(categoryId, categoryName);
     }
 }
 

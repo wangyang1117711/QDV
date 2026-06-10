@@ -18,20 +18,30 @@ public:
     explicit InferencePanel(QWidget* parent = nullptr);
 
     void setModelList(const QStringList& models);
+    void refreshModelList();
     QString currentModel() const;
+    QString currentModelPath() const;
     bool isBatchMode() const;
+    void setStatus(const QString& text, bool isError = false);
 
 signals:
     void inferenceRequested(const QString& modelPath, const QStringList& imagePaths);
     void modelSelected(const QString& modelPath);
+    void stopInferenceRequested();
 
 private slots:
     void onRunInference();
+    void onStopInference();
     void onModelChanged(int index);
     void onBatchToggled(bool checked);
+    void onDefaultModelLoadFailed(const QString& error);
+
+public:
+    void resetButtons();
 
 private:
     void setupUI();
+    void updateModelInfo(const QString& modelName);
 
     QComboBox* m_modelCombo;
     QPushButton* m_runBtn;
@@ -40,6 +50,7 @@ private:
     QLabel* m_statusLabel;
     QListWidget* m_modelInfoList;
     QCheckBox* m_batchCheckBox;
+    QLabel* m_modelPathLabel;
 };
 
 
