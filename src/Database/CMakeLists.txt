@@ -2,10 +2,12 @@
 
 set(DATABASE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Database/ResultDatabase.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Database/DatabaseIntegrator.h
 )
 
 set(DATABASE_SOURCES
     ResultDatabase.cpp
+    DatabaseIntegrator.cpp
 )
 
 add_library(Database STATIC
@@ -15,6 +17,7 @@ add_library(Database STATIC
 
 target_include_directories(Database PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/Database>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -24,7 +27,7 @@ target_link_libraries(Database PUBLIC
     Qt6::Sql
 )
 
-target_compile_features(Database PUBLIC cxx_std_20)
+target_compile_features(Database PUBLIC cxx_std_17)
 
 install(TARGETS Database
     EXPORT QDVTargets

@@ -1,5 +1,8 @@
 #include "ResultDatabase.h"
-#include "Logger.h"
+#include "Core/Logger.h"
+#include <QSqlError>
+
+using namespace QDV;
 
 ResultDatabase* ResultDatabase::s_instance = nullptr;
 
