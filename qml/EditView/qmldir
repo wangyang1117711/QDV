@@ -1,0 +1,15 @@
+# QDV EditView QML module (v3.1.0)
+# 模块 URI：QDV.EditView（C++ 端 qmlRegister* 注册时使用
+# 静态库场景下同时依赖 C++ 端 qmlRegisterSingletonType/qmlRegisterType
+# 和 qmldir 双重机制确保 QML 引擎能找到模块
+module QDV.EditView
+singleton DesignTokens 3.0 DesignTokens.qml
+Main 1.0 Main.qml
+ParamForm 1.0 ParamForm.qml
+PropertyPreviewPanel 1.0 PropertyPreviewPanel.qml
+OperatorEditorDialog 1.0 OperatorEditorDialog.qml
+ROISelector 1.0 ROISelector.qml
+FloatingPanel 1.0 FloatingPanel.qml
+ImagePreviewWindow 1.0 ImagePreviewWindow.qml
+AnnotateOverlay 1.0 AnnotateOverlay.qml
+ResultTable 1.0 ResultTable.qml

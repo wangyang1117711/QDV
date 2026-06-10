@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/qml/EditView">
+        <file alias="DesignTokens.qml">EditView/DesignTokens.qml</file>
+        <file alias="qmldir">EditView/qmldir</file>
+        <file alias="Main.qml">EditView/Main.qml</file>
+        <file alias="ParamForm.qml">EditView/ParamForm.qml</file>
+        <file alias="PropertyPreviewPanel.qml">EditView/PropertyPreviewPanel.qml</file>
+        <file alias="OperatorEditorDialog.qml">EditView/OperatorEditorDialog.qml</file>
+        <file alias="ROISelector.qml">EditView/ROISelector.qml</file>
+        <!-- v3.1.0 新增组件 -->
+        <file alias="FloatingPanel.qml">EditView/FloatingPanel.qml</file>
+        <file alias="ImagePreviewWindow.qml">EditView/ImagePreviewWindow.qml</file>
+        <file alias="AnnotateOverlay.qml">EditView/AnnotateOverlay.qml</file>
+        <file alias="ResultTable.qml">EditView/ResultTable.qml</file>
+    </qresource>
+</RCC>
