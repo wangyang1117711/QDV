@@ -1,5 +1,7 @@
 #include "SerialCommunicator.h"
-#include "Logger.h"
+#include "Core/Logger.h"
+
+using namespace QDV;
 
 SerialCommunicator::SerialCommunicator(QObject* parent) : QObject(parent) {}
 

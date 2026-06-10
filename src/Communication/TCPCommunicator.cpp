@@ -7,7 +7,7 @@ TCPCommunicator::TCPCommunicator(QObject* parent) : QObject(parent) {
     connect(m_socket, &QTcpSocket::connected, this, &TCPCommunicator::onConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &TCPCommunicator::onDisconnected);
     connect(m_socket, &QTcpSocket::readyRead, this, &TCPCommunicator::onReadyRead);
-    connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error), 
+    connect(m_socket, &QAbstractSocket::errorOccurred, 
             this, &TCPCommunicator::onError);
 }
 
@@ -54,7 +54,19 @@ void TCPCommunicator::onDisconnected() {
 }
 
 void TCPCommunicator::onReadyRead() {
+    qint64 available = m_socket->bytesAvailable();
+    if (m_readBuffer.size() + available > m_maxBufferSize) {
+        emit bufferOverflow(m_readBuffer.size() + available, m_maxBufferSize);
+        emit errorOccurred(QString("接收缓冲区溢出: %1 > %2 字节")
+            .arg(m_readBuffer.size() + available)
+            .arg(m_maxBufferSize));
+        m_readBuffer.clear();
+        m_socket->disconnectFromHost();
+        return;
+    }
+    
     QByteArray data = m_socket->readAll();
+    m_readBuffer.append(data);
     emit dataReceived(data);
 }
 

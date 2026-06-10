@@ -19,12 +19,15 @@ public:
     bool sendJson(const QJsonObject& obj);
     
     bool isConnected() const { return m_socket->state() == QTcpSocket::ConnectedState; }
+    void setMaxBufferSize(qint64 maxSize) { m_maxBufferSize = maxSize; }
+    qint64 maxBufferSize() const { return m_maxBufferSize; }
     
 signals:
     void connected();
     void disconnected();
     void dataReceived(const QByteArray& data);
     void errorOccurred(const QString& error);
+    void bufferOverflow(qint64 receivedSize, qint64 maxSize);
     
 private slots:
     void onConnected();
@@ -34,6 +37,8 @@ private slots:
     
 private:
     QTcpSocket* m_socket;
+    qint64 m_maxBufferSize = 10 * 1024 * 1024;
+    QByteArray m_readBuffer;
 };
 
 #endif // TCPCOMMUNICATOR_H

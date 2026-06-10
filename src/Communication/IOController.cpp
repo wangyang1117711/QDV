@@ -1,5 +1,7 @@
 #include "IOController.h"
-#include "Logger.h"
+#include "Core/Logger.h"
+
+using namespace QDV;
 
 IOController::IOController(QObject* parent) : QObject(parent) {}
 

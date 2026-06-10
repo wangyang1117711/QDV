@@ -19,6 +19,7 @@ add_library(Communication STATIC
 
 target_include_directories(Communication PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/Communication>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -28,7 +29,7 @@ target_link_libraries(Communication PUBLIC
     Qt6::Network
 )
 
-target_compile_features(Communication PUBLIC cxx_std_20)
+target_compile_features(Communication PUBLIC cxx_std_17)
 
 install(TARGETS Communication
     EXPORT QDVTargets
