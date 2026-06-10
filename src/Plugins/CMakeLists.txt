@@ -16,6 +16,7 @@ add_library(Plugins STATIC
 
 target_include_directories(Plugins PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/Plugins>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -24,7 +25,7 @@ target_link_libraries(Plugins PUBLIC
     Qt6::Core
 )
 
-target_compile_features(Plugins PUBLIC cxx_std_20)
+target_compile_features(Plugins PUBLIC cxx_std_17)
 
 install(TARGETS Plugins
     EXPORT QDVTargets

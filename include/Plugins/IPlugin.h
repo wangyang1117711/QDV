@@ -1,8 +1,10 @@
 #ifndef IPLUGIN_H
 #define IPLUGIN_H
 
+#include <opencv2/core/mat.hpp>
 #include <QString>
-#include <QWidget>
+
+class QWidget;
 
 class Scheme;
 class ToolResult;
