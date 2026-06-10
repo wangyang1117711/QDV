@@ -1,4 +1,7 @@
 #include "ImageArithmeticTool.h"
+#include <opencv2/core.hpp>
+
+using namespace QDV;
 
 bool ImageArithmeticTool::configure(const QJsonObject& params) {
     if (!params.contains("operation")) {
@@ -78,7 +81,7 @@ bool ImageArithmeticTool::execute(const cv::Mat& input, ToolResult& result) {
     result.overlayImage = output;
     result.ok = !output.empty();
     result.score = result.ok ? 1.0 : 0.0;
-    result.data["operation"] = m_operation.c_str();
+    result.data["operation"] = m_operation;
 
     return result.ok;
 }
@@ -94,11 +97,12 @@ QJsonObject ImageArithmeticTool::serialize() const {
     return obj;
 }
 
-void ImageArithmeticTool::deserialize(const QJsonObject& data) {
+bool ImageArithmeticTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_operation = data["operation"].toString("add");
     if (data.contains("scalar")) {
         m_useScalar = true;
         m_scalar = data["scalar"].toDouble();
     }
+    return true;
 }

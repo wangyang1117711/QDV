@@ -1,4 +1,8 @@
 #include "LineCircleDetectTool.h"
+#include <opencv2/imgproc.hpp>
+#include <QJsonArray>
+
+using namespace QDV;
 
 bool LineCircleDetectTool::configure(const QJsonObject& params) {
     if (!params.contains("detectType")) {
@@ -99,7 +103,7 @@ bool LineCircleDetectTool::execute(const cv::Mat& input, ToolResult& result) {
 
     result.data["features"] = features;
     result.data["count"] = features.size();
-    result.data["detectType"] = m_detectType.c_str();
+    result.data["detectType"] = m_detectType;
     result.score = static_cast<double>(features.size());
     result.ok = (features.size() > 0);
 
@@ -121,7 +125,7 @@ QJsonObject LineCircleDetectTool::serialize() const {
     return obj;
 }
 
-void LineCircleDetectTool::deserialize(const QJsonObject& data) {
+bool LineCircleDetectTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_detectType = data["detectType"].toString("line");
     m_rho = data["rho"].toDouble(1.0);
@@ -131,4 +135,5 @@ void LineCircleDetectTool::deserialize(const QJsonObject& data) {
     m_maxLineGap = data["maxLineGap"].toDouble(10.0);
     m_minRadius = data["minRadius"].toDouble(20.0);
     m_maxRadius = data["maxRadius"].toDouble(200.0);
+    return true;
 }

@@ -3,7 +3,7 @@
 
 #include "VisionTool.h"
 
-class ColorDetectTool : public VisionTool {
+class ColorDetectTool : public QDV::VisionTool {
 public:
     ColorDetectTool();
     
@@ -12,7 +12,7 @@ public:
     bool configure(const QJsonObject& params) override;
     bool execute(const cv::Mat& input, ToolResult& result) override;
     QJsonObject serialize() const override;
-    void deserialize(const QJsonObject& data) override;
+    bool deserialize(const QJsonObject& data) override;
     
 private:
     int m_hMin = 0;

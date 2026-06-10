@@ -1,5 +1,9 @@
 #include "BlobDetectTool.h"
 #include <opencv2/features2d.hpp>
+#include <QJsonArray>
+#include <opencv2/imgproc.hpp>
+
+using namespace QDV;
 
 BlobDetectTool::BlobDetectTool() {
     m_name = "斑块检测";
@@ -63,7 +67,7 @@ bool BlobDetectTool::execute(const cv::Mat& input, ToolResult& result) {
         blobsArray.append(blobObj);
     }
     result.data["blobs"] = blobsArray;
-    result.data["count"] = keypoints.size();
+    result.data["count"] = static_cast<int>(keypoints.size());
     
     return true;
 }
@@ -80,11 +84,12 @@ QJsonObject BlobDetectTool::serialize() const {
     return obj;
 }
 
-void BlobDetectTool::deserialize(const QJsonObject& data) {
+bool BlobDetectTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_minArea = data["minArea"].toDouble();
     m_maxArea = data["maxArea"].toDouble();
     m_minCircularity = data["minCircularity"].toDouble();
     m_maxCircularity = data["maxCircularity"].toDouble();
+    return true;
 }

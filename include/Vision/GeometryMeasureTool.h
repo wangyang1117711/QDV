@@ -3,7 +3,7 @@
 
 #include "VisionTool.h"
 
-class GeometryMeasureTool : public VisionTool {
+class GeometryMeasureTool : public QDV::VisionTool {
 public:
     GeometryMeasureTool() = default;
     ~GeometryMeasureTool() override = default;
@@ -12,7 +12,7 @@ public:
     bool configure(const QJsonObject& params) override;
     bool execute(const cv::Mat& input, ToolResult& result) override;
     QJsonObject serialize() const override;
-    void deserialize(const QJsonObject& data) override;
+    bool deserialize(const QJsonObject& data) override;
 
 private:
     QString m_measureType = "distance";

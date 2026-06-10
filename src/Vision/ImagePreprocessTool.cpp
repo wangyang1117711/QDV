@@ -1,6 +1,8 @@
 #include "ImagePreprocessTool.h"
 #include <opencv2/imgproc.hpp>
 
+using namespace QDV;
+
 ImagePreprocessTool::ImagePreprocessTool() {
     m_name = "图像预处理";
 }
@@ -67,10 +69,11 @@ QJsonObject ImagePreprocessTool::serialize() const {
     return obj;
 }
 
-void ImagePreprocessTool::deserialize(const QJsonObject& data) {
+bool ImagePreprocessTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_denoise = data["denoise"].toBool();
     m_morphology = data["morphology"].toString();
     m_kernelSize = data["kernelSize"].toInt();
+    return true;
 }

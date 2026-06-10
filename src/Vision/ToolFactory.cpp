@@ -12,6 +12,10 @@
 #include "ImageArithmeticTool.h"
 #include "ImageTransformTool.h"
 #include "ImageMergeTool.h"
+#include "AiClassifyTool.h"
+#include "ReadImageTool.h"
+
+using namespace QDV;
 
 ToolFactory* ToolFactory::s_instance = nullptr;
 
@@ -29,6 +33,8 @@ ToolFactory::ToolFactory() {
     registerTool("ImageArithmetic", []() { return new ImageArithmeticTool(); });
     registerTool("ImageTransform", []() { return new ImageTransformTool(); });
     registerTool("ImageMerge", []() { return new ImageMergeTool(); });
+    registerTool("AiClassify", []() { return new AiClassifyTool(); });
+    registerTool("ReadImage", []() { return new ReadImageTool(); });
 }
 
 ToolFactory* ToolFactory::instance() {
@@ -38,14 +44,14 @@ ToolFactory* ToolFactory::instance() {
     return s_instance;
 }
 
-void ToolFactory::registerTool(const QString& type, std::function<VisionTool*()> creator) {
+void ToolFactory::registerTool(const QString& type, std::function<QDV::VisionTool*()> creator) {
     m_creators[type] = creator;
 }
 
-VisionTool* ToolFactory::createTool(const QString& type) {
+QDV::VisionTool* ToolFactory::createTool(const QString& type) {
     auto it = m_creators.find(type);
     if (it != m_creators.end()) {
-        return it->second();
+        return it.value()();
     }
     return nullptr;
 }

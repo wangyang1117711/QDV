@@ -4,7 +4,7 @@
 #include "VisionTool.h"
 #include "BranchNode.h"
 
-class BranchControlTool : public VisionTool {
+class BranchControlTool : public QDV::VisionTool {
 public:
     BranchControlTool() = default;
     ~BranchControlTool() override = default;
@@ -13,7 +13,7 @@ public:
     bool configure(const QJsonObject& params) override;
     bool execute(const cv::Mat& input, ToolResult& result) override;
     QJsonObject serialize() const override;
-    void deserialize(const QJsonObject& data) override;
+    bool deserialize(const QJsonObject& data) override;
 
     void setBranchNode(BranchNode* node);
     BranchNode* branchNode() const { return m_branchNode; }

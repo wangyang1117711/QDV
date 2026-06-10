@@ -1,4 +1,7 @@
 #include "ImageTransformTool.h"
+#include <opencv2/imgproc.hpp>
+
+using namespace QDV;
 
 bool ImageTransformTool::configure(const QJsonObject& params) {
     if (!params.contains("transformType")) {
@@ -74,7 +77,7 @@ bool ImageTransformTool::execute(const cv::Mat& input, ToolResult& result) {
     result.overlayImage = output;
     result.ok = !output.empty();
     result.score = result.ok ? 1.0 : 0.0;
-    result.data["transformType"] = m_transformType.c_str();
+    result.data["transformType"] = m_transformType;
     result.data["outputWidth"] = output.cols;
     result.data["outputHeight"] = output.rows;
 
@@ -95,7 +98,7 @@ QJsonObject ImageTransformTool::serialize() const {
     return obj;
 }
 
-void ImageTransformTool::deserialize(const QJsonObject& data) {
+bool ImageTransformTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_transformType = data["transformType"].toString("resize");
     m_angle = data["angle"].toDouble(0.0);
@@ -104,4 +107,5 @@ void ImageTransformTool::deserialize(const QJsonObject& data) {
     m_flipCode = data["flipCode"].toInt(0);
     m_targetWidth = data["targetWidth"].toInt(100);
     m_targetHeight = data["targetHeight"].toInt(100);
+    return true;
 }

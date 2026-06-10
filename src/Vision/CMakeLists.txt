@@ -16,6 +16,8 @@ set(VISION_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ImageArithmeticTool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ImageTransformTool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ImageMergeTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/AiClassifyTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ReadImageTool.h
 )
 
 set(VISION_SOURCES
@@ -34,6 +36,8 @@ set(VISION_SOURCES
     ImageArithmeticTool.cpp
     ImageTransformTool.cpp
     ImageMergeTool.cpp
+    AiClassifyTool.cpp
+    ReadImageTool.cpp
 )
 
 add_library(Vision STATIC
@@ -43,15 +47,17 @@ add_library(Vision STATIC
 
 target_include_directories(Vision PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision>
     $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(Vision PUBLIC
     Core
+    AI
     ${OpenCV_LIBS}
 )
 
-target_compile_features(Vision PUBLIC cxx_std_20)
+target_compile_features(Vision PUBLIC cxx_std_17)
 
 install(TARGETS Vision
     EXPORT QDVTargets

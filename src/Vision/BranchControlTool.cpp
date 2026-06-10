@@ -1,6 +1,8 @@
 #include "BranchControlTool.h"
 #include "BranchNode.h"
 
+using namespace QDV;
+
 bool BranchControlTool::configure(const QJsonObject& params) {
     if (params.isEmpty()) {
         return false;
@@ -36,13 +38,14 @@ QJsonObject BranchControlTool::serialize() const {
     return obj;
 }
 
-void BranchControlTool::deserialize(const QJsonObject& data) {
+bool BranchControlTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     if (m_branchNode) {
         delete m_branchNode;
     }
     m_branchNode = new BranchNode();
     m_branchNode->deserialize(data);
+    return true;
 }
 
 void BranchControlTool::setBranchNode(BranchNode* node) {

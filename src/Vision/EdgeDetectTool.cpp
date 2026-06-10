@@ -1,6 +1,8 @@
 #include "EdgeDetectTool.h"
 #include <opencv2/imgproc.hpp>
 
+using namespace QDV;
+
 EdgeDetectTool::EdgeDetectTool() {
     m_name = "边缘检测";
 }
@@ -59,10 +61,11 @@ QJsonObject EdgeDetectTool::serialize() const {
     return obj;
 }
 
-void EdgeDetectTool::deserialize(const QJsonObject& data) {
+bool EdgeDetectTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_lowThreshold = data["lowThreshold"].toInt();
     m_highThreshold = data["highThreshold"].toInt();
     m_apertureSize = data["apertureSize"].toInt();
+    return true;
 }

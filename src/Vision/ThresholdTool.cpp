@@ -1,6 +1,8 @@
 #include "ThresholdTool.h"
 #include <opencv2/imgproc.hpp>
 
+using namespace QDV;
+
 ThresholdTool::ThresholdTool() {
     m_name = "阈值分割";
 }
@@ -73,10 +75,11 @@ QJsonObject ThresholdTool::serialize() const {
     return obj;
 }
 
-void ThresholdTool::deserialize(const QJsonObject& data) {
+bool ThresholdTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_threshold = data["threshold"].toDouble();
     m_maxValue = data["maxValue"].toDouble();
     m_method = data["method"].toString();
+    return true;
 }

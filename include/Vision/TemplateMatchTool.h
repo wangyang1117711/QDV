@@ -4,7 +4,7 @@
 #include "VisionTool.h"
 #include <QFile>
 
-class TemplateMatchTool : public VisionTool {
+class TemplateMatchTool : public QDV::VisionTool {
 public:
     TemplateMatchTool();
     
@@ -13,7 +13,7 @@ public:
     bool configure(const QJsonObject& params) override;
     bool execute(const cv::Mat& input, ToolResult& result) override;
     QJsonObject serialize() const override;
-    void deserialize(const QJsonObject& data) override;
+    bool deserialize(const QJsonObject& data) override;
     
     bool validateTemplatePath(const QString& path);
     bool loadTemplate();

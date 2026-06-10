@@ -1,5 +1,8 @@
 #include "ContourAnalyzeTool.h"
 #include <opencv2/imgproc.hpp>
+#include <QJsonArray>
+
+using namespace QDV;
 
 ContourAnalyzeTool::ContourAnalyzeTool() {
     m_name = "轮廓分析";
@@ -59,7 +62,7 @@ bool ContourAnalyzeTool::execute(const cv::Mat& input, ToolResult& result) {
         contoursArray.append(contourObj);
     }
     result.data["contours"] = contoursArray;
-    result.data["count"] = filteredContours.size();
+    result.data["count"] = static_cast<int>(filteredContours.size());
     
     return true;
 }
@@ -75,10 +78,11 @@ QJsonObject ContourAnalyzeTool::serialize() const {
     return obj;
 }
 
-void ContourAnalyzeTool::deserialize(const QJsonObject& data) {
+bool ContourAnalyzeTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_minArea = data["minArea"].toDouble();
     m_maxArea = data["maxArea"].toDouble();
     m_filterByArea = data["filterByArea"].toBool();
+    return true;
 }

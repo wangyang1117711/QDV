@@ -1,5 +1,8 @@
 #include "GeometryMeasureTool.h"
+#include <opencv2/imgproc.hpp>
 #include <cmath>
+
+using namespace QDV;
 
 bool GeometryMeasureTool::configure(const QJsonObject& params) {
     if (!params.contains("measureType")) {
@@ -87,7 +90,7 @@ bool GeometryMeasureTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["center_y"] = center.y;
     }
 
-    result.data["measureType"] = m_measureType.c_str();
+    result.data["measureType"] = m_measureType;
     result.data["contour_count"] = static_cast<int>(contours.size());
     result.score = value;
     result.ok = (value >= m_minThreshold && value <= m_maxThreshold);
@@ -183,10 +186,11 @@ QJsonObject GeometryMeasureTool::serialize() const {
     return obj;
 }
 
-void GeometryMeasureTool::deserialize(const QJsonObject& data) {
+bool GeometryMeasureTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_measureType = data["measureType"].toString();
     m_minThreshold = data["minThreshold"].toDouble(0.0);
     m_maxThreshold = data["maxThreshold"].toDouble(1000.0);
     m_pixelScale = data["pixelScale"].toDouble(1.0);
+    return true;
 }

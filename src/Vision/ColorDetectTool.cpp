@@ -1,6 +1,8 @@
 #include "ColorDetectTool.h"
 #include <opencv2/imgproc.hpp>
 
+using namespace QDV;
+
 ColorDetectTool::ColorDetectTool() {
     m_name = "颜色识别";
 }
@@ -67,7 +69,7 @@ QJsonObject ColorDetectTool::serialize() const {
     return obj;
 }
 
-void ColorDetectTool::deserialize(const QJsonObject& data) {
+bool ColorDetectTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_hMin = data["hMin"].toInt();
@@ -76,4 +78,5 @@ void ColorDetectTool::deserialize(const QJsonObject& data) {
     m_sMax = data["sMax"].toInt();
     m_vMin = data["vMin"].toInt();
     m_vMax = data["vMax"].toInt();
+    return true;
 }

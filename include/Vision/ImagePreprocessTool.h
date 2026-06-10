@@ -3,7 +3,7 @@
 
 #include "VisionTool.h"
 
-class ImagePreprocessTool : public VisionTool {
+class ImagePreprocessTool : public QDV::VisionTool {
 public:
     ImagePreprocessTool();
     
@@ -12,7 +12,7 @@ public:
     bool configure(const QJsonObject& params) override;
     bool execute(const cv::Mat& input, ToolResult& result) override;
     QJsonObject serialize() const override;
-    void deserialize(const QJsonObject& data) override;
+    bool deserialize(const QJsonObject& data) override;
     
 private:
     bool m_denoise = false;

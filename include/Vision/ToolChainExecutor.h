@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QThread>
 #include <QMutex>
+#include <QFuture>
+#include <atomic>
 #include "VisionTool.h"
 #include "BranchNode.h"
 
@@ -15,10 +17,11 @@ class ToolChainExecutor : public QObject {
 public:
     explicit ToolChainExecutor(QObject* parent = nullptr);
     
-    void setTools(const QList<VisionTool*>& tools);
+    void setTools(const QList<QDV::VisionTool*>& tools);
     void setBranches(const QMap<QString, BranchNode*>& branches);
     
     bool execute(const cv::Mat& input);
+    QFuture<bool> executeAsync(const cv::Mat& input);
     void stop();
     
     QMap<QString, ToolResult> getResults() const { return m_results; }
@@ -30,15 +33,16 @@ signals:
     void executionProgress(int current, int total);
     
 private:
-    QList<VisionTool*> m_tools;
+    // NON-OWNING: tools are owned by Scheme. Do not delete.
+    QList<QDV::VisionTool*> m_tools;
     QMap<QString, BranchNode*> m_branches;
     QMap<QString, ToolResult> m_results;
-    bool m_running = false;
-    QMutex m_mutex;
+    std::atomic<bool> m_running{false};
+    mutable QMutex m_mutex;
     
-    bool executeTool(VisionTool* tool, const cv::Mat& input, ToolResult& result);
+    bool executeTool(QDV::VisionTool* tool, const cv::Mat& input, ToolResult& result);
     bool evaluateBranch(const BranchNode* branch);
-    QList<QString> getNextToolIds(VisionTool* currentTool);
+    QList<QString> getNextToolIds(QDV::VisionTool* currentTool);
 };
 
 #endif // TOOLCHAINEXECUTOR_H

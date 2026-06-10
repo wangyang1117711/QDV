@@ -1,4 +1,7 @@
 #include "ImageMergeTool.h"
+#include <opencv2/imgproc.hpp>
+
+using namespace QDV;
 
 bool ImageMergeTool::configure(const QJsonObject& params) {
     if (!params.contains("mergeType")) {
@@ -61,7 +64,7 @@ bool ImageMergeTool::execute(const cv::Mat& input, ToolResult& result) {
     result.overlayImage = output;
     result.ok = !output.empty();
     result.score = result.ok ? 1.0 : 0.0;
-    result.data["mergeType"] = m_mergeType.c_str();
+    result.data["mergeType"] = m_mergeType;
 
     return result.ok;
 }
@@ -74,7 +77,8 @@ QJsonObject ImageMergeTool::serialize() const {
     return obj;
 }
 
-void ImageMergeTool::deserialize(const QJsonObject& data) {
+bool ImageMergeTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_mergeType = data["mergeType"].toString("horizontal");
+    return true;
 }

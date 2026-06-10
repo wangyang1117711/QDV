@@ -1,7 +1,9 @@
 #include "TemplateMatchTool.h"
-#include "Logger.h"
+#include "Core/Logger.h"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+
+using namespace QDV;
 
 TemplateMatchTool::TemplateMatchTool() {
     m_name = "模板匹配";
@@ -179,7 +181,7 @@ QJsonObject TemplateMatchTool::serialize() const {
     return obj;
 }
 
-void TemplateMatchTool::deserialize(const QJsonObject& data) {
+bool TemplateMatchTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_name = data["name"].toString();
     m_templatePath = data["template"].toString();
@@ -189,4 +191,5 @@ void TemplateMatchTool::deserialize(const QJsonObject& data) {
     if (!m_templatePath.isEmpty()) {
         loadTemplate();
     }
+    return true;
 }
