@@ -3,15 +3,18 @@
 #include <QObject>
 #include <QString>
 #include <QMutex>
+#include <QMutexLocker>
 #include <QFile>
+#include <QFileInfo>
 #include <QTextStream>
 #include <QDateTime>
 #include <QDir>
+#include <QTimer>
+#include <QStringList>
 
 namespace QDV {
 
-class Logger : public QObject
-{
+class Logger : public QObject {
     Q_OBJECT
 
 public:
@@ -25,11 +28,9 @@ public:
     };
 
     static Logger* instance() {
+        QMutexLocker locker(&s_instanceMutex);
         if (!s_instance) {
-            QMutexLocker locker(&s_mutex);
-            if (!s_instance) {
-                s_instance = new Logger();
-            }
+            s_instance = new Logger();
         }
         return s_instance;
     }
@@ -46,42 +47,158 @@ public:
         }
 
         QString logMsg = QString("%1 %2 %3").arg(
-            QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"),
+            QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz"),
             levelStr,
             message
         );
 
-        // 输出到控制台
-        qDebug() << logMsg;
+        qDebug().noquote() << logMsg;
 
-        // 写入文件
-        writeToFile(logMsg);
+        QMutexLocker locker(&m_bufferMutex);
+        m_buffer.append(logMsg);
+
+        locker.unlock();
+        flushBuffer();
     }
 
-    static void trace(const QString& message) { instance()->log(Trace, message); }
-    static void debug(const QString& message) { instance()->log(Debug, message); }
-    static void info(const QString& message) { instance()->log(Info, message); }
-    static void warn(const QString& message) { instance()->log(Warn, message); }
-    static void error(const QString& message) { instance()->log(Error, message); }
-    static void critical(const QString& message) { instance()->log(Critical, message); }
+    static void trace(const QString& message)   { instance()->log(Trace, message); }
+    static void debug(const QString& message)   { instance()->log(Debug, message); }
+    static void info(const QString& message)    { instance()->log(Info, message); }
+    static void warn(const QString& message)    { instance()->log(Warn, message); }
+    static void error(const QString& message)   { instance()->log(Error, message); }
+    static void critical(const QString& message){ instance()->log(Critical, message); }
+
+    static void shutdown() {
+        if (s_instance) {
+            s_instance->flushBuffer();
+            s_instance->closeFile();
+        }
+    }
 
 private:
     Logger() {
         QDir().mkdir("logs");
-        m_logFile.setFileName("logs/" + QDateTime::currentDateTime().toString("yyyyMMdd") + ".log");
+
+        m_flushTimer = new QTimer(this);
+        m_flushTimer->setInterval(100);
+        connect(m_flushTimer, &QTimer::timeout, this, &Logger::flushBuffer);
+        m_flushTimer->start();
+
+        openLogFile();
+        cleanupOldLogs();
     }
 
-    void writeToFile(const QString& message) {
-        if (m_logFile.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&m_logFile);
-            out << message << "\n";
-            m_logFile.close();
+    ~Logger() {
+        m_flushTimer->stop();
+        flushBuffer();
+        closeFile();
+    }
+
+    void openLogFile() {
+        QMutexLocker locker(&m_fileMutex);
+        closeFile();
+
+        m_currentDate = QDateTime::currentDateTime().toString("yyyyMMdd");
+        m_logFile.setFileName("logs/" + m_currentDate + ".log");
+
+        if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            m_fileOpened = true;
         }
     }
 
-    static Logger* s_instance;
-    static QMutex s_mutex;
+    void closeFile() {
+        if (m_fileOpened) {
+            m_logFile.close();
+            m_fileOpened = false;
+        }
+    }
+
+    void flushBuffer() {
+        QStringList toFlush;
+        {
+            QMutexLocker locker(&m_bufferMutex);
+            if (m_buffer.isEmpty()) {
+                return;
+            }
+            toFlush = m_buffer;
+            m_buffer.clear();
+        }
+
+        QMutexLocker fileLocker(&m_fileMutex);
+
+        QString today = QDateTime::currentDateTime().toString("yyyyMMdd");
+        if (today != m_currentDate) {
+            closeFile();
+            m_currentDate = today;
+            m_logFile.setFileName("logs/" + m_currentDate + ".log");
+            if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                m_fileOpened = true;
+            }
+        }
+
+        if (!m_fileOpened) {
+            if (!m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                return;
+            }
+            m_fileOpened = true;
+        }
+
+        QTextStream out(&m_logFile);
+        for (const QString& line : toFlush) {
+            out << line << "\n";
+        }
+        out.flush();
+
+        rotateIfNeeded();
+    }
+
+    void rotateIfNeeded() {
+        if (m_logFile.size() < MAX_FILE_SIZE) return;
+
+        closeFile();
+        QString datePrefix = m_currentDate;
+        int suffix = 1;
+        QString rotatedPath;
+        do {
+            rotatedPath = QString("logs/%1_%2.log").arg(datePrefix).arg(suffix);
+            ++suffix;
+        } while (QFileInfo::exists(rotatedPath));
+
+        QFile::rename("logs/" + datePrefix + ".log", rotatedPath);
+
+        m_currentDate = QDateTime::currentDateTime().toString("yyyyMMdd");
+        m_logFile.setFileName("logs/" + m_currentDate + ".log");
+        if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            m_fileOpened = true;
+        }
+    }
+
+    void cleanupOldLogs() {
+        QDir dir("logs");
+        QStringList logFiles = dir.entryList({"*.log"}, QDir::Files);
+        QDateTime cutoff = QDateTime::currentDateTime().addDays(-7);
+
+        for (const QString& file : logFiles) {
+            QFileInfo info(dir.absoluteFilePath(file));
+            if (info.lastModified() < cutoff) {
+                QFile::remove(info.absoluteFilePath());
+            }
+        }
+    }
+
+    static constexpr int BUFFER_FLUSH_SIZE = 256;
+    static constexpr qint64 MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+    QStringList m_buffer;
+    QMutex m_bufferMutex;
+    QMutex m_fileMutex;
     QFile m_logFile;
+    bool m_fileOpened = false;
+    QString m_currentDate;
+    QTimer* m_flushTimer = nullptr;
+
+    static Logger* s_instance;
+    static QMutex s_instanceMutex;
 };
 
 } // namespace QDV

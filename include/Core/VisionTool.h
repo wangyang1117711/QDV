@@ -33,7 +33,9 @@ public:
         ImageArithmetic,
         ImageTransform,
         ImageMerge,
-        BranchControl
+        BranchControl,
+        AiClassify,
+        ReadImage
     };
 
     VisionTool() : m_id(QUuid::createUuid().toString()) {}

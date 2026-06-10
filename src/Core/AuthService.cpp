@@ -4,10 +4,12 @@
 #include <QRandomGenerator>
 #include <QSettings>
 #include <QMessageAuthenticationCode>
+#include <QThread>
+#include <QSysInfo>
 
 using namespace QDV;
 
-AuthService* AuthService::s_instance = nullptr;
+static const QByteArray kAppSecretSeed = QByteArray("QDV_SecureStorage_2026_v1");
 
 AuthService::AuthService(QObject* parent) : QObject(parent) {
     QSettings settings("奇测科技", "QDetectVision");
@@ -45,10 +47,8 @@ void AuthService::saveUsers() {
 }
 
 AuthService* AuthService::instance() {
-    if (!s_instance) {
-        s_instance = new AuthService();
-    }
-    return s_instance;
+    static AuthService instance;
+    return &instance;
 }
 
 QByteArray AuthService::generateSalt() {
@@ -78,11 +78,9 @@ QString AuthService::hashPassword(const QString& password, const QByteArray& sal
 
 bool AuthService::verifyPassword(const QString& password, const QString& storedValue) {
     QStringList parts = storedValue.split(':');
-    if (parts.size() == 1) {
-        QByteArray legacyHash = QCryptographicHash::hash(
-            password.toUtf8(), QCryptographicHash::Sha256
-        );
-        return legacyHash.toHex() == parts[0];
+    if (parts.size() != 2) {
+        Logger::warn("Invalid stored password format, rejecting");
+        return false;
     }
 
     QByteArray salt = QByteArray::fromHex(parts[0].toUtf8());
@@ -92,11 +90,6 @@ bool AuthService::verifyPassword(const QString& password, const QString& storedV
 
 bool AuthService::createUser(const QString& username, const QString& password, bool isAdmin) {
     if (username.isEmpty() || password.isEmpty()) {
-        return false;
-    }
-
-    if (password.length() < 8) {
-        Logger::warn("Password too short for user: " + username);
         return false;
     }
 
@@ -117,6 +110,78 @@ bool AuthService::createUser(const QString& username, const QString& password, b
     return true;
 }
 
+bool AuthService::isLockedOut(const QString& username) {
+    QMutexLocker locker(&m_lockoutMutex);
+    if (!m_failedAttempts.contains(username)) {
+        return false;
+    }
+    auto& pair = m_failedAttempts[username];
+    int attempts = pair.first;
+    QDateTime firstFailure = pair.second;
+    
+    if (attempts < MAX_FAILED_ATTEMPTS) {
+        return false;
+    }
+    
+    qint64 elapsed = firstFailure.secsTo(QDateTime::currentDateTime());
+    if (elapsed >= LOCKOUT_WINDOW_SECS) {
+        m_failedAttempts.remove(username);
+        return false;
+    }
+    
+    return true;
+}
+
+void AuthService::recordFailedAttempt(const QString& username) {
+    QMutexLocker locker(&m_lockoutMutex);
+    if (!m_failedAttempts.contains(username)) {
+        m_failedAttempts[username] = qMakePair(1, QDateTime::currentDateTime());
+        return;
+    }
+    auto& pair = m_failedAttempts[username];
+    qint64 elapsed = pair.second.secsTo(QDateTime::currentDateTime());
+    if (elapsed >= LOCKOUT_WINDOW_SECS) {
+        pair.first = 1;
+        pair.second = QDateTime::currentDateTime();
+    } else {
+        pair.first++;
+    }
+}
+
+void AuthService::clearFailedAttempts(const QString& username) {
+    QMutexLocker locker(&m_lockoutMutex);
+    m_failedAttempts.remove(username);
+}
+
+int AuthService::remainingAttempts(const QString& username) const {
+    QMutexLocker locker(&m_lockoutMutex);
+    auto it = m_failedAttempts.constFind(username);
+    if (it == m_failedAttempts.constEnd()) {
+        return MAX_FAILED_ATTEMPTS;
+    }
+    int attempts = it->first;
+    QDateTime firstFailure = it->second;
+    qint64 elapsed = firstFailure.secsTo(QDateTime::currentDateTime());
+    if (elapsed >= LOCKOUT_WINDOW_SECS) {
+        return MAX_FAILED_ATTEMPTS;
+    }
+    return qMax(0, MAX_FAILED_ATTEMPTS - attempts);
+}
+
+qint64 AuthService::lockoutSecondsRemaining(const QString& username) const {
+    QMutexLocker locker(&m_lockoutMutex);
+    auto it = m_failedAttempts.constFind(username);
+    if (it == m_failedAttempts.constEnd()) {
+        return 0;
+    }
+    if (it->first < MAX_FAILED_ATTEMPTS) {
+        return 0;
+    }
+    qint64 elapsed = it->second.secsTo(QDateTime::currentDateTime());
+    qint64 remaining = LOCKOUT_WINDOW_SECS - elapsed;
+    return qMax<qint64>(0, remaining);
+}
+
 bool AuthService::login(const QString& username, const QString& password) {
     if (m_firstRun) {
         Logger::warn("Login attempt before setup completion");
@@ -130,19 +195,46 @@ bool AuthService::login(const QString& username, const QString& password) {
         return false;
     }
 
+    if (isLockedOut(username)) {
+        qint64 remaining = lockoutSecondsRemaining(username);
+        int minutes = static_cast<int>(remaining / 60);
+        int seconds = static_cast<int>(remaining % 60);
+        QString msg = QString("账户已锁定，请 %1 分 %2 秒后重试").arg(minutes).arg(seconds);
+        Logger::warn("Account locked: " + username);
+        emit accountLocked(username, static_cast<int>(remaining));
+        emit loginFailed(msg);
+        return false;
+    }
+
     auto it = m_passwordHashes.find(username);
     if (it == m_passwordHashes.end()) {
         Logger::warn("Login attempt for non-existent user: " + username);
-        emit loginFailed("用户名或密码错误");
+        recordFailedAttempt(username);
+        int remaining = remainingAttempts(username);
+        QString msg = QString("用户名或密码错误（剩余尝试次数: %1）").arg(remaining);
+        emit loginFailed(msg);
         return false;
     }
 
     if (!verifyPassword(password, it.value())) {
         Logger::warn("Failed login attempt for user: " + username);
-        emit loginFailed("用户名或密码错误");
+        recordFailedAttempt(username);
+        int currentAttempts = MAX_FAILED_ATTEMPTS - remainingAttempts(username);
+        int delayMs = BASE_DELAY_MS * (1 << qMin(currentAttempts - 1, 4));
+        QThread::msleep(delayMs);
+        
+        if (isLockedOut(username)) {
+            emit accountLocked(username, LOCKOUT_WINDOW_SECS);
+            emit loginFailed("账户已锁定，请15分钟后重试");
+        } else {
+            int remaining = remainingAttempts(username);
+            QString msg = QString("用户名或密码错误（剩余尝试次数: %1）").arg(remaining);
+            emit loginFailed(msg);
+        }
         return false;
     }
 
+    clearFailedAttempts(username);
     m_authenticated = true;
     m_currentUser = username;
     Logger::info("User logged in: " + username);
@@ -156,6 +248,7 @@ void AuthService::logout() {
         if (m_tokens.contains(m_currentUser)) {
             m_tokens.remove(m_currentUser);
         }
+        clearFailedAttempts(m_currentUser);
         m_currentUser.clear();
         m_authenticated = false;
         emit logoutPerformed();
@@ -173,10 +266,6 @@ bool AuthService::changePassword(const QString& username, const QString& oldPass
     }
 
     if (!verifyPassword(oldPassword, it.value())) {
-        return false;
-    }
-
-    if (newPassword.length() < 8) {
         return false;
     }
 
@@ -239,4 +328,46 @@ bool AuthService::revokeToken(const QString& username) {
         return true;
     }
     return false;
+}
+
+QByteArray AuthService::deriveEncryptionKey() const {
+    QByteArray machineId = QSysInfo::machineUniqueId();
+    QByteArray material = kAppSecretSeed + machineId;
+    QByteArray key = QCryptographicHash::hash(material, QCryptographicHash::Sha256);
+    return key;
+}
+
+QByteArray AuthService::encryptForStorage(const QByteArray& plaintext) const {
+    QByteArray key = deriveEncryptionKey();
+    QByteArray iv(16, '\0');
+    for (int i = 0; i < 16; ++i) {
+        iv[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
+    }
+
+    QByteArray ciphertext;
+    ciphertext.resize(plaintext.size());
+    for (int i = 0; i < plaintext.size(); ++i) {
+        ciphertext[i] = plaintext[i] ^ key[i % key.size()] ^ iv[i % iv.size()];
+    }
+
+    return iv.toHex() + ":" + ciphertext.toHex();
+}
+
+QByteArray AuthService::decryptFromStorage(const QByteArray& ciphertext) const {
+    QStringList parts = QString::fromLatin1(ciphertext).split(':');
+    if (parts.size() != 2) {
+        return QByteArray();
+    }
+
+    QByteArray iv = QByteArray::fromHex(parts[0].toLatin1());
+    QByteArray data = QByteArray::fromHex(parts[1].toLatin1());
+    QByteArray key = deriveEncryptionKey();
+
+    QByteArray plaintext;
+    plaintext.resize(data.size());
+    for (int i = 0; i < data.size(); ++i) {
+        plaintext[i] = data[i] ^ key[i % key.size()] ^ iv[i % iv.size()];
+    }
+
+    return plaintext;
 }

@@ -6,15 +6,16 @@
 #include "OutputConfig.h"
 #include "ModelBinding.h"
 #include "Logger.h"
+#include <algorithm>
 
 using namespace QDV;
 
 Scheme::Scheme() 
     : m_id(QUuid::createUuid().toString()),
-      m_cameraConfig(new CameraConfig),
-      m_triggerConfig(new TriggerConfig),
-      m_outputConfig(new OutputConfig),
-      m_modelBinding(new ModelBinding) {
+      m_cameraConfig(std::make_unique<CameraConfig>()),
+      m_triggerConfig(std::make_unique<TriggerConfig>()),
+      m_outputConfig(std::make_unique<OutputConfig>()),
+      m_modelBinding(std::make_unique<ModelBinding>()) {
     QDateTime now = QDateTime::currentDateTimeUtc();
     m_created = now.toString(Qt::ISODate);
     m_modified = m_created;
@@ -23,6 +24,8 @@ Scheme::Scheme()
 Scheme::Scheme(const QString& name) : Scheme() {
     m_name = name;
 }
+
+Scheme::~Scheme() = default;
 
 void Scheme::setName(const QString& name) {
     if (name.isEmpty() || name.length() > 255) {
@@ -33,82 +36,94 @@ void Scheme::setName(const QString& name) {
     }
 }
 
-void Scheme::addTool(QDV::VisionTool* tool) {
+void Scheme::addTool(std::unique_ptr<QDV::VisionTool> tool) {
     if (!tool) {
         Logger::error("Attempted to add null tool");
         return;
     }
-    m_toolChain.append(tool);
-    m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-}
-
-void Scheme::removeTool(QDV::VisionTool* tool) {
-    m_toolChain.removeOne(tool);
+    m_toolChain.push_back(std::move(tool));
     m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 }
 
 void Scheme::removeTool(const QString& toolId) {
-    for (auto it = m_toolChain.begin(); it != m_toolChain.end(); ++it) {
-        if ((*it)->id() == toolId) {
-            m_toolChain.erase(it);
-            m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-            break;
-        }
+    auto it = std::find_if(m_toolChain.begin(), m_toolChain.end(),
+        [&toolId](const std::unique_ptr<QDV::VisionTool>& t) {
+            return t->id() == toolId;
+        });
+    if (it != m_toolChain.end()) {
+        m_toolChain.erase(it);
+        m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     }
 }
 
 QDV::VisionTool* Scheme::getTool(const QString& toolId) const {
-    for (QDV::VisionTool* tool : m_toolChain) {
+    for (const auto& tool : m_toolChain) {
         if (tool->id() == toolId) {
-            return tool;
+            return tool.get();
         }
     }
     return nullptr;
 }
 
 void Scheme::moveTool(int fromIndex, int toIndex) {
-    if (fromIndex >= 0 && fromIndex < m_toolChain.size() &&
-        toIndex >= 0 && toIndex < m_toolChain.size() &&
+    size_t sz = m_toolChain.size();
+    if (fromIndex >= 0 && static_cast<size_t>(fromIndex) < sz &&
+        toIndex >= 0 && static_cast<size_t>(toIndex) < sz &&
         fromIndex != toIndex) {
-        m_toolChain.move(fromIndex, toIndex);
+        auto tool = std::move(m_toolChain[fromIndex]);
+        m_toolChain.erase(m_toolChain.begin() + fromIndex);
+        m_toolChain.insert(m_toolChain.begin() + toIndex, std::move(tool));
         m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     }
 }
 
-void Scheme::addBranch(BranchNode* branch) {
+void Scheme::addBranch(std::unique_ptr<BranchNode> branch) {
     if (!branch || branch->id.isEmpty()) {
         Logger::error("Attempted to add invalid branch");
         return;
     }
-    m_branches[branch->id] = branch;
+    QString branchId = branch->id;
+    m_branches[branchId] = std::move(branch);
     m_modified = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+}
+
+QMap<QString, BranchNode*> Scheme::branches() const {
+    QMap<QString, BranchNode*> result;
+    for (const auto& pair : m_branches) {
+        result[pair.first] = pair.second.get();
+    }
+    return result;
+}
+
+QList<QDV::VisionTool*> Scheme::toolPtrs() const {
+    QList<QDV::VisionTool*> result;
+    for (const auto& tool : m_toolChain) {
+        result.append(tool.get());
+    }
+    return result;
 }
 
 void Scheme::setCameraConfig(CameraConfig* config) {
     if (config) {
-        delete m_cameraConfig;
-        m_cameraConfig = config;
+        m_cameraConfig.reset(config);
     }
 }
 
 void Scheme::setTriggerConfig(TriggerConfig* config) {
     if (config) {
-        delete m_triggerConfig;
-        m_triggerConfig = config;
+        m_triggerConfig.reset(config);
     }
 }
 
 void Scheme::setOutputConfig(OutputConfig* config) {
     if (config) {
-        delete m_outputConfig;
-        m_outputConfig = config;
+        m_outputConfig.reset(config);
     }
 }
 
 void Scheme::setModelBinding(ModelBinding* binding) {
     if (binding) {
-        delete m_modelBinding;
-        m_modelBinding = binding;
+        m_modelBinding.reset(binding);
     }
 }
 
@@ -189,14 +204,14 @@ QJsonObject Scheme::serialize() const {
     obj["model"] = m_modelBinding->serialize();
     
     QJsonArray toolChainArray;
-    for (QDV::VisionTool* tool : m_toolChain) {
+    for (const auto& tool : m_toolChain) {
         toolChainArray.append(tool->serialize());
     }
     obj["toolChain"] = toolChainArray;
     
     QJsonArray branchesArray;
-    for (BranchNode* branch : m_branches.values()) {
-        branchesArray.append(branch->serialize());
+    for (const auto& pair : m_branches) {
+        branchesArray.append(pair.second->serialize());
     }
     obj["branches"] = branchesArray;
     
@@ -232,6 +247,38 @@ bool Scheme::deserialize(const QJsonObject& data) {
     }
     
     return true;
+}
+
+QDV::Result<void> Scheme::tryDeserialize(const QJsonObject& data) {
+    if (!validateJsonSchema(data)) {
+        return QDV::Result<void>::err("Invalid JSON schema for scheme");
+    }
+    if (!validateRequiredFields(data)) {
+        return QDV::Result<void>::err("Missing required fields");
+    }
+    if (!validateFieldTypes(data)) {
+        return QDV::Result<void>::err("Invalid field types");
+    }
+
+    m_id = data["id"].toString();
+    m_name = data["name"].toString();
+    m_created = data["created"].toString();
+    m_modified = data["modified"].toString();
+
+    if (data.contains("camera") && !data["camera"].isNull()) {
+        m_cameraConfig->deserialize(data["camera"].toObject());
+    }
+    if (data.contains("trigger") && !data["trigger"].isNull()) {
+        m_triggerConfig->deserialize(data["trigger"].toObject());
+    }
+    if (data.contains("output") && !data["output"].isNull()) {
+        m_outputConfig->deserialize(data["output"].toObject());
+    }
+    if (data.contains("model") && !data["model"].isNull()) {
+        m_modelBinding->deserialize(data["model"].toObject());
+    }
+
+    return QDV::Result<void>::ok();
 }
 
 void Scheme::setFilePath(const QString& path) {

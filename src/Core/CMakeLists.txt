@@ -33,9 +33,9 @@ target_include_directories(Core PUBLIC
 
 target_link_libraries(Core PUBLIC
     Qt6::Core
-    Qt6::Widgets
+    Qt6::Gui
     Qt6::Network
     Qt6::Sql
 )
 
-target_compile_features(Core PUBLIC cxx_std_20)
+target_compile_features(Core PUBLIC cxx_std_17)
