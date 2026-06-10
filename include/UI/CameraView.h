@@ -3,10 +3,12 @@
 
 #include <QWidget>
 #include <QAction>
+#include <QStringList>
 
 class QLabel;
 class QTimer;
 class QComboBox;
+class QPushButton;
 
 namespace cv {
     class VideoCapture;
@@ -22,6 +24,9 @@ public:
 
 private slots:
     void updateFrame();
+    void importImages();
+    void showPreviousImage();
+    void showNextImage();
 
 private:
     void setupUI();
@@ -29,12 +34,19 @@ private:
     void stopCamera();
     void saveSnapshot();
     void applyCameraSettings(int cameraIndex, int width, int height, int fps);
+    void loadImageFile(const QString& filePath);
+    void displayCurrentImage();
+    void enterImageMode();
+    void exitImageMode();
 
     QAction* connectAction;
     QAction* disconnectAction;
     QAction* captureAction;
     QAction* recordAction;
     QAction* settingsAction;
+    QAction* importAction;
+    QAction* prevImageAction;
+    QAction* nextImageAction;
 
     QLabel* m_videoLabel;
     QTimer* m_frameTimer;
@@ -43,6 +55,10 @@ private:
     QComboBox* m_cameraCombo;
     QComboBox* m_resolutionCombo;
     QComboBox* m_fpsCombo;
+
+    QStringList m_importedImages;
+    int m_currentImageIndex = -1;
+    bool m_isImageMode = false;
 };
 
 #endif // CAMERA_VIEW_H

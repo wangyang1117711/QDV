@@ -7,7 +7,6 @@
 #include <QHeaderView>
 #include <QGroupBox>
 #include <QTimer>
-#include <QRandomGenerator>
 #include <QDateTime>
 
 IOView::IOView(QWidget* parent) : QWidget(parent) {
@@ -69,8 +68,7 @@ void IOView::setupUI() {
     for (int i = 0; i < channels.size(); ++i) {
         ioTable->setItem(i, 0, new QTableWidgetItem(channels[i]));
         ioTable->setItem(i, 1, new QTableWidgetItem(names[i]));
-        int val = QRandomGenerator::global()->bounded(2);
-        ioTable->setItem(i, 2, new QTableWidgetItem(val ? "ON" : "OFF"));
+        ioTable->setItem(i, 2, new QTableWidgetItem("OFF"));
         ioTable->setItem(i, 3, new QTableWidgetItem(QDateTime::currentDateTime().toString("HH:mm:ss")));
     }
 
@@ -78,8 +76,7 @@ void IOView::setupUI() {
 
     connect(refreshAction, &QAction::triggered, [ioTable]() {
         for (int i = 0; i < ioTable->rowCount(); ++i) {
-            int val = QRandomGenerator::global()->bounded(2);
-            ioTable->item(i, 2)->setText(val ? "ON" : "OFF");
+            ioTable->item(i, 2)->setText("OFF");
             ioTable->item(i, 3)->setText(QDateTime::currentDateTime().toString("HH:mm:ss"));
         }
     });

@@ -10,6 +10,8 @@
 #include <QEvent>
 #include <QLabel>
 
+struct DetectionStats;
+
 class EditView;
 class CameraView;
 class SchemeView;
@@ -30,6 +32,7 @@ public slots:
     void updateToolCount(int count);
     void updateDetectionCount(int count);
     void updateAlertCount(int count);
+    void onDetectionResult(const DetectionStats& stats);
     
 signals:
     void logout();

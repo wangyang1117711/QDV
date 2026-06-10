@@ -13,9 +13,20 @@
 LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     setWindowTitle("奇测视觉检测系统 - 登录");
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(32, 32, 32, 32);
-    mainLayout->setSpacing(24);
+    QWidget* card = new QWidget();
+    card->setObjectName("loginCard");
+    card->setFixedSize(420, 460);
+    card->setStyleSheet(R"(
+        #loginCard {
+            background-color: #252525;
+            border: 1px solid #444;
+            border-radius: 8px;
+        }
+    )");
+
+    QVBoxLayout* cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(32, 32, 32, 32);
+    cardLayout->setSpacing(24);
 
     QWidget* logoWidget = new QWidget();
     logoWidget->setFixedHeight(80);
@@ -43,7 +54,7 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
 
     logoLayout->addWidget(logoIcon);
     logoLayout->addWidget(titleWidget);
-    mainLayout->addWidget(logoWidget);
+    cardLayout->addWidget(logoWidget);
 
     QFormLayout* formLayout = new QFormLayout();
     formLayout->setSpacing(16);
@@ -95,36 +106,47 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     )");
     formLayout->addRow(passwordLabel, m_passwordEdit);
 
-    mainLayout->addLayout(formLayout);
+    cardLayout->addLayout(formLayout);
 
     QCheckBox* rememberCheckBox = new QCheckBox("记住我");
     rememberCheckBox->setStyleSheet("color: #aaa; font-size: 13px;");
-    mainLayout->addWidget(rememberCheckBox);
+    cardLayout->addWidget(rememberCheckBox);
     m_rememberCheckBox = rememberCheckBox;
 
-    QSettings settings;
+    QSettings settings("奇测科技", "QDetectVision");
     bool saved = settings.value("login/remember", false).toBool();
     if (saved) {
         m_rememberCheckBox->setChecked(true);
         QString savedUser = settings.value("login/username").toString();
-        QString savedToken = settings.value("login/token").toString();
+        QString encryptedToken = settings.value("login/token").toString();
         qint64 expirySecs = settings.value("login/tokenExpiry", 0).toLongLong();
         QDateTime expiry = QDateTime::fromSecsSinceEpoch(expirySecs);
 
-        if (!savedUser.isEmpty() && !savedToken.isEmpty()
+        if (!savedUser.isEmpty() && !encryptedToken.isEmpty()
             && QDateTime::currentDateTime() < expiry) {
-            m_usernameEdit->setText(savedUser);
-            m_rememberCheckBox->setChecked(true);
-            QTimer::singleShot(100, this, [this, savedUser, savedToken]() {
-                if (AuthService::instance()->loginWithToken(savedUser, savedToken)) {
-                    return;
-                }
-                QSettings s;
-                s.remove("login/remember");
-                s.remove("login/username");
-                s.remove("login/token");
-                s.remove("login/tokenExpiry");
-            });
+            QByteArray decryptedToken = AuthService::instance()->decryptFromStorage(
+                encryptedToken.toUtf8());
+            QString savedToken = QString::fromUtf8(decryptedToken.toBase64());
+            if (savedToken.isEmpty()) {
+                settings.remove("login/remember");
+                settings.remove("login/username");
+                settings.remove("login/token");
+                settings.remove("login/tokenExpiry");
+            } else {
+                m_usernameEdit->setText(savedUser);
+                m_rememberCheckBox->setChecked(true);
+                QTimer::singleShot(100, this, [this, savedUser, savedToken]() {
+                    if (AuthService::instance()->loginWithToken(savedUser, savedToken)) {
+                        emit loginSuccess(savedUser);
+                        return;
+                    }
+                    QSettings s("奇测科技", "QDetectVision");
+                    s.remove("login/remember");
+                    s.remove("login/username");
+                    s.remove("login/token");
+                    s.remove("login/tokenExpiry");
+                });
+            }
         } else {
             settings.remove("login/remember");
             settings.remove("login/username");
@@ -136,7 +158,7 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     m_errorLabel = new QLabel();
     m_errorLabel->setStyleSheet("color: #F44336; font-size: 12px; padding: 0;");
     m_errorLabel->setAlignment(Qt::AlignCenter);
-    mainLayout->addWidget(m_errorLabel);
+    cardLayout->addWidget(m_errorLabel);
 
     m_loginButton = new QPushButton("登录");
     m_loginButton->setStyleSheet(R"(
@@ -160,12 +182,14 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
         }
     )");
     connect(m_loginButton, &QPushButton::clicked, this, &LoginView::onLoginClicked);
-    mainLayout->addWidget(m_loginButton);
+    cardLayout->addWidget(m_loginButton);
 
     connect(m_passwordEdit, &QLineEdit::returnPressed, m_loginButton, &QPushButton::click);
 
-    setLayout(mainLayout);
-    setFixedSize(400, 420);
+    QVBoxLayout* outerLayout = new QVBoxLayout(this);
+    outerLayout->setAlignment(Qt::AlignCenter);
+    outerLayout->addWidget(card);
+    setLayout(outerLayout);
 }
 
 LoginView::~LoginView() {
@@ -192,12 +216,14 @@ void LoginView::onLoginClicked() {
     if (AuthService::instance()->login(username, password)) {
         m_errorLabel->clear();
 
-        QSettings settings;
+        QSettings settings("奇测科技", "QDetectVision");
         if (m_rememberCheckBox->isChecked()) {
             QString token = AuthService::instance()->registerToken(username);
+            QByteArray rawToken = QByteArray::fromBase64(token.toUtf8());
+            QByteArray encryptedToken = AuthService::instance()->encryptForStorage(rawToken);
             settings.setValue("login/remember", true);
             settings.setValue("login/username", username);
-            settings.setValue("login/token", token);
+            settings.setValue("login/token", QString::fromLatin1(encryptedToken));
             settings.setValue("login/tokenExpiry",
                 QDateTime::currentDateTime().addDays(30).toSecsSinceEpoch());
         } else {

@@ -6,6 +6,7 @@
 #include "CommView.h"
 #include "MonitorView.h"
 #include "TrainingInference/TrainingInferenceView.h"
+#include "Core/DetectionStats.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolButton>
@@ -374,5 +375,11 @@ void CentralWindow::updateDetectionCount(int count) {
 void CentralWindow::updateAlertCount(int count) {
     if (m_statAlertValue) {
         m_statAlertValue->setText(QString::number(count));
+    }
+}
+
+void CentralWindow::onDetectionResult(const DetectionStats& stats) {
+    if (m_monitorView) {
+        m_monitorView->updateStats(stats);
     }
 }

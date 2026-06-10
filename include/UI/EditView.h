@@ -2,15 +2,14 @@
 #define EDITVIEW_H
 
 #include <QWidget>
-#include <QTreeWidget>
-#include <QSplitter>
-#include <QLabel>
-#include <QScrollArea>
-#include <QVBoxLayout>
-#include <QFormLayout>
-#include <QAction>
-#include <QUndoStack>
+#include <QStackedWidget>
+#include <QQuickWidget>
 
+class EditViewBridge;      // v2.1.0 M2：C++ ↔ QML 桥
+
+// v2.1.0 M7：全 QML 重构 - EditView 只承载 QQuickWidget。
+// 经典 QWidget 工具库/画布/属性面板已删除（M6 起仅 QML 模式）。
+// 数据源单一：EditViewBridge（m_currentNodes / m_connections）+ PropertyPreviewPanel。
 class EditView : public QWidget {
     Q_OBJECT
 
@@ -18,40 +17,19 @@ public:
     explicit EditView(QWidget* parent = nullptr);
     ~EditView() override;
 
-    void updatePropertyPanelForTool(const QString& toolType);
+    /// v2.1.0 M2：访问 C++ ↔ QML 桥（CentralWindow/EditViewBridge 共享）
+    EditViewBridge* bridge() const { return m_bridge; }
 
 signals:
     void schemeModified();
-    void toolSelected(const QString& toolId);
     void toolCountChanged(int count);
     void requestRunDetection();
 
-private slots:
-    void onToolDoubleClicked(QTreeWidgetItem* item, int column);
-    void onUndo();
-    void onRedo();
-    void onDeleteTool();
-    void onToolChainSelectionChanged();
-
 private:
-    void setupToolBox(QWidget* parent);
-    void setupCanvas(QWidget* parent);
-    void setupPropertyPanel(QWidget* parent);
+    void setupQmlCanvas(QWidget* parent);
 
-    QSplitter* m_mainSplitter;
-    QTreeWidget* m_toolBoxTree;
-    QTreeWidget* m_toolChainTree;
-    QScrollArea* m_canvasArea;
-    QLabel* m_canvasLabel;
-    QScrollArea* m_propertyArea;
-    QWidget* m_propertyPanel;
-    QFormLayout* m_propertyLayout;
-
-    QAction* m_undoAction;
-    QAction* m_redoAction;
-    QAction* m_deleteAction;
-
-    QUndoStack* m_undoStack;
+    QQuickWidget*   m_qmlCanvas    = nullptr;  ///< QML 画布（唯一渲染面）
+    EditViewBridge* m_bridge       = nullptr;  ///< C++ ↔ QML 桥
 };
 
 #endif // EDITVIEW_H
