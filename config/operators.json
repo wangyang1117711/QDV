@@ -1,0 +1,3114 @@
+{
+    "comment": "Q-DetectVision 算子元数据配置 (v2.2.0)\n按 Halcon 标准分类重构为 10 大类 + 深度学习 + 分支控制。\n修改后需重启应用生效；删除/损坏后回退到内置 buildRegistry()。\n字段含义参考 ParamSpec / OperatorMeta（include/UI/OperatorDescriptors.h）",
+    "operators": [
+        {
+            "category": "图像采集",
+            "cnName": "读图",
+            "description": "从本地路径加载图像到方案（支持 png/jpg/bmp/tiff 等）",
+            "iconPath": "qrc:/icons/readimage.svg",
+            "params": [
+                {
+                    "cnName": "文件路径",
+                    "defaultValue": "",
+                    "help": "支持 png/jpg/jpeg/bmp/tiff/tif/webp 等格式，最大 100MB",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "filePath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "颜色模式",
+                    "defaultValue": 2,
+                    "help": "IMREAD_UNCHANGED/GRAYSCALE/COLOR",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "colorMode",
+                    "optionKeys": [
+                        "unchanged",
+                        "grayscale",
+                        "color"
+                    ],
+                    "options": [
+                        "原样",
+                        "灰度",
+                        "彩色"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "输出图像",
+                    "typeName": "Mat",
+                    "desc": "加载的图像数据",
+                    "color": "#69F0AE"
+                }
+            ],
+            "type": "ReadImage"
+        },
+        {
+            "category": "图像采集",
+            "cnName": "采集图像",
+            "description": "从相机采集单帧图像（grab_image）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "相机句柄",
+                    "defaultValue": "",
+                    "help": "open_framegrabber 返回的相机句柄名称",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "acqHandle",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "超时",
+                    "defaultValue": 5000,
+                    "help": "采集超时时间（ms）",
+                    "maxValue": 60000,
+                    "minValue": 100,
+                    "name": "timeout",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 100,
+                    "type": 0,
+                    "unit": "ms"
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "采集图像",
+                    "typeName": "Mat",
+                    "desc": "相机采集的帧图像",
+                    "color": "#69F0AE"
+                }
+            ],
+            "type": "GrabImage"
+        },
+        {
+            "category": "图像采集",
+            "cnName": "打开相机",
+            "description": "打开图像采集设备（open_framegrabber）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "接口名称",
+                    "defaultValue": "DirectShow",
+                    "help": "采集接口：DirectShow / GigEVision / USB3Vision 等",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "interfaceName",
+                    "optionKeys": [
+                        "DirectShow",
+                        "GigEVision",
+                        "USB3Vision",
+                        "File"
+                    ],
+                    "options": [
+                        "DirectShow",
+                        "GigEVision",
+                        "USB3Vision",
+                        "文件"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "设备编号",
+                    "defaultValue": 0,
+                    "help": "相机设备索引（从 0 开始）",
+                    "maxValue": 16,
+                    "minValue": 0,
+                    "name": "deviceIndex",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "camera",
+                    "cnName": "相机句柄",
+                    "typeName": "Handle",
+                    "desc": "打开的采集设备句柄",
+                    "color": "#FFD740"
+                }
+            ],
+            "type": "OpenFramegrabber"
+        },
+        {
+            "category": "预处理",
+            "cnName": "FFT变换",
+            "description": "正/逆快速傅里叶变换（fft_generic）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "变换方向",
+                    "defaultValue": "forward",
+                    "help": "forward=正变换，inverse=逆变换",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "direction",
+                    "optionKeys": [
+                        "forward",
+                        "inverse"
+                    ],
+                    "options": [
+                        "正变换",
+                        "逆变换"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "subGroup": "频域滤波",
+            "type": "FftGeneric",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "FFT结果",
+                    "typeName": "Mat",
+                    "desc": "傅里叶变换结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "高斯滤波",
+            "description": "使用高斯核对图像进行平滑滤波，抑制高斯噪声（gauss_filter）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "滤波核大小",
+                    "defaultValue": 5,
+                    "help": "高斯核尺寸（奇数，推荐 3-11）",
+                    "maxValue": 31,
+                    "minValue": 1,
+                    "name": "kernelSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "标准差 Sigma",
+                    "defaultValue": 1.0,
+                    "help": "高斯分布标准差，0 表示自动计算",
+                    "maxValue": 100,
+                    "minValue": 0,
+                    "name": "sigma",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "subGroup": "空间滤波",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "滤波结果",
+                    "typeName": "Mat",
+                    "desc": "高斯平滑后的图像",
+                    "color": "#69F0AE"
+                }
+            ],
+            "type": "GaussFilter"
+        },
+        {
+            "category": "预处理",
+            "cnName": "均值滤波",
+            "description": "使用均值核对图像进行平滑滤波（mean_image）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "滤波核宽度",
+                    "defaultValue": 9,
+                    "help": "均值核宽度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "kernelWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "滤波核高度",
+                    "defaultValue": 9,
+                    "help": "均值核高度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "kernelHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "subGroup": "空间滤波",
+            "type": "MeanImage",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "滤波结果",
+                    "typeName": "Mat",
+                    "desc": "均值平滑后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "锐化增强",
+            "description": "图像锐化增强（emphasize），突出边缘和细节",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "增强系数",
+                    "defaultValue": 0.5,
+                    "help": "增强强度（0=无增强，1=最大增强）",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "factor",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "subGroup": "增强与色彩",
+            "type": "Emphasize",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "增强结果",
+                    "typeName": "Mat",
+                    "desc": "锐化增强后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "灰度缩放",
+            "description": "灰度图像线性缩放（scale_image），调整灰度范围",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "缩放乘数",
+                    "defaultValue": 1.0,
+                    "help": "灰度乘法因子",
+                    "maxValue": 255,
+                    "minValue": 0.01,
+                    "name": "mult",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "偏移量",
+                    "defaultValue": 0,
+                    "help": "灰度加法偏移",
+                    "maxValue": 512,
+                    "minValue": -512,
+                    "name": "add",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "subGroup": "增强与色彩",
+            "type": "ScaleImage",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "缩放结果",
+                    "typeName": "Mat",
+                    "desc": "灰度缩放后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "图像算术",
+            "description": "图像加减乘除 / 位运算 / 取反",
+            "iconPath": "qrc:/icons/arithmetic.svg",
+            "params": [
+                {
+                    "cnName": "运算",
+                    "defaultValue": "add",
+                    "help": "add/subtract/multiply/divide/and/or/xor/not",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "operation",
+                    "optionKeys": [
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide",
+                        "and",
+                        "or",
+                        "xor",
+                        "not"
+                    ],
+                    "options": [
+                        "加",
+                        "减",
+                        "乘",
+                        "除",
+                        "与",
+                        "或",
+                        "异或",
+                        "取反"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "标量",
+                    "defaultValue": 1,
+                    "help": "与标量运算时使用",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "scalar",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "使用标量",
+                    "defaultValue": true,
+                    "help": "勾选：与标量运算；取消：与上一张缓存图运算",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "useScalar",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                }
+            ],
+            "type": "ImageArithmetic",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "运算结果",
+                    "typeName": "Mat",
+                    "desc": "图像算术运算结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "图像预处理",
+            "description": "去噪 + 形态学操作（开/闭/腐蚀/膨胀）",
+            "iconPath": "qrc:/icons/preprocess.svg",
+            "params": [
+                {
+                    "cnName": "双边滤波去噪",
+                    "defaultValue": true,
+                    "help": "使用 cv::bilateralFilter，强度 d=9 / sigma=75",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "denoise",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "形态学操作",
+                    "defaultValue": "none",
+                    "help": "开：去小白噪；闭：填小黑洞；腐蚀/膨胀：形态学基础",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "morphology",
+                    "optionKeys": [
+                        "none",
+                        "open",
+                        "close",
+                        "erode",
+                        "dilate"
+                    ],
+                    "options": [
+                        "无",
+                        "开运算",
+                        "闭运算",
+                        "腐蚀",
+                        "膨胀"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "核大小",
+                    "defaultValue": 3,
+                    "help": "形态学核尺寸（奇数，推荐 3-7）",
+                    "maxValue": 31,
+                    "minValue": 1,
+                    "name": "kernelSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "ImagePreprocess",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "预处理结果",
+                    "typeName": "Mat",
+                    "desc": "预处理后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "边缘检测",
+            "description": "Canny 边缘检测（双阈值 + Sobel 核大小）",
+            "iconPath": "qrc:/icons/edge.svg",
+            "params": [
+                {
+                    "cnName": "低阈值",
+                    "defaultValue": 50,
+                    "help": "Canny 低阈值",
+                    "maxValue": 500,
+                    "minValue": 0,
+                    "name": "lowThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "高阈值",
+                    "defaultValue": 150,
+                    "help": "Canny 高阈值（建议为低阈值的 2-3 倍）",
+                    "maxValue": 500,
+                    "minValue": 0,
+                    "name": "highThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Sobel 核",
+                    "defaultValue": 3,
+                    "help": "Sobel 算子核大小（3/5/7）",
+                    "maxValue": 7,
+                    "minValue": 3,
+                    "name": "apertureSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "edges",
+                    "cnName": "边缘图像",
+                    "typeName": "Mat",
+                    "desc": "Canny 边缘检测结果",
+                    "color": "#69F0AE"
+                }
+            ],
+            "type": "EdgeDetect"
+        },
+        {
+            "category": "预处理",
+            "cnName": "颜色检测",
+            "description": "HSV 颜色空间阈值分割（适合检测特定颜色目标）",
+            "iconPath": "qrc:/icons/color.svg",
+            "params": [
+                {
+                    "cnName": "色相最小",
+                    "defaultValue": 0,
+                    "help": "HSV 颜色空间色相下界",
+                    "maxValue": 179,
+                    "minValue": 0,
+                    "name": "hMin",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "色相最大",
+                    "defaultValue": 179,
+                    "help": "HSV 颜色空间色相上界",
+                    "maxValue": 179,
+                    "minValue": 0,
+                    "name": "hMax",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "饱和度最小",
+                    "defaultValue": 0,
+                    "help": "饱和度下界",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "sMin",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "饱和度最大",
+                    "defaultValue": 255,
+                    "help": "饱和度上界",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "sMax",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "明度最小",
+                    "defaultValue": 0,
+                    "help": "明度下界",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "vMin",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "明度最大",
+                    "defaultValue": 255,
+                    "help": "明度上界",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "vMax",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "subGroup": "增强与色彩",
+            "type": "ColorDetect",
+            "outputs": [
+                {
+                    "name": "mask",
+                    "cnName": "颜色掩膜",
+                    "typeName": "Mat",
+                    "desc": "颜色阈值检测结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "预处理",
+            "cnName": "中值滤波",
+            "description": "使用中值滤波器平滑图像，有效抑制椒盐噪声（median_image）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "滤波核大小",
+                    "defaultValue": 5,
+                    "help": "中值核尺寸（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "kernelSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "subGroup": "空间滤波",
+            "type": "MedianImage",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "滤波结果",
+                    "typeName": "Mat",
+                    "desc": "中值滤波后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "几何变换",
+            "cnName": "仿射变换",
+            "description": "对图像进行仿射变换（affine_trans_image），支持平移/旋转/缩放/斜切",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "变换矩阵",
+                    "defaultValue": "1,0,0,0,1,0",
+                    "help": "2x3 仿射矩阵（逗号分隔 6 个值：a11,a12,a13,a21,a22,a23）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "matrix",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                }
+            ],
+            "type": "AffineTransImage",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "变换结果",
+                    "typeName": "Mat",
+                    "desc": "仿射变换后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "几何变换",
+            "cnName": "极坐标变换",
+            "description": "图像极坐标变换（polar_trans_image），将环形区域展开为矩形",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "中心 X",
+                    "defaultValue": 320,
+                    "help": "极坐标变换中心 X 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "centerX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "中心 Y",
+                    "defaultValue": 240,
+                    "help": "极坐标变换中心 Y 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "centerY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "PolarTransImage",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "变换结果",
+                    "typeName": "Mat",
+                    "desc": "极坐标变换结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "几何变换",
+            "cnName": "图像变换",
+            "description": "resize / rotate / flip / affine / perspective",
+            "iconPath": "qrc:/icons/transform.svg",
+            "params": [
+                {
+                    "cnName": "变换类型",
+                    "defaultValue": "resize",
+                    "help": "5 种基本变换类型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "transformType",
+                    "optionKeys": [
+                        "resize",
+                        "rotate",
+                        "flip",
+                        "affine",
+                        "perspective"
+                    ],
+                    "options": [
+                        "缩放",
+                        "旋转",
+                        "翻转",
+                        "仿射",
+                        "透视"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "旋转角度",
+                    "defaultValue": 0,
+                    "help": "rotate 专用",
+                    "maxValue": 360,
+                    "minValue": -360,
+                    "name": "angle",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "°"
+                },
+                {
+                    "cnName": "X 缩放",
+                    "defaultValue": 1,
+                    "help": "affine/perspective 专用",
+                    "maxValue": 10,
+                    "minValue": 0.01,
+                    "name": "scaleX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Y 缩放",
+                    "defaultValue": 1,
+                    "help": "affine/perspective 专用",
+                    "maxValue": 10,
+                    "minValue": 0.01,
+                    "name": "scaleY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "翻转码",
+                    "defaultValue": 0,
+                    "help": "flip 专用：0=垂直，1=水平，-1=双向",
+                    "maxValue": 1,
+                    "minValue": -1,
+                    "name": "flipCode",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "目标宽度",
+                    "defaultValue": 640,
+                    "help": "resize 专用",
+                    "maxValue": 8192,
+                    "minValue": 1,
+                    "name": "targetWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "目标高度",
+                    "defaultValue": 480,
+                    "help": "resize 专用",
+                    "maxValue": 8192,
+                    "minValue": 1,
+                    "name": "targetHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "ImageTransform",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "变换结果",
+                    "typeName": "Mat",
+                    "desc": "几何变换后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "几何变换",
+            "cnName": "图像合并",
+            "description": "水平/垂直拼接 / 覆盖 / Alpha 混合（与上一帧缓存图合并）",
+            "iconPath": "qrc:/icons/merge.svg",
+            "params": [
+                {
+                    "cnName": "合并类型",
+                    "defaultValue": "horizontal",
+                    "help": "horizontal/vertical/overlay/alphaBlend",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mergeType",
+                    "optionKeys": [
+                        "horizontal",
+                        "vertical",
+                        "overlay",
+                        "alphaBlend"
+                    ],
+                    "options": [
+                        "水平拼接",
+                        "垂直拼接",
+                        "覆盖",
+                        "Alpha 混合"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Alpha",
+                    "defaultValue": 0.5,
+                    "help": "alphaBlend 专用（前景权重）",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "alpha",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "ImageMerge",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "合并结果",
+                    "typeName": "Mat",
+                    "desc": "图像合并结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "闭运算",
+            "description": "先膨胀后腐蚀（closing），填充区域内部小孔洞和缝隙",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 5,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 5,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "形状",
+                    "defaultValue": "rectangle",
+                    "help": "结构元素形状",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "shape",
+                    "optionKeys": [
+                        "rectangle",
+                        "circle",
+                        "cross"
+                    ],
+                    "options": [
+                        "矩形",
+                        "圆形",
+                        "十字"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "Closing",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "闭运算结果",
+                    "typeName": "Mat",
+                    "desc": "闭运算后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "底帽变换",
+            "description": "闭运算结果减去原图（bottom_hat），检测暗区域中的亮细节",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 7,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 7,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "BottomHat",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "底帽结果",
+                    "typeName": "Mat",
+                    "desc": "底帽变换结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "腐蚀",
+            "description": "形态学腐蚀操作（erosion），收缩亮区域，消除细小噪点",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 3,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 3,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "形状",
+                    "defaultValue": "rectangle",
+                    "help": "结构元素形状",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "shape",
+                    "optionKeys": [
+                        "rectangle",
+                        "circle",
+                        "cross"
+                    ],
+                    "options": [
+                        "矩形",
+                        "圆形",
+                        "十字"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "迭代次数",
+                    "defaultValue": 1,
+                    "help": "重复腐蚀的次数",
+                    "maxValue": 10,
+                    "minValue": 1,
+                    "name": "iterations",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "Erosion",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "腐蚀结果",
+                    "typeName": "Mat",
+                    "desc": "腐蚀后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "开运算",
+            "description": "先腐蚀后膨胀（opening），消除细小亮噪点和狭窄连接",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 5,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 5,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "形状",
+                    "defaultValue": "rectangle",
+                    "help": "结构元素形状",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "shape",
+                    "optionKeys": [
+                        "rectangle",
+                        "circle",
+                        "cross"
+                    ],
+                    "options": [
+                        "矩形",
+                        "圆形",
+                        "十字"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "Opening",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "开运算结果",
+                    "typeName": "Mat",
+                    "desc": "开运算后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "顶帽变换",
+            "description": "原图减去开运算结果（top_hat），检测亮区域中的暗细节",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 7,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 7,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 101,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "TopHat",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "顶帽结果",
+                    "typeName": "Mat",
+                    "desc": "顶帽变换结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "形态学",
+            "cnName": "膨胀",
+            "description": "形态学膨胀操作（dilation），扩展亮区域，填充孔洞",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "结构元宽度",
+                    "defaultValue": 3,
+                    "help": "结构元素宽度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "结构元高度",
+                    "defaultValue": 3,
+                    "help": "结构元素高度（奇数）",
+                    "maxValue": 51,
+                    "minValue": 1,
+                    "name": "structHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "形状",
+                    "defaultValue": "rectangle",
+                    "help": "结构元素形状",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "shape",
+                    "optionKeys": [
+                        "rectangle",
+                        "circle",
+                        "cross"
+                    ],
+                    "options": [
+                        "矩形",
+                        "圆形",
+                        "十字"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "迭代次数",
+                    "defaultValue": 1,
+                    "help": "重复膨胀的次数",
+                    "maxValue": 10,
+                    "minValue": 1,
+                    "name": "iterations",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "Dilation",
+            "outputs": [
+                {
+                    "name": "image",
+                    "cnName": "膨胀结果",
+                    "typeName": "Mat",
+                    "desc": "膨胀后的图像",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "图像分割",
+            "cnName": "动态阈值",
+            "description": "动态阈值分割（dyn_threshold），根据局部均值自适应性分割前景",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "偏移量",
+                    "defaultValue": 5,
+                    "help": "阈值偏移（像素值）",
+                    "maxValue": 255,
+                    "minValue": -255,
+                    "name": "offset",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "模式",
+                    "defaultValue": "dark",
+                    "help": "提取暗区域或亮区域",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mode",
+                    "optionKeys": [
+                        "dark",
+                        "light",
+                        "equal",
+                        "not_equal"
+                    ],
+                    "options": [
+                        "暗区域",
+                        "亮区域",
+                        "等于",
+                        "不等于"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "DynThreshold",
+            "outputs": [
+                {
+                    "name": "region",
+                    "cnName": "动态阈值区域",
+                    "typeName": "Region",
+                    "desc": "动态阈值分割区域",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "图像分割",
+            "cnName": "分水岭分割",
+            "description": "基于标记的分水岭分割（watershed），将图像分割为不同区域",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "种子标记距离",
+                    "defaultValue": 20,
+                    "help": "种子点间最小距离",
+                    "maxValue": 200,
+                    "minValue": 5,
+                    "name": "minDist",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 5,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "高斯模糊 sigma",
+                    "defaultValue": 1.5,
+                    "help": "分割前高斯滤波标准差",
+                    "maxValue": 10,
+                    "minValue": 0.1,
+                    "name": "sigma",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "Watershed",
+            "outputs": [
+                {
+                    "name": "regions",
+                    "cnName": "分水岭区域",
+                    "typeName": "Region[]",
+                    "desc": "分水岭分割结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "图像分割",
+            "cnName": "区域生长",
+            "description": "基于种子点的区域生长分割（regiongrowing），合并相似灰度像素",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "种子 X",
+                    "defaultValue": 320,
+                    "help": "种子点 X 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "seedX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "种子 Y",
+                    "defaultValue": 240,
+                    "help": "种子点 Y 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "seedY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "灰度容差",
+                    "defaultValue": 10,
+                    "help": "相邻像素灰度差阈值",
+                    "maxValue": 255,
+                    "minValue": 1,
+                    "name": "tolerance",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "RegionGrowing",
+            "outputs": [
+                {
+                    "name": "region",
+                    "cnName": "生长区域",
+                    "typeName": "Region",
+                    "desc": "区域生长结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "图像分割",
+            "cnName": "阈值分割",
+            "description": "灰度阈值化（BINARY / BINARY_INV / TRUNC / TOZERO / TOZERO_INV）",
+            "iconPath": "qrc:/icons/threshold.svg",
+            "params": [
+                {
+                    "cnName": "阈值",
+                    "defaultValue": 128,
+                    "help": "分割阈值（0-255）",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大值",
+                    "defaultValue": 255,
+                    "help": "二值化后的最大像素值",
+                    "maxValue": 255,
+                    "minValue": 0,
+                    "name": "maxValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "方法",
+                    "defaultValue": "BINARY",
+                    "help": "OpenCV 阈值化方法",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "method",
+                    "optionKeys": [
+                        "BINARY",
+                        "BINARY_INV",
+                        "TRUNC",
+                        "TOZERO",
+                        "TOZERO_INV"
+                    ],
+                    "options": [
+                        "二值",
+                        "反向二值",
+                        "截断",
+                        "归零",
+                        "反向归零"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "Threshold",
+            "outputs": [
+                {
+                    "name": "region",
+                    "cnName": "阈值区域",
+                    "typeName": "Region",
+                    "desc": "阈值分割区域",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "Blob分析",
+            "cnName": "斑块检测",
+            "description": "SimpleBlobDetector 斑块检测（按面积/圆度过滤）",
+            "iconPath": "qrc:/icons/blob.svg",
+            "params": [
+                {
+                    "cnName": "最小面积",
+                    "defaultValue": 10,
+                    "help": "斑块最小面积（像素²）",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "minArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": "px²"
+                },
+                {
+                    "cnName": "最大面积",
+                    "defaultValue": 50000,
+                    "help": "斑块最大面积（像素²）",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "maxArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 100,
+                    "type": 1,
+                    "unit": "px²"
+                },
+                {
+                    "cnName": "最小圆度",
+                    "defaultValue": 0,
+                    "help": "圆度下限（1.0=完美圆）",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "minCircularity",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大圆度",
+                    "defaultValue": 1,
+                    "help": "圆度上限",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "maxCircularity",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "BlobDetect",
+            "outputs": [
+                {
+                    "name": "blobs",
+                    "cnName": "斑块列表",
+                    "typeName": "Blob[]",
+                    "desc": "检测到的斑块",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "Blob分析",
+            "cnName": "连通域分析",
+            "description": "将二值图像分割为连通域（connection），为每个区域分配唯一 ID",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "连通方式",
+                    "defaultValue": "8",
+                    "help": "4 连通或 8 连通",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "connectivity",
+                    "optionKeys": [
+                        "4",
+                        "8"
+                    ],
+                    "options": [
+                        "4 连通",
+                        "8 连通"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "Connection",
+            "outputs": [
+                {
+                    "name": "regions",
+                    "cnName": "连通域",
+                    "typeName": "Region[]",
+                    "desc": "连通域分割结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "Blob分析",
+            "cnName": "轮廓分析",
+            "description": "查找并按面积过滤轮廓（OTSU 自适应阈值二值化）",
+            "iconPath": "qrc:/icons/contour.svg",
+            "params": [
+                {
+                    "cnName": "最小面积",
+                    "defaultValue": 100,
+                    "help": "轮廓最小面积",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "minArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 50,
+                    "type": 1,
+                    "unit": "px²"
+                },
+                {
+                    "cnName": "最大面积",
+                    "defaultValue": 100000,
+                    "help": "轮廓最大面积",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "maxArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 100,
+                    "type": 1,
+                    "unit": "px²"
+                },
+                {
+                    "cnName": "启用面积过滤",
+                    "defaultValue": true,
+                    "help": "勾选后只保留 minArea~maxArea 之间的轮廓",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "filterByArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                }
+            ],
+            "type": "ContourAnalyze",
+            "outputs": [
+                {
+                    "name": "contours",
+                    "cnName": "轮廓",
+                    "typeName": "Contour[]",
+                    "desc": "提取的轮廓列表",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "Blob分析",
+            "cnName": "形状选择",
+            "description": "按形状特征选择区域（select_shape），如面积/长宽比/矩形度等",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "特征类型",
+                    "defaultValue": "area",
+                    "help": "选择依据的形状特征",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "featureType",
+                    "optionKeys": [
+                        "area",
+                        "width",
+                        "height",
+                        "ratio",
+                        "rectangularity",
+                        "circularity",
+                        "compactness"
+                    ],
+                    "options": [
+                        "面积",
+                        "宽度",
+                        "高度",
+                        "长宽比",
+                        "矩形度",
+                        "圆形度",
+                        "紧凑度"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小值",
+                    "defaultValue": 100,
+                    "help": "特征最小值",
+                    "maxValue": 10000000,
+                    "minValue": 0,
+                    "name": "minValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大值",
+                    "defaultValue": 1000000,
+                    "help": "特征最大值",
+                    "maxValue": 10000000,
+                    "minValue": 0,
+                    "name": "maxValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "SelectShape",
+            "outputs": [
+                {
+                    "name": "regions",
+                    "cnName": "筛选区域",
+                    "typeName": "Region[]",
+                    "desc": "形状筛选后的区域",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "特征提取",
+            "cnName": "Harris角点",
+            "description": "Harris 角点检测（points_harris），提取图像中的角点特征",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "邻域大小",
+                    "defaultValue": 3,
+                    "help": "Harris 窗口大小",
+                    "maxValue": 15,
+                    "minValue": 2,
+                    "name": "blockSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "Sobel 核",
+                    "defaultValue": 3,
+                    "help": "梯度计算核大小",
+                    "maxValue": 7,
+                    "minValue": 3,
+                    "name": "ksize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "k 参数",
+                    "defaultValue": 0.04,
+                    "help": "Harris 方程自由参数",
+                    "maxValue": 0.25,
+                    "minValue": 0.01,
+                    "name": "k",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.01,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "阈值",
+                    "defaultValue": 100,
+                    "help": "角点响应阈值",
+                    "maxValue": 10000,
+                    "minValue": 1,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "PointsHarris",
+            "outputs": [
+                {
+                    "name": "points",
+                    "cnName": "角点",
+                    "typeName": "Point[]",
+                    "desc": "Harris角点检测结果",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "特征提取",
+            "cnName": "线圆检测",
+            "description": "Hough 变换检测直线 / 直线段 / 圆",
+            "iconPath": "qrc:/icons/linecircle.svg",
+            "params": [
+                {
+                    "cnName": "检测类型",
+                    "defaultValue": "lineP",
+                    "help": "line=HoughLines，lineP=HoughLinesP，circle=HoughCircles",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "detectType",
+                    "optionKeys": [
+                        "line",
+                        "lineP",
+                        "circle"
+                    ],
+                    "options": [
+                        "标准直线",
+                        "概率直线",
+                        "圆"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "rho（像素）",
+                    "defaultValue": 1,
+                    "help": "距离分辨率（像素）",
+                    "maxValue": 10,
+                    "minValue": 0.1,
+                    "name": "rho",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "theta（弧度）",
+                    "defaultValue": 0.0174532925,
+                    "help": "角度分辨率（弧度）",
+                    "maxValue": 3.14159,
+                    "minValue": 0.001,
+                    "name": "theta",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.001,
+                    "type": 1,
+                    "unit": "rad"
+                },
+                {
+                    "cnName": "累加器阈值",
+                    "defaultValue": 100,
+                    "help": "最小投票数",
+                    "maxValue": 1000,
+                    "minValue": 1,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小线长",
+                    "defaultValue": 50,
+                    "help": "lineP 专用",
+                    "maxValue": 10000,
+                    "minValue": 0,
+                    "name": "minLineLength",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "最大线段间隙",
+                    "defaultValue": 10,
+                    "help": "lineP 专用",
+                    "maxValue": 1000,
+                    "minValue": 0,
+                    "name": "maxLineGap",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "最小半径",
+                    "defaultValue": 20,
+                    "help": "circle 专用",
+                    "maxValue": 10000,
+                    "minValue": 1,
+                    "name": "minRadius",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "最大半径",
+                    "defaultValue": 200,
+                    "help": "circle 专用",
+                    "maxValue": 10000,
+                    "minValue": 1,
+                    "name": "maxRadius",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "累加器分辨率比",
+                    "defaultValue": 1,
+                    "help": "circle 专用（HoughCircles 的 dp）",
+                    "maxValue": 10,
+                    "minValue": 0.1,
+                    "name": "dp",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "圆心最小距离",
+                    "defaultValue": 50,
+                    "help": "circle 专用",
+                    "maxValue": 10000,
+                    "minValue": 1,
+                    "name": "minDist",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "Canny 高阈值",
+                    "defaultValue": 100,
+                    "help": "circle 专用",
+                    "maxValue": 1000,
+                    "minValue": 1,
+                    "name": "param1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "圆心累加阈值",
+                    "defaultValue": 30,
+                    "help": "circle 专用",
+                    "maxValue": 1000,
+                    "minValue": 1,
+                    "name": "param2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "LineCircleDetect",
+            "outputs": [
+                {
+                    "name": "shapes",
+                    "cnName": "检测图形",
+                    "typeName": "Shape[]",
+                    "desc": "直线/圆检测结果",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "特征提取",
+            "cnName": "亚像素边缘",
+            "description": "亚像素精度边缘检测（edges_sub_pix），提取精确边缘轮廓",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "低阈值",
+                    "defaultValue": 20,
+                    "help": "Canny 低阈值",
+                    "maxValue": 255,
+                    "minValue": 1,
+                    "name": "lowThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "高阈值",
+                    "defaultValue": 60,
+                    "help": "Canny 高阈值",
+                    "maxValue": 255,
+                    "minValue": 1,
+                    "name": "highThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "平滑系数",
+                    "defaultValue": 0.7,
+                    "help": "高斯平滑标准差（alpha）",
+                    "maxValue": 100,
+                    "minValue": 0.1,
+                    "name": "alpha",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "EdgesSubPix",
+            "outputs": [
+                {
+                    "name": "edges",
+                    "cnName": "亚像素边缘",
+                    "typeName": "Contour[]",
+                    "desc": "亚像素精度边缘轮廓",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "匹配定位",
+            "cnName": "NCC匹配",
+            "description": "归一化互相关匹配（find_ncc_model），基于灰度相关性定位",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板图像路径",
+                    "defaultValue": "",
+                    "help": "模板图像路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "template",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.7,
+                    "help": "NCC 分数阈值（-1~1）",
+                    "maxValue": 1,
+                    "minValue": -1,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "FindNccModel",
+            "outputs": [
+                {
+                    "name": "matches",
+                    "cnName": "匹配结果",
+                    "typeName": "Match[]",
+                    "desc": "NCC模板匹配结果",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "匹配定位",
+            "cnName": "形状匹配",
+            "description": "基于形状模板的匹配定位（find_shape_model），旋转/缩放不变性",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板图像路径",
+                    "defaultValue": "",
+                    "help": "用于创建形状模板的图像",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "template",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.7,
+                    "help": "匹配分数阈值（0~1）",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "起始角度",
+                    "defaultValue": -180,
+                    "help": "起始旋转角",
+                    "maxValue": 360,
+                    "minValue": -360,
+                    "name": "angleStart",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "°"
+                },
+                {
+                    "cnName": "角度范围",
+                    "defaultValue": 360,
+                    "help": "旋转搜索范围",
+                    "maxValue": 360,
+                    "minValue": 0,
+                    "name": "angleExtent",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "°"
+                },
+                {
+                    "cnName": "最小缩放",
+                    "defaultValue": 0.9,
+                    "help": "最小缩放比例",
+                    "maxValue": 2,
+                    "minValue": 0.1,
+                    "name": "scaleMin",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大缩放",
+                    "defaultValue": 1.1,
+                    "help": "最大缩放比例",
+                    "maxValue": 2,
+                    "minValue": 0.1,
+                    "name": "scaleMax",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大匹配数",
+                    "defaultValue": 1,
+                    "help": "最多返回的匹配结果数",
+                    "maxValue": 100,
+                    "minValue": 1,
+                    "name": "numMatches",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "FindShapeModel",
+            "outputs": [
+                {
+                    "name": "matches",
+                    "cnName": "匹配结果",
+                    "typeName": "Match[]",
+                    "desc": "形状模板匹配结果",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "匹配定位",
+            "cnName": "模板匹配",
+            "description": "模板匹配定位（6 种 OpenCV 方法）",
+            "iconPath": "qrc:/icons/template.svg",
+            "params": [
+                {
+                    "cnName": "模板图像路径",
+                    "defaultValue": "",
+                    "help": "10x10 到 5000x5000 之间的灰度图，最大 50MB",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "template",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.8,
+                    "help": "分数 ≥ 阈值 视为命中",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配方法",
+                    "defaultValue": "CCOEFF_NORMED",
+                    "help": "推荐 CCOEFF_NORMED（归一化相关系数）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "method",
+                    "optionKeys": [
+                        "SQDIFF",
+                        "SQDIFF_NORMED",
+                        "CCORR",
+                        "CCORR_NORMED",
+                        "CCOEFF",
+                        "CCOEFF_NORMED"
+                    ],
+                    "options": [
+                        "SQDIFF",
+                        "SQDIFF_NORMED",
+                        "CCORR",
+                        "CCORR_NORMED",
+                        "CCOEFF",
+                        "CCOEFF_NORMED"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "TemplateMatch",
+            "outputs": [
+                {
+                    "name": "matches",
+                    "cnName": "匹配结果",
+                    "typeName": "Match[]",
+                    "desc": "模板匹配结果",
+                    "color": "#448AFF"
+                }
+            ]
+        },
+        {
+            "category": "几何测量",
+            "cnName": "几何测量",
+            "description": "几何量测量（距离/面积/周长/角度/圆半径）",
+            "iconPath": "qrc:/icons/measure.svg",
+            "params": [
+                {
+                    "cnName": "测量类型",
+                    "defaultValue": "distance",
+                    "help": "基于最大轮廓的物理量测量",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "measureType",
+                    "optionKeys": [
+                        "distance",
+                        "area",
+                        "perimeter",
+                        "angle",
+                        "circleRadius"
+                    ],
+                    "options": [
+                        "距离",
+                        "面积",
+                        "周长",
+                        "角度",
+                        "圆半径"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小阈值",
+                    "defaultValue": 0,
+                    "help": "小于此值视为 NG",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "minThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大阈值",
+                    "defaultValue": 1000,
+                    "help": "大于此值视为 NG",
+                    "maxValue": 1000000,
+                    "minValue": 0,
+                    "name": "maxThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "像素→物理比例",
+                    "defaultValue": 1,
+                    "help": "每像素对应的物理量（如 0.05 mm/px）",
+                    "maxValue": 1000000,
+                    "minValue": 1e-06,
+                    "name": "pixelScale",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.001,
+                    "type": 1,
+                    "unit": "mm/px"
+                }
+            ],
+            "type": "GeometryMeasure",
+            "outputs": [
+                {
+                    "name": "measures",
+                    "cnName": "测量结果",
+                    "typeName": "Measure[]",
+                    "desc": "几何测量结果",
+                    "color": "#FF8A65"
+                }
+            ]
+        },
+        {
+            "category": "几何测量",
+            "cnName": "点到点距离",
+            "description": "计算两点之间的欧氏距离（distance_pp）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "点1 X",
+                    "defaultValue": 100,
+                    "help": "第一个点的 X 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "x1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "点1 Y",
+                    "defaultValue": 100,
+                    "help": "第一个点的 Y 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "y1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "点2 X",
+                    "defaultValue": 200,
+                    "help": "第二个点的 X 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "x2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "点2 Y",
+                    "defaultValue": 200,
+                    "help": "第二个点的 Y 坐标",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "y2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                }
+            ],
+            "type": "DistancePp",
+            "outputs": [
+                {
+                    "name": "distance",
+                    "cnName": "点对距离",
+                    "typeName": "float",
+                    "desc": "两点间距离",
+                    "color": "#FF8A65"
+                }
+            ]
+        },
+        {
+            "category": "几何测量",
+            "cnName": "线到线角度",
+            "description": "计算两条直线之间的角度（angle_ll）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "线1 起点X",
+                    "defaultValue": 100,
+                    "help": "第一条线起点 X",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l1x1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线1 起点Y",
+                    "defaultValue": 100,
+                    "help": "第一条线起点 Y",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l1y1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线1 终点X",
+                    "defaultValue": 200,
+                    "help": "第一条线终点 X",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l1x2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线1 终点Y",
+                    "defaultValue": 100,
+                    "help": "第一条线终点 Y",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l1y2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线2 起点X",
+                    "defaultValue": 100,
+                    "help": "第二条线起点 X",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l2x1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线2 起点Y",
+                    "defaultValue": 200,
+                    "help": "第二条线起点 Y",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l2y1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线2 终点X",
+                    "defaultValue": 200,
+                    "help": "第二条线终点 X",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l2x2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "线2 终点Y",
+                    "defaultValue": 200,
+                    "help": "第二条线终点 Y",
+                    "maxValue": 8192,
+                    "minValue": 0,
+                    "name": "l2y2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "px"
+                }
+            ],
+            "type": "AngleLl",
+            "outputs": [
+                {
+                    "name": "angle",
+                    "cnName": "线段夹角",
+                    "typeName": "float",
+                    "desc": "两线段夹角（弧度）",
+                    "color": "#FF8A65"
+                }
+            ]
+        },
+        {
+            "category": "3D视觉",
+            "cnName": "3D重建",
+            "description": "从视差图/点云重建三维表面（reconstruct_3d）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "视差图路径",
+                    "defaultValue": "",
+                    "help": "视差图像路径（格式 png/tiff）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "disparityPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "焦距（像素）",
+                    "defaultValue": 1000,
+                    "help": "相机焦距（像素单位）",
+                    "maxValue": 100000,
+                    "minValue": 1,
+                    "name": "focalLength",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 10,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "基线距离",
+                    "defaultValue": 100,
+                    "help": "左右相机基线距离",
+                    "maxValue": 10000,
+                    "minValue": 1,
+                    "name": "baseline",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 1,
+                    "unit": "mm"
+                }
+            ],
+            "type": "Reconstruct3D",
+            "outputs": [
+                {
+                    "name": "pointCloud",
+                    "cnName": "3D点云",
+                    "typeName": "Point3D[]",
+                    "desc": "三维重建点云",
+                    "color": "#90A4AE"
+                }
+            ]
+        },
+        {
+            "category": "3D视觉",
+            "cnName": "双目视差",
+            "description": "计算双目图像的视差图（binocular_disparity），用于深度估计",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "左图路径",
+                    "defaultValue": "",
+                    "help": "左相机图像路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "leftImage",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "右图路径",
+                    "defaultValue": "",
+                    "help": "右相机图像路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "rightImage",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小视差",
+                    "defaultValue": 0,
+                    "help": "最小视差搜索值",
+                    "maxValue": 256,
+                    "minValue": 0,
+                    "name": "minDisparity",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 16,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "视差范围",
+                    "defaultValue": 128,
+                    "help": "视差搜索范围（必须为 16 的倍数）",
+                    "maxValue": 512,
+                    "minValue": 16,
+                    "name": "numDisparities",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 16,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "块大小",
+                    "defaultValue": 9,
+                    "help": "匹配块大小（奇数）",
+                    "maxValue": 25,
+                    "minValue": 3,
+                    "name": "blockSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 2,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "BinocularDisparity",
+            "outputs": [
+                {
+                    "name": "depthMap",
+                    "cnName": "视差图",
+                    "typeName": "Mat",
+                    "desc": "双目视差图",
+                    "color": "#90A4AE"
+                }
+            ]
+        },
+        {
+            "category": "3D视觉",
+            "cnName": "表面匹配",
+            "description": "三维表面模型匹配定位（surface_matching），用于 3D 目标检测",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "3D CAD 模型路径（ply/obj/stl）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "采样密度",
+                    "defaultValue": 0.03,
+                    "help": "模型采样距离（相对包围盒比例）",
+                    "maxValue": 0.2,
+                    "minValue": 0.005,
+                    "name": "relSamplingDist",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.005,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.5,
+                    "help": "匹配分数（0~1）",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "SurfaceMatching",
+            "outputs": [
+                {
+                    "name": "matches",
+                    "cnName": "曲面匹配结果",
+                    "typeName": "Match[]",
+                    "desc": "3D曲面匹配结果",
+                    "color": "#90A4AE"
+                }
+            ]
+        },
+        {
+            "category": "深度学习",
+            "cnName": "AI 分类",
+            "description": "使用训练好的模型对图像进行分类（PyTorch/ONNX/TensorRT）",
+            "iconPath": "qrc:/icons/ai.svg",
+            "params": [
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "推荐 .pt / .onnx 格式",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "置信度阈值",
+                    "defaultValue": 0.85,
+                    "help": "分数 ≥ 阈值 视为 OK",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "confidenceThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Top-K",
+                    "defaultValue": 3,
+                    "help": "返回前 K 个分类",
+                    "maxValue": 100,
+                    "minValue": 1,
+                    "name": "topK",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入宽",
+                    "defaultValue": 224,
+                    "help": "模型输入尺寸",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "输入高",
+                    "defaultValue": 224,
+                    "help": "模型输入尺寸",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "类别标签",
+                    "defaultValue": "",
+                    "help": "每行一个类别名（顺序对应模型输出索引）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "categoryLabels",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                }
+            ],
+            "type": "AiClassify",
+            "outputs": [
+                {
+                    "name": "classId",
+                    "cnName": "分类结果",
+                    "typeName": "int",
+                    "desc": "分类标签ID",
+                    "color": "#81C784"
+                }
+            ]
+        },
+        {
+            "category": "深度学习",
+            "cnName": "深度学习分割",
+            "description": "使用深度学习模型进行语义分割/实例分割（UNet/MaskRCNN 等）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "推荐 .pt / .onnx 语义分割模型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "置信度阈值",
+                    "defaultValue": 0.5,
+                    "help": "像素级分类置信度阈值",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "confidenceThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入宽",
+                    "defaultValue": 512,
+                    "help": "模型输入尺寸宽度",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "输入高",
+                    "defaultValue": 512,
+                    "help": "模型输入尺寸高度",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "SegmentDl",
+            "outputs": [
+                {
+                    "name": "mask",
+                    "cnName": "分割掩膜",
+                    "typeName": "Mat",
+                    "desc": "语义分割结果掩膜",
+                    "color": "#81C784"
+                }
+            ]
+        },
+        {
+            "category": "深度学习",
+            "cnName": "深度学习检测",
+            "description": "使用深度学习模型进行目标检测（YOLO/SSD/FasterRCNN 等）",
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "推荐 .pt / .onnx / .engine 目标检测模型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "置信度阈值",
+                    "defaultValue": 0.5,
+                    "help": "检测框置信度阈值",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "confidenceThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "NMS IoU 阈值",
+                    "defaultValue": 0.45,
+                    "help": "非极大值抑制 IoU 阈值",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "nmsThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入宽",
+                    "defaultValue": 640,
+                    "help": "模型输入尺寸宽度",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "输入高",
+                    "defaultValue": 640,
+                    "help": "模型输入尺寸高度",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                }
+            ],
+            "type": "DetectObjectsDl",
+            "outputs": [
+                {
+                    "name": "detections",
+                    "cnName": "检测结果",
+                    "typeName": "Detection[]",
+                    "desc": "目标检测结果列表",
+                    "color": "#81C784"
+                }
+            ]
+        },
+        {
+            "category": "分支",
+            "cnName": "分支控制",
+            "description": "条件分支控制（根据上游工具结果决定流向）",
+            "iconPath": "qrc:/icons/branch.svg",
+            "params": [
+                {
+                    "cnName": "条件运算符",
+                    "defaultValue": ">",
+                    "help": "将上游 score 与 conditionValue 比较",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "conditionOp",
+                    "optionKeys": [
+                        ">",
+                        "<",
+                        "==",
+                        "!=",
+                        ">=",
+                        "<="
+                    ],
+                    "options": [
+                        "大于",
+                        "小于",
+                        "等于",
+                        "不等于",
+                        "大于等于",
+                        "小于等于"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "条件值",
+                    "defaultValue": 0.5,
+                    "help": "比较的阈值",
+                    "maxValue": 1000000000,
+                    "minValue": -1000000000,
+                    "name": "conditionValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.01,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "真分支工具 ID 列表",
+                    "defaultValue": "",
+                    "help": "逗号或换行分隔的工具 ID",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "trueBranch",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                },
+                {
+                    "cnName": "假分支工具 ID 列表",
+                    "defaultValue": "",
+                    "help": "逗号或换行分隔的工具 ID",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "falseBranch",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                }
+            ],
+            "type": "BranchControl",
+            "outputs": [
+                {
+                    "name": "verdict",
+                    "cnName": "分支判决",
+                    "typeName": "bool",
+                    "desc": "条件判定结果（True/False）",
+                    "color": "#EF5350"
+                }
+            ]
+        }
+    ],
+    "regeneratedAt": "2026-06-08T00:00:00",
+    "version": 2
+}

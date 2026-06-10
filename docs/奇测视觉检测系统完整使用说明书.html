@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奇测视觉检测系统使用说明书</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #7c3aed;
+            --bg-color: #ffffff;
+            --text-color: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --code-bg: #f3f4f6;
+            --highlight-bg: #fef3c7;
+            --sidebar-bg: #f8fafc;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --secondary-color: #8b5cf6;
+            --bg-color: #111827;
+            --text-color: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --card-bg: #1f2937;
+            --code-bg: #374151;
+            --highlight-bg: #4b5563;
+            --sidebar-bg: #1f2937;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* 布局 */
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 300px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .search-box {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .nav-menu {
+            padding: 16px 0;
+        }
+
+        .nav-section {
+            margin-bottom: 8px;
+        }
+
+        .nav-section-header {
+            padding: 10px 24px;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: color 0.2s;
+        }
+
+        .nav-section-header:hover {
+            color: var(--primary-color);
+        }
+
+        .nav-section-header .icon {
+            transition: transform 0.2s;
+        }
+
+        .nav-section.collapsed .nav-section-header .icon {
+            transform: rotate(-90deg);
+        }
+
+        .nav-section.collapsed .nav-section-content {
+            display: none;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 8px 24px 8px 40px;
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover {
+            background-color: var(--card-bg);
+            color: var(--primary-color);
+        }
+
+        .nav-link.active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: var(--primary-color);
+            border-left-color: var(--primary-color);
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            margin-left: 300px;
+            padding: 24px;
+            max-width: 900px;
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            padding: 16px 0;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background-color: var(--card-bg);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+
+        .font-size-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .font-size-btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .font-size-display {
+            font-size: 14px;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width 0.1s;
+            z-index: 1000;
+        }
+
+        /* 章节内容 */
+        .chapter {
+            margin-bottom: 48px;
+            padding: 24px;
+            background-color: var(--bg-color);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chapter-title {
+            font-size: 28px;
+            margin-bottom: 24px;
+            color: var(--primary-color);
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            margin-bottom: 16px;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 22px;
+            background: linear-gradient(180deg, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+        }
+
+        .subsection-title {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+            margin-top: 24px;
+        }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--card-bg);
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: var(--card-bg);
+        }
+
+        /* 代码块 */
+        pre {
+            background-color: var(--code-bg);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 16px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        /* 强调文字 */
+        .highlight {
+            background-color: var(--highlight-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* 警告框 */
+        .warning {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        [data-theme="dark"] .warning {
+            background-color: #371f1f;
+        }
+
+        /* 提示框 */
+        .tip {
+            background-color: #f0f9ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        [data-theme="dark"] .tip {
+            background-color: #1e3a5f;
+        }
+
+        /* 信息框 */
+        .info-box {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 8px;
+        }
+
+        /* 列表 */
+        ul, ol {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        /* 图片容器 */
+        .figure {
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .figure img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .figure-caption {
+            margin-top: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* 步骤列表 */
+        .steps {
+            counter-reset: step;
+        }
+
+        .step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background-color: var(--card-bg);
+            border-radius: 8px;
+        }
+
+        .step-number {
+            counter-increment: step;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        /* 搜索高亮 */
+        .search-highlight {
+            background-color: #fef3c7;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        [data-theme="dark"] .search-highlight {
+            background-color: #6b7280;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 16px;
+            }
+
+            .toolbar {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .chapter-title {
+                font-size: 24px;
+            }
+
+            .section-title {
+                font-size: 20px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 12px;
+            }
+        }
+
+        /* 打印样式 */
+        @media print {
+            .sidebar,
+            .toolbar,
+            .progress-bar {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 0;
+                max-width: 100%;
+            }
+
+            .chapter {
+                border: none;
+                padding: 0;
+                page-break-inside: avoid;
+            }
+
+            body {
+                color: black;
+                background: white;
+            }
+        }
+
+        /* 书签提示 */
+        .bookmark-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .bookmark-toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* 封面 */
+        .cover {
+            text-align: center;
+            padding: 60px 24px;
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(124, 58, 237, 0.1));
+            border-radius: 16px;
+            margin-bottom: 48px;
+        }
+
+        .cover h1 {
+            font-size: 36px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .cover p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .cover .version {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 16px;
+        }
+
+        /* 返回顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            bottom: 24px;
+            left: 324px;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 99;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-4px);
+        }
+
+        @media (max-width: 768px) {
+            .back-to-top {
+                left: auto;
+                right: 24px;
+            }
+        }
+
+        /* 页脚 */
+        footer {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            margin-top: 48px;
+        }
+
+        /* 段落 */
+        p {
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div class="container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1>奇测视觉</h1>
+                <p>使用说明书 v1.2</p>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="搜索内容...">
+            </div>
+
+            <nav class="nav-menu" id="navMenu">
+                <!-- 导航菜单将通过JS生成 -->
+            </nav>
+        </aside>
+
+        <!-- 主内容 -->
+        <main class="main-content" id="mainContent">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="btn" id="menuBtn">☰ 目录</button>
+                    <button class="btn" id="themeBtn">🌙 深色</button>
+                </div>
+                <div class="toolbar-right">
+                    <div class="font-size-control">
+                        <button class="btn font-size-btn" id="fontDecrease">A-</button>
+                        <span class="font-size-display" id="fontSizeDisplay">100%</span>
+                        <button class="btn font-size-btn" id="fontIncrease">A+</button>
+                    </div>
+                    <button class="btn" id="bookmarkBtn">🔖 书签</button>
+                    <button class="btn" id="printBtn">🖨️ 打印</button>
+                </div>
+            </div>
+
+            <!-- 封面 -->
+            <div class="cover">
+                <h1>奇测视觉检测系统</h1>
+                <p>使用说明书</p>
+                <p>专业的工业视觉检测解决方案</p>
+                <span class="version">版本 v1.2</span>
+            </div>
+
+            <!-- 内容章节 -->
+            <article id="content">
+                <div class="chapter" id="ch1">
+                    <h2 class="chapter-title">1. 文档概述</h2>
+                    <div class="section">
+                        <h3 class="section-title">1.1 文档目的</h3>
+                        <p>本文档旨在为 <span class="highlight">QDetectVision（奇测视觉检测系统）</span> 的用户提供完整的操作指南，帮助用户快速理解程序功能、掌握操作流程，并能够独立完成从安装部署到日常使用的全过程。</p>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">1.2 适用对象</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>对象</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>产线操作员</td>
+                                    <td>日常检测任务执行、结果查看、异常报警处理</td>
+                                </tr>
+                                <tr>
+                                    <td>工艺工程师</td>
+                                    <td>检测方案制定、视觉工具链配置、参数调优</td>
+                                </tr>
+                                <tr>
+                                    <td>设备维护人员</td>
+                                    <td>相机连接配置、通信设置、IO 调试</td>
+                                </tr>
+                                <tr>
+                                    <td>系统管理员</td>
+                                    <td>用户账号管理、系统初始化配置</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch2">
+                    <h2 class="chapter-title">2. 程序简介</h2>
+                    <div class="section">
+                        <h3 class="section-title">2.1 功能概述</h3>
+                        <p>QDetectVision 是一款基于机器视觉的工业检测软件，提供完整的视觉检测解决方案，包括：</p>
+                        <ul>
+                            <li>图像采集：支持工业相机实时采集与图像载入</li>
+                            <li>视觉检测工具链：提供 13 种视觉检测工具，支持灵活编排检测流程</li>
+                            <li>方案管理：支持检测方案的创建、保存、加载和版本管理</li>
+                            <li>结果输出：支持 TCP/串口通信、IO 信号输出、FTP 上传</li>
+                            <li>实时监控：提供检测结果统计、异常报警和运行状态监控</li>
+                            <li>AI 集成：支持深度学习模型推理（ONNX Runtime）</li>
+                            <li>用户管理：支持多用户认证、权限控制和登录安全</li>
+                        </ul>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">2.2 运行环境要求</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>项目</th>
+                                    <th>最低要求</th>
+                                    <th>推荐配置</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>操作系统</td>
+                                    <td>Windows 10（64位）</td>
+                                    <td>Windows 10/11（64位）</td>
+                                </tr>
+                                <tr>
+                                    <td>处理器</td>
+                                    <td>Intel Core i5 第8代</td>
+                                    <td>Intel Core i7 第11代或更高</td>
+                                </tr>
+                                <tr>
+                                    <td>内存</td>
+                                    <td>8 GB</td>
+                                    <td>16 GB 或更高</td>
+                                </tr>
+                                <tr>
+                                    <td>硬盘</td>
+                                    <td>2 GB 可用空间</td>
+                                    <td>SSD 10 GB 可用空间</td>
+                                </tr>
+                                <tr>
+                                    <td>显卡</td>
+                                    <td>集成显卡</td>
+                                    <td>NVIDIA GPU（CUDA 支持）</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">2.3 安装说明</h3>
+                        <div class="steps">
+                            <div class="step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    将程序文件夹 <code>QDetectVision</code> 复制到目标计算机
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    确保已安装 Visual C++ Redistributable（运行 vc_redist.x64.exe）
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    进入 <code>bin</code> 目录，双击 <code>QDetectVision.exe</code> 启动程序
+                                </div>
+                            </div>
+                            <div class="step">
+                                <div class="step-number">4</div>
+                                <div class="step-content">
+                                    首次启动将自动进入初始化设置向导
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch3">
+                    <h2 class="chapter-title">3. 快速入门</h2>
+                    <div class="section">
+                        <h3 class="section-title">3.1 首次使用流程</h3>
+                        <div class="info-box">
+                            <pre><code>启动程序 → 首次设置向导（创建管理员账号）→ 登录 → 创建检测方案 → 配置相机 → 添加检测工具 → 运行检测 → 查看结果</code></pre>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">3.2 日常操作流程</h3>
+                        <div class="info-box">
+                            <pre><code>启动程序 → 登录 → 加载已有方案 → 启动相机 → 执行检测 → 查看监控面板 → 导出结果</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch4">
+                    <h2 class="chapter-title">4. 界面详解</h2>
+                    <div class="section">
+                        <h3 class="section-title">4.1 登录界面</h3>
+                        <p>登录界面是程序启动后显示的第一个界面，包含以下关键区域：</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>编号</th>
+                                    <th>区域名称</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>①</td>
+                                    <td>程序标题栏</td>
+                                    <td>显示程序名称"奇测视觉检测系统 v1.0"</td>
+                                </tr>
+                                <tr>
+                                    <td>②</td>
+                                    <td>用户信息区域</td>
+                                    <td>显示当前登录用户的姓名和角色标识</td>
+                                </tr>
+                                <tr>
+                                    <td>③</td>
+                                    <td>用户名输入框</td>
+                                    <td>输入登录用户名</td>
+                                </tr>
+                                <tr>
+                                    <td>④</td>
+                                    <td>密码输入框</td>
+                                    <td>输入登录密码（支持回车键提交）</td>
+                                </tr>
+                                <tr>
+                                    <td>⑤</td>
+                                    <td>登录按钮</td>
+                                    <td>点击或按回车键提交登录</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="warning">
+                            <strong>登录安全机制：</strong>
+                            <ul>
+                                <li>连续 5 次登录失败后，账号将被锁定 15 分钟</li>
+                                <li>锁定期间每次尝试会自动延迟（500ms→1s→2s→4s→8s）</li>
+                                <li>程序自动记录所有登录尝试到日志文件</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">4.2 主界面</h3>
+                        <p>主界面登录成功后显示，采用左侧导航 + 右侧内容的经典布局。</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>编号</th>
+                                    <th>区域名称</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>①</td>
+                                    <td>导航面板</td>
+                                    <td>左侧垂直导航栏，包含 8 个功能入口</td>
+                                </tr>
+                                <tr>
+                                    <td>②</td>
+                                    <td>统计卡片区</td>
+                                    <td>顶部展示方案数、工具数、检测数、报警数</td>
+                                </tr>
+                                <tr>
+                                    <td>③</td>
+                                    <td>内容视图区</td>
+                                    <td>右侧主要内容区域，根据导航切换显示</td>
+                                </tr>
+                                <tr>
+                                    <td>④</td>
+                                    <td>状态栏</td>
+                                    <td>底部状态栏，显示运行状态和操作提示</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <h4 class="subsection-title">导航面板按钮</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>按钮</th>
+                                    <th>对应视图</th>
+                                    <th>功能</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>🏠 首页</td>
+                                    <td>Home 概览</td>
+                                    <td>快速操作入口与步骤引导</td>
+                                </tr>
+                                <tr>
+                                    <td>📷 相机</td>
+                                    <td>CameraView</td>
+                                    <td>相机参数配置与实时图像预览</td>
+                                </tr>
+                                <tr>
+                                    <td>📋 方案</td>
+                                    <td>SchemeView</td>
+                                    <td>检测方案管理与工具链编排</td>
+                                </tr>
+                                <tr>
+                                    <td>✏️ 编辑</td>
+                                    <td>EditView</td>
+                                    <td>视觉工具参数编辑与调优</td>
+                                </tr>
+                                <tr>
+                                    <td>⚙️ IO</td>
+                                    <td>IOView</td>
+                                    <td>IO 线路配置与信号测试</td>
+                                </tr>
+                                <tr>
+                                    <td>📡 通信</td>
+                                    <td>CommView</td>
+                                    <td>TCP/串口通信参数配置</td>
+                                </tr>
+                                <tr>
+                                    <td>📊 监控</td>
+                                    <td>MonitorView</td>
+                                    <td>检测结果统计与实时状态</td>
+                                </tr>
+                                <tr>
+                                    <td>🤖 AI</td>
+                                    <td>TrainingInferenceView</td>
+                                    <td>AI 模型管理与推理</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch5">
+                    <h2 class="chapter-title">5. 操作流程</h2>
+                    <div class="section">
+                        <h3 class="section-title">5.1 基础操作流程</h3>
+                        <h4 class="subsection-title">步骤 1：用户登录</h4>
+                        <ol>
+                            <li>双击 <code>QDetectVision.exe</code> 启动程序</li>
+                            <li>在登录界面输入用户名和密码</li>
+                            <li>点击「登录」按钮或按回车键</li>
+                            <li>登录成功后自动跳转至主界面</li>
+                        </ol>
+                        
+                        <h4 class="subsection-title">步骤 2：创建检测方案</h4>
+                        <ol>
+                            <li>点击左侧导航「方案」进入方案管理视图</li>
+                            <li>点击「新建方案」按钮</li>
+                            <li>输入方案名称，选择保存路径</li>
+                            <li>方案创建后自动进入编辑模式</li>
+                        </ol>
+
+                        <h4 class="subsection-title">步骤 3：配置相机</h4>
+                        <ol>
+                            <li>点击左侧导航「相机」进入相机配置视图</li>
+                            <li>设置相机 IP 地址</li>
+                            <li>配置图像参数：分辨率（默认 1920×1080）、曝光时间、增益</li>
+                            <li>选择触发模式（Software / Hardware）</li>
+                            <li>点击「连接」测试相机连接</li>
+                        </ol>
+
+                        <h4 class="subsection-title">步骤 4：添加检测工具</h4>
+                        <ol>
+                            <li>点击左侧导航「编辑」进入工具编辑视图</li>
+                            <li>从工具列表中选择需要的视觉检测工具</li>
+                            <li>按检测顺序拖拽排列工具执行顺序</li>
+                            <li>点击各工具进行参数配置</li>
+                            <li>保存方案</li>
+                        </ol>
+
+                        <h4 class="subsection-title">步骤 5：运行检测</h4>
+                        <ol>
+                            <li>确保相机已连接且方案已保存</li>
+                            <li>点击「开始检测」按钮</li>
+                            <li>监控视图实时更新检测结果</li>
+                            <li>异常情况自动报警</li>
+                        </ol>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">5.2 典型应用场景</h3>
+                        <h4 class="subsection-title">场景 A：零件尺寸检测</h4>
+                        <div class="info-box">
+                            <pre><code>1. 新建方案 → 2. 配置相机（1920×1080, Mono8）→ 3. 添加工具链：
+图像预处理（降噪）→ 边缘检测 → 几何测量 → 轮廓分析
+→ 4. 设置测量公差 → 5. 设置 IO 输出 OK/NG → 6. 开始检测</code></pre>
+                        </div>
+                        <h4 class="subsection-title">场景 B：产品颜色分类</h4>
+                        <div class="info-box">
+                            <pre><code>1. 新建方案 → 2. 配置相机 → 3. 添加工具链：
+颜色检测（设定 HSV 范围）→ 分支控制（按颜色分类）→ IO 输出
+→ 4. 开始检测</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch6">
+                    <h2 class="chapter-title">6. 模块介绍</h2>
+                    <div class="section">
+                        <h3 class="section-title">6.1 相机模块</h3>
+                        <p>管理工业相机连接、配置采集参数、预览实时图像，支持图片导入模式作为相机替代方案。</p>
+                        <h4 class="subsection-title">主要功能</h4>
+                        <ul>
+                            <li>相机 IP 地址配置与连接管理</li>
+                            <li>图像分辨率设置（支持最大 1920×1080）</li>
+                            <li>曝光时间与增益调节</li>
+                            <li>触发模式选择（软件触发 / 硬件触发）</li>
+                            <li>像素格式选择（Mono8 等）</li>
+                            <li>实时图像预览窗口</li>
+                            <li>批量图片导入：支持同时选择多张图片进行检测</li>
+                        </ul>
+                        <div class="tip">
+                            <strong>提示：</strong>当系统检测到无法连接相机时，会自动弹出提示对话框，引导用户切换到图片导入模式。
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.2 方案管理模块</h3>
+                        <p>创建、管理、导入/导出检测方案。方案以 JSON 格式序列化存储。</p>
+                        <h4 class="subsection-title">方案配置包含</h4>
+                        <ul>
+                            <li>相机参数配置</li>
+                            <li>触发配置</li>
+                            <li>输出通信配置</li>
+                            <li>工具链定义</li>
+                            <li>分支控制逻辑</li>
+                            <li>AI 模型绑定</li>
+                        </ul>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.3 编辑模块</h3>
+                        <p>可视化编排检测工具链，调整各工具参数，支持自定义工具的导入、修改和删除。</p>
+                        <h4 class="subsection-title">工具库分类</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>分类</th>
+                                    <th>包含工具</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>输入</td>
+                                    <td>读图</td>
+                                </tr>
+                                <tr>
+                                    <td>预处理</td>
+                                    <td>图像预处理</td>
+                                </tr>
+                                <tr>
+                                    <td>特征提取</td>
+                                    <td>边缘检测、轮廓分析、Blob 检测、线圆检测</td>
+                                </tr>
+                                <tr>
+                                    <td>分割</td>
+                                    <td>阈值分割</td>
+                                </tr>
+                                <tr>
+                                    <td>定位</td>
+                                    <td>模板匹配</td>
+                                </tr>
+                                <tr>
+                                    <td>检测</td>
+                                    <td>颜色检测</td>
+                                </tr>
+                                <tr>
+                                    <td>测量</td>
+                                    <td>几何测量</td>
+                                </tr>
+                                <tr>
+                                    <td>运算</td>
+                                    <td>图像算术运算</td>
+                                </tr>
+                                <tr>
+                                    <td>变换</td>
+                                    <td>图像变换</td>
+                                </tr>
+                                <tr>
+                                    <td>合并</td>
+                                    <td>图像合并</td>
+                                </tr>
+                                <tr>
+                                    <td>流程</td>
+                                    <td>分支控制</td>
+                                </tr>
+                                <tr>
+                                    <td>AI</td>
+                                    <td>AI分类</td>
+                                </tr>
+                                <tr>
+                                    <td>自定义</td>
+                                    <td>用户导入的自定义工具</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.4 IO 模块</h3>
+                        <p>配置数字 IO 线路，控制外部设备信号。最多支持 8 路 IO 线路，每路可配置为输入模式、输出模式或脉冲输出。</p>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.5 通信模块</h3>
+                        <h4 class="subsection-title">TCP 通信</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>默认值</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>主机地址</td>
+                                    <td>—</td>
+                                    <td>目标服务器 IP 或域名</td>
+                                </tr>
+                                <tr>
+                                    <td>端口号</td>
+                                    <td>5000</td>
+                                    <td>TCP 端口</td>
+                                </tr>
+                                <tr>
+                                    <td>数据格式</td>
+                                    <td>JSON</td>
+                                    <td>传输数据格式</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <h4 class="subsection-title">串口通信</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>默认值</th>
+                                    <th>可选值</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>端口名称</td>
+                                    <td>—</td>
+                                    <td>COM1, COM2, ...</td>
+                                </tr>
+                                <tr>
+                                    <td>波特率</td>
+                                    <td>115200</td>
+                                    <td>9600 / 19200 / 38400 / 57600 / 115200</td>
+                                </tr>
+                                <tr>
+                                    <td>数据位</td>
+                                    <td>8</td>
+                                    <td>5 / 6 / 7 / 8</td>
+                                </tr>
+                                <tr>
+                                    <td>停止位</td>
+                                    <td>1</td>
+                                    <td>1 / 2</td>
+                                </tr>
+                                <tr>
+                                    <td>校验位</td>
+                                    <td>无</td>
+                                    <td>无 / 偶校验 / 奇校验</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.6 AI 模块</h3>
+                        <p>管理深度学习模型，执行 AI 推理检测，支持数据集管理与图像分类标注。</p>
+                        <h4 class="subsection-title">图像列表多选功能</h4>
+                        <p>每个图像项左侧都有独立复选框，支持：</p>
+                        <ul>
+                            <li>单个选择/取消选择</li>
+                            <li>全选/取消全选</li>
+                            <li>反选（选中未选的，取消已选的）</li>
+                            <li>Ctrl 键多选不连续的图像</li>
+                            <li>Shift 键多选连续的图像</li>
+                        </ul>
+                        <h4 class="subsection-title">类别管理功能</h4>
+                        <p>每个类别名称右侧都有「加入」按钮：</p>
+                        <ul>
+                            <li>按钮状态：无图片选中时为灰色（不可点击），有图片选中时为蓝色（可点击）</li>
+                            <li>点击「加入」按钮将选中的图片批量添加到对应类别</li>
+                            <li>提供操作成功/失败的视觉反馈</li>
+                        </ul>
+                        <h4 class="subsection-title">模型选择功能</h4>
+                        <p>模型选择下拉菜单默认选中 YOLO 模型：</p>
+                        <ul>
+                            <li>可用模型列表：yolov5s、resnet50、defect_detector</li>
+                            <li>默认选中：yolov5s（YOLO 目标检测模型）</li>
+                            <li>刷新页面或重新加载模块时保持 YOLO 选中状态</li>
+                        </ul>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">6.7 AI分类工具</h3>
+                        <p>在工具链中集成 AI 图像分类推理，利用深度学习模型对图像进行自动分类检测。</p>
+                        <h4 class="subsection-title">配置参数</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>默认值</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>modelPath</td>
+                                    <td>—</td>
+                                    <td>ONNX 模型文件路径（必需）</td>
+                                </tr>
+                                <tr>
+                                    <td>confidenceThreshold</td>
+                                    <td>0.5</td>
+                                    <td>置信度阈值（0.0–1.0），低于此值判定为不合格</td>
+                                </tr>
+                                <tr>
+                                    <td>topK</td>
+                                    <td>3</td>
+                                    <td>返回置信度最高的 K 个分类结果</td>
+                                </tr>
+                                <tr>
+                                    <td>inputWidth</td>
+                                    <td>224</td>
+                                    <td>模型输入图像宽度（像素）</td>
+                                </tr>
+                                <tr>
+                                    <td>inputHeight</td>
+                                    <td>224</td>
+                                    <td>模型输入图像高度（像素）</td>
+                                </tr>
+                                <tr>
+                                    <td>categoryLabels</td>
+                                    <td>—</td>
+                                    <td>分类标签列表（JSON 数组）</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="tip">
+                            <strong>性能优化提示：</strong>工具首次加载模型时会自动执行 3 次预热推理，消除首次推理延迟。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch7">
+                    <h2 class="chapter-title">7. 参数说明</h2>
+                    <div class="section">
+                        <h3 class="section-title">7.1 相机参数</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数名称</th>
+                                    <th>默认值</th>
+                                    <th>取值范围</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>ip</td>
+                                    <td>—</td>
+                                    <td>有效 IPv4 地址</td>
+                                    <td>相机 IP 地址</td>
+                                </tr>
+                                <tr>
+                                    <td>exposure</td>
+                                    <td>5000</td>
+                                    <td>1–1000000（μs）</td>
+                                    <td>曝光时间（微秒）</td>
+                                </tr>
+                                <tr>
+                                    <td>gain</td>
+                                    <td>1.0</td>
+                                    <td>0.0–32.0</td>
+                                    <td>增益倍数</td>
+                                </tr>
+                                <tr>
+                                    <td>triggerMode</td>
+                                    <td>Software</td>
+                                    <td>Software / Hardware</td>
+                                    <td>触发模式</td>
+                                </tr>
+                                <tr>
+                                    <td>width</td>
+                                    <td>1920</td>
+                                    <td>640–4096</td>
+                                    <td>图像宽度（像素）</td>
+                                </tr>
+                                <tr>
+                                    <td>height</td>
+                                    <td>1080</td>
+                                    <td>480–3072</td>
+                                    <td>图像高度（像素）</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">7.2 视觉检测工具参数</h3>
+                        <h4 class="subsection-title">模板匹配</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>默认值</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>templatePath</td>
+                                    <td>—</td>
+                                    <td>模板图像文件路径</td>
+                                </tr>
+                                <tr>
+                                    <td>threshold</td>
+                                    <td>0.8</td>
+                                    <td>匹配阈值（0.0–1.0）</td>
+                                </tr>
+                                <tr>
+                                    <td>matchMethod</td>
+                                    <td>SQDIFF</td>
+                                    <td>匹配算法</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <h4 class="subsection-title">边缘检测</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>参数</th>
+                                    <th>默认值</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>lowThreshold</td>
+                                    <td>50</td>
+                                    <td>Canny 低阈值（0–255）</td>
+                                </tr>
+                                <tr>
+                                    <td>highThreshold</td>
+                                    <td>150</td>
+                                    <td>Canny 高阈值（0–255）</td>
+                                </tr>
+                                <tr>
+                                    <td>apertureSize</td>
+                                    <td>3</td>
+                                    <td>Sobel 算子尺寸（3/5/7）</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch8">
+                    <h2 class="chapter-title">8. 常见问题</h2>
+                    <div class="section">
+                        <h3 class="section-title">Q1：程序无法启动，提示缺少 DLL 文件？</h3>
+                        <div class="warning">
+                            <strong>原因：</strong>缺少 Visual C++ 运行库或 Qt 运行时组件。
+                        </div>
+                        <div class="tip">
+                            <strong>解决方案：</strong>
+                            <ol>
+                                <li>安装 Visual C++ Redistributable (x64)</li>
+                                <li>确保 <code>bin</code> 目录下的 Qt DLL 文件完整</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">Q2：登录失败，提示"用户不存在"？</h3>
+                        <div class="warning">
+                            <strong>原因：</strong>输入的用户名尚未在系统中注册。
+                        </div>
+                        <div class="tip">
+                            <strong>解决方案：</strong>
+                            <ol>
+                                <li>确认用户名输入正确（区分大小写）</li>
+                                <li>首次使用需通过初始化向导创建管理员账号</li>
+                                <li>联系管理员创建新账号</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">Q3：账号被锁定，如何解锁？</h3>
+                        <div class="warning">
+                            <strong>原因：</strong>连续 5 次密码错误触发安全锁定。
+                        </div>
+                        <div class="tip">
+                            <strong>解决方案：</strong>等待 15 分钟后自动解锁，或联系管理员重置密码。
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">Q4：相机连接失败？</h3>
+                        <div class="warning">
+                            <strong>原因：</strong>IP 地址配置错误、网络不通或相机未上电。
+                        </div>
+                        <div class="tip">
+                            <strong>解决方案：</strong>
+                            <ol>
+                                <li>检查相机 IP 地址是否正确</li>
+                                <li>使用 ping 命令测试网络连通性</li>
+                                <li>确认相机电源已接通</li>
+                                <li>检查防火墙是否阻止了连接</li>
+                                <li>替代方案：点击「导入图片」使用本地图片进行检测</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">Q5：日志文件在哪里？</h3>
+                        <div class="info-box">
+                            <p><strong>位置：</strong><code>bin\logs\YYYYMMDD.log</code></p>
+                            <p>日志按日期分割，自动记录程序运行状态、登录记录、错误信息和检测结果。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapter" id="ch9">
+                    <h2 class="chapter-title">9. 注意事项</h2>
+                    <div class="section">
+                        <h3 class="section-title">9.1 安全提示</h3>
+                        <div class="warning">
+                            <ul>
+                                <li>⚠️ <strong>密码安全：</strong>请使用强度足够的密码，不要使用过于简单的密码</li>
+                                <li>⚠️ <strong>账号管理：</strong>初次使用务必创建管理员账号，并妥善保管密码</li>
+                                <li>⚠️ <strong>定期备份：</strong>定期导出检测方案文件，防止数据丢失</li>
+                                <li>⚠️ <strong>日志清理：</strong>定期检查和清理日志文件，防止磁盘空间不足</li>
+                                <li>⚠️ <strong>网络安全：</strong>TCP 通信建议在内网环境使用</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">9.2 操作注意事项</h3>
+                        <ul>
+                            <li>📌 检测过程中不要关闭相机连接或切换方案</li>
+                            <li>📌 修改工具参数后务必保存方案，否则修改不会持久化</li>
+                            <li>📌 工具链中的工具按顺序执行，前面的工具结果会传递给后续工具</li>
+                            <li>📌 IO 线路模式修改后需重新连接才能生效</li>
+                            <li>📌 退出程序前确保检测已停止，避免方案未保存</li>
+                        </ul>
+                    </div>
+                    <div class="section">
+                        <h3 class="section-title">9.3 性能优化建议</h3>
+                        <div class="tip">
+                            <ul>
+                                <li>将程序安装在 SSD 上以提升启动速度</li>
+                                <li>对于高精度检测场景，使用硬件触发模式</li>
+                                <li>AI 推理任务建议使用 NVIDIA GPU 加速</li>
+                                <li>合理设置 AI 模型的置信度阈值和 Top-K 值</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <footer>
+                <p>© 2026 奇测科技 | QDetectVision v1.2 | 保留所有权利</p>
+                <p style="margin-top: 8px; font-size: 14px;">本文档最后更新：2026年5月30日</p>
+            </footer>
+        </main>
+    </div>
+
+    <button class="back-to-top" id="backToTop">↑</button>
+    <div class="bookmark-toast" id="bookmarkToast">书签已保存！</div>
+
+    <script>
+        // 配置
+        const config = {
+            navStructure: [
+                {
+                    title: '文档概述',
+                    id: 'ch1',
+                    subsections: ['文档目的', '适用对象']
+                },
+                {
+                    title: '程序简介',
+                    id: 'ch2',
+                    subsections: ['功能概述', '运行环境要求', '安装说明']
+                },
+                {
+                    title: '快速入门',
+                    id: 'ch3',
+                    subsections: ['首次使用流程', '日常操作流程']
+                },
+                {
+                    title: '界面详解',
+                    id: 'ch4',
+                    subsections: ['登录界面', '主界面']
+                },
+                {
+                    title: '操作流程',
+                    id: 'ch5',
+                    subsections: ['基础操作流程', '典型应用场景']
+                },
+                {
+                    title: '模块介绍',
+                    id: 'ch6',
+                    subsections: ['相机模块', '方案管理模块', '编辑模块', 'IO模块', '通信模块', 'AI模块', 'AI分类工具']
+                },
+                {
+                    title: '参数说明',
+                    id: 'ch7',
+                    subsections: ['相机参数', '视觉检测工具参数']
+                },
+                {
+                    title: '常见问题',
+                    id: 'ch8',
+                    subsections: ['程序启动', '登录问题', '相机连接', '其他问题']
+                },
+                {
+                    title: '注意事项',
+                    id: 'ch9',
+                    subsections: ['安全提示', '操作注意事项', '性能优化建议']
+                }
+            ]
+        };
+
+        // 状态
+        let state = {
+            fontSize: 100,
+            theme: 'light',
+            currentSection: null,
+            bookmark: null
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initNavMenu();
+            initTheme();
+            initFontSize();
+            initBookmark();
+            initScroll();
+            initSearch();
+            initToolbar();
+        });
+
+        // 生成导航菜单
+        function initNavMenu() {
+            const navMenu = document.getElementById('navMenu');
+            let html = '';
+            
+            config.navStructure.forEach((section, index) => {
+                html += `
+                    <div class="nav-section" id="nav-${section.id}">
+                        <div class="nav-section-header" onclick="toggleNavSection('${section.id}')">
+                            <span>${section.title}</span>
+                            <span class="icon">▼</span>
+                        </div>
+                        <div class="nav-section-content">
+                            <a class="nav-link" onclick="scrollToSection('${section.id}')">${section.title}</a>
+                            ${section.subsections.map(sub => `
+                                <a class="nav-link" onclick="scrollToSection('${section.id}')">${sub}</a>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            navMenu.innerHTML = html;
+        }
+
+        // 切换导航章节
+        function toggleNavSection(id) {
+            const section = document.getElementById(`nav-${id}`);
+            section.classList.toggle('collapsed');
+        }
+
+        // 滚动到指定章节
+        function scrollToSection(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                // 更新活动状态
+                document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+                const navSection = document.getElementById(`nav-${id}`);
+                if (navSection) {
+                    const firstLink = navSection.querySelector('.nav-link');
+                    if (firstLink) firstLink.classList.add('active');
+                }
+                
+                // 移动端关闭侧边栏
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.remove('open');
+                }
+            }
+        }
+
+        // 初始化主题
+        function initTheme() {
+            const savedTheme = localStorage.getItem('qdv-theme');
+            if (savedTheme) {
+                state.theme = savedTheme;
+                document.documentElement.setAttribute('data-theme', state.theme);
+                updateThemeButton();
+            }
+            
+            document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+        }
+
+        function toggleTheme() {
+            state.theme = state.theme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', state.theme);
+            localStorage.setItem('qdv-theme', state.theme);
+            updateThemeButton();
+        }
+
+        function updateThemeButton() {
+            const btn = document.getElementById('themeBtn');
+            btn.textContent = state.theme === 'light' ? '🌙 深色' : '☀️ 浅色';
+        }
+
+        // 初始化字体大小
+        function initFontSize() {
+            const savedFontSize = localStorage.getItem('qdv-fontsize');
+            if (savedFontSize) {
+                state.fontSize = parseInt(savedFontSize);
+                applyFontSize();
+            }
+            
+            document.getElementById('fontDecrease').addEventListener('click', () => adjustFontSize(-10));
+            document.getElementById('fontIncrease').addEventListener('click', () => adjustFontSize(10));
+        }
+
+        function adjustFontSize(delta) {
+            const newSize = Math.min(Math.max(state.fontSize + delta, 80), 150);
+            if (newSize !== state.fontSize) {
+                state.fontSize = newSize;
+                applyFontSize();
+                localStorage.setItem('qdv-fontsize', state.fontSize);
+            }
+        }
+
+        function applyFontSize() {
+            document.getElementById('mainContent').style.fontSize = `${state.fontSize}%`;
+            document.getElementById('fontSizeDisplay').textContent = `${state.fontSize}%`;
+        }
+
+        // 初始化书签
+        function initBookmark() {
+            const savedBookmark = localStorage.getItem('qdv-bookmark');
+            if (savedBookmark) {
+                state.bookmark = savedBookmark;
+            }
+            
+            document.getElementById('bookmarkBtn').addEventListener('click', saveBookmark);
+        }
+
+        function saveBookmark() {
+            state.bookmark = window.scrollY.toString();
+            localStorage.setItem('qdv-bookmark', state.bookmark);
+            showToast('书签已保存！');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('bookmarkToast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // 初始化滚动
+        function initScroll() {
+            window.addEventListener('scroll', updateScroll);
+            
+            document.getElementById('backToTop').addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            
+            // 检查是否有书签
+            if (state.bookmark) {
+                setTimeout(() => {
+                    if (confirm('是否返回到上次阅读位置？')) {
+                        window.scrollTo({ top: parseInt(state.bookmark), behavior: 'smooth' });
+                    }
+                }, 500);
+            }
+        }
+
+        function updateScroll() {
+            const scrollTop = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = (scrollTop / docHeight) * 100;
+            
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            
+            const backToTop = document.getElementById('backToTop');
+            if (scrollTop > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+            
+            // 更新当前章节
+            updateCurrentSection();
+        }
+
+        function updateCurrentSection() {
+            const chapters = document.querySelectorAll('.chapter');
+            const scrollPos = window.scrollY + 100;
+            
+            chapters.forEach(chapter => {
+                const chapterTop = chapter.offsetTop;
+                const chapterBottom = chapterTop + chapter.offsetHeight;
+                
+                if (scrollPos >= chapterTop && scrollPos < chapterBottom) {
+                    const id = chapter.id;
+                    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+                    const navSection = document.getElementById(`nav-${id}`);
+                    if (navSection) {
+                        const firstLink = navSection.querySelector('.nav-link');
+                        if (firstLink) firstLink.classList.add('active');
+                    }
+                }
+            });
+        }
+
+        // 初始化搜索
+        function initSearch() {
+            const searchInput = document.getElementById('searchInput');
+            let searchTimeout;
+            
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    performSearch(e.target.value);
+                }, 300);
+            });
+        }
+
+        function performSearch(query) {
+            const content = document.getElementById('content');
+            
+            // 清除之前的高亮
+            content.innerHTML = content.innerHTML.replace(/<span class="search-highlight">(.*?)<\/span>/g, '$1');
+            
+            if (!query.trim()) return;
+            
+            // 执行搜索
+            const regex = new RegExp(`(${query})`, 'gi');
+            let html = content.innerHTML;
+            let matches = 0;
+            
+            // 只在文本内容中搜索，不替换标签
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            
+            function replaceInTextNodes(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const text = node.textContent;
+                    if (regex.test(text)) {
+                        const span = document.createElement('span');
+                        span.innerHTML = text.replace(regex, '<span class="search-highlight">$1</span>');
+                        node.parentNode.replaceChild(span, node);
+                        matches++;
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE && 
+                           node.tagName !== 'SCRIPT' && 
+                           node.tagName !== 'STYLE') {
+                    Array.from(node.childNodes).forEach(child => replaceInTextNodes(child));
+                }
+            }
+            
+            replaceInTextNodes(tempDiv);
+            content.innerHTML = tempDiv.innerHTML;
+            
+            if (matches > 0) {
+                // 滚动到第一个匹配
+                const firstMatch = document.querySelector('.search-highlight');
+                if (firstMatch) {
+                    firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        // 初始化工具栏
+        function initToolbar() {

@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>训练推理模块新功能 - 交互式使用说明书</title>
+    <meta name="description" content="奇测视觉检测系统训练推理模块新功能完整使用指南">
+    
+    <style>
+        /* ========================================
+           设计系统变量
+           ======================================== */
+        :root {
+            /* 颜色系统 */
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #7c3aed;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            
+            /* 文本颜色 */
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            
+            /* 背景颜色 */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --bg-tertiary: #f3f4f6;
+            --bg-code: #1f2937;
+            
+            /* 边框 */
+            --border-color: #e5e7eb;
+            --border-radius: 8px;
+            --border-radius-lg: 12px;
+            
+            /* 阴影 */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            
+            /* 间距 */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            
+            /* 字体大小 */
+            --font-xs: 0.75rem;
+            --font-sm: 0.875rem;
+            --font-base: 1rem;
+            --font-lg: 1.125rem;
+            --font-xl: 1.25rem;
+            --font-2xl: 1.5rem;
+            --font-3xl: 1.875rem;
+            
+            /* 过渡 */
+            --transition-fast: 150ms ease;
+            --transition-normal: 250ms ease;
+        }
+
+        /* 暗色主题 */
+        [data-theme="dark"] {
+            --text-primary: #f9fafb;
+            --text-secondary: #d1d5db;
+            --text-muted: #9ca3af;
+            
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --bg-tertiary: #374151;
+            --bg-code: #0f172a;
+            
+            --border-color: #374151;
+        }
+
+        /* ========================================
+           基础样式重置
+           ======================================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+            transition: background-color var(--transition-normal), color var(--transition-normal);
+        }
+
+        /* ========================================
+           整体布局
+           ======================================== */
+        .manual-container {
+            display: flex;
+            min-height: 100vh;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 侧边栏导航 */
+        .sidebar {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background-color: var(--bg-primary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: var(--font-lg);
+            margin-bottom: var(--spacing-xs);
+            font-weight: 600;
+        }
+
+        .sidebar-header p {
+            font-size: var(--font-sm);
+            opacity: 0.9;
+        }
+
+        /* 搜索框 */
+        .search-box {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: var(--font-sm);
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* 导航菜单 */
+        .nav-menu {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--spacing-md) 0;
+        }
+
+        .nav-section {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--font-sm);
+            transition: all var(--transition-fast);
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: var(--primary-color);
+            border-left-color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .nav-link .icon {
+            width: 20px;
+            margin-right: var(--spacing-sm);
+            text-align: center;
+        }
+
+        /* 可折叠导航 */
+        .nav-collapsible {
+            border-top: 1px solid var(--border-color);
+            padding: var(--spacing-sm) 0;
+        }
+
+        .nav-collapsible summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            cursor: pointer;
+            font-size: var(--font-sm);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .nav-collapsible summary:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .nav-collapsible summary::after {
+            content: '▼';
+            font-size: 10px;
+            transition: transform var(--transition-fast);
+        }
+
+        .nav-collapsible[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .nav-collapsible .nav-link {
+            padding-left: calc(var(--spacing-lg) + var(--spacing-md));
+        }
+
+        /* 侧边栏底部工具 */
+        .sidebar-footer {
+            padding: var(--spacing-md);
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .tool-btn {
+            flex: 1;
+            min-width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background-color: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-size: var(--font-sm);
+        }
+
+        .tool-btn:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        /* 主内容区 */
+        .content {
+            flex: 1;
+            padding: var(--spacing-xl);
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: var(--bg-primary);
+            min-height: 100vh;
+        }
+
+        /* 章节样式 */
+        .chapter {
+            margin-bottom: var(--spacing-xl);
+            padding-bottom: var(--spacing-xl);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .chapter:last-child {
+            border-bottom: none;
+        }
+
+        .chapter-title {
+            font-size: var(--font-3xl);
+            font-weight: 700;
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-md);
+            border-bottom: 3px solid var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .chapter-title .chapter-number {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-lg);
+            font-weight: 700;
+        }
+
+        .section-title {
+            font-size: var(--font-2xl);
+            font-weight: 600;
+            margin-top: var(--spacing-xl);
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+        }
+
+        .subsection-title {
+            font-size: var(--font-xl);
+            font-weight: 600;
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-primary);
+        }
+
+        .subsubsection-title {
+            font-size: var(--font-lg);
+            font-weight: 600;
+            margin-top: var(--spacing-md);
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-secondary);
+        }
+
+        /* 段落和文本 */
+        p {
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+        }
+
+        /* 列表 */
+        ul, ol {
+            margin-bottom: var(--spacing-md);
+            padding-left: var(--spacing-xl);
+        }
+
+        li {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        ul li {
+            list-style-type: disc;
+        }
+
+        ol li {
+            list-style-type: decimal;
+        }
+
+        /* 表格 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: var(--spacing-lg) 0;
+            font-size: var(--font-sm);
+        }
+
+        th, td {
+            padding: var(--spacing-md);
+            text-align: left;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        tr:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        /* 警告框 */
+        .alert {
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-radius: var(--border-radius);
+            margin: var(--spacing-md) 0;
+            border-left: 4px solid;
+            display: flex;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+        }
+
+        .alert-info {
+            background-color: rgba(37, 99, 235, 0.1);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            border-color: var(--success-color);
+            color: #065f46;
+        }
+
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            border-color: var(--warning-color);
+            color: #92400e;
+        }
+
+        .alert-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger-color);
+            color: #991b1b;
+        }
+
+        .alert .alert-icon {
+            font-size: var(--font-lg);
+            flex-shrink: 0;
+        }
+
+        .alert .alert-content strong {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        /* 步骤列表 */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+            margin: var(--spacing-lg) 0;
+        }
+
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding-left: 60px;
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-lg);
+            border-left: 2px solid var(--border-color);
+        }
+
+        .steps li:last-child {
+            border-left: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: -15px;
+            top: 0;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: var(--font-sm);
+        }
+
+        /* 代码块 */
+        pre {
+            background-color: var(--bg-code);
+            color: #e5e7eb;
+            padding: var(--spacing-lg);
+            border-radius: var(--border-radius);
+            overflow-x: auto;
+            margin: var(--spacing-md) 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--font-sm);
+            line-height: 1.6;
+            position: relative;
+        }
+
+        code {
+            background-color: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* 界面示意图 */
+        .interface-schematic {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-lg);
+            margin: var(--spacing-md) 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--font-sm);
+            overflow-x: auto;
+        }
+
+        /* 卡片 */
+        .card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-lg);
+            margin: var(--spacing-md) 0;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow var(--transition-fast);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-title {
+            font-size: var(--font-lg);
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+        }
+
+        /* 特性网格 */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-md);
+            margin: var(--spacing-lg) 0;
+        }
+
+        .feature-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-lg);
+            text-align: center;
+            transition: all var(--transition-fast);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .feature-desc {
+            font-size: var(--font-sm);
+            color: var(--text-secondary);
+        }
+
+        /* 阅读进度 */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background-color: var(--border-color);
+            z-index: 1000;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            width: 0%;
+            transition: width 100ms ease;
+        }
+
+        /* 回到顶部 */
+        .back-to-top {
+            position: fixed;
+            bottom: var(--spacing-xl);
+            right: var(--spacing-xl);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-lg);
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px);
+            transition: all var(--transition-normal);
+            z-index: 999;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px -5px rgba(37, 99, 235, 0.3);
+        }
+
+        /* 搜索结果 */
+        .search-results {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: var(--spacing-md);
+            right: var(--spacing-md);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            z-index: 10;
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .search-result-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color var(--transition-fast);
+        }
+
+        .search-result-item:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-title {
+            font-weight: 500;
+            font-size: var(--font-sm);
+            margin-bottom: 2px;
+        }
+
+        .search-result-path {
+            font-size: var(--font-xs);
+            color: var(--text-muted);
+        }
+
+        .search-highlight {
+            background-color: rgba(245, 158, 11, 0.3);
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+
+        /* 页脚 */
+        footer {
+            text-align: center;
+            padding: var(--spacing-xl);
+            color: var(--text-muted);
+            font-size: var(--font-sm);
+            border-top: 1px solid var(--border-color);
+            margin-top: var(--spacing-xl);
+        }
+
+        /* ========================================
+           响应式设计
+           ======================================== */
+        @media (max-width: 992px) {
+            .sidebar {
+                position: fixed;
+                transform: translateX(-100%);
+                transition: transform var(--transition-normal);
+                box-shadow: var(--shadow-lg);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .content {
+                padding: var(--spacing-lg);
+            }
+
+            /* 移动端菜单按钮 */
+            .mobile-menu-btn {
+                position: fixed;
+                top: var(--spacing-md);
+                left: var(--spacing-md);
+                width: 44px;
+                height: 44px;
+                border-radius: var(--border-radius);
+                background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+                color: white;
+                border: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: var(--font-lg);
+                box-shadow: var(--shadow-md);
+                z-index: 1000;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .content {
+                padding: var(--spacing-md);
+            }
+
+            .chapter-title {
+                font-size: var(--font-2xl);
+            }
+
+            .section-title {
+                font-size: var(--font-xl);
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .back-to-top {
+                bottom: var(--spacing-md);
+                right: var(--spacing-md);
+                width: 44px;
+                height: 44px;
+            }
+        }
+
+        /* ========================================
+           打印样式
+           ======================================== */
+        @media print {
+            .sidebar,
+            .progress-bar,
+            .back-to-top,
+            .mobile-menu-btn,
+            .search-results {
+                display: none !important;
+            }
+
+            .content {
+                max-width: 100%;
+                padding: 20px;
+            }
+
+            body {
+                background: white;
+            }
+
+            .chapter {
+                page-break-after: always;
+            }
+
+            .chapter:last-child {
+                page-break-after: avoid;
+            }
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+    </style>
+    
+    <!-- Font Awesome 图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body data-theme="light">
+    
+    <!-- 阅读进度条 -->
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    
+    <!-- 移动端菜单按钮 -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn" style="display: none;">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="manual-container">
+        <!-- 左侧导航 -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1><i class="fas fa-robot"></i> 训练推理模块</h1>
+                <p>新功能使用说明书 v2.0</p>
+            </div>
+            
+            <div class="search-box" style="position: relative;">
+                <input type="text" class="search-input" id="search-input" placeholder="搜索功能说明...">
+                <div class="search-results" id="search-results"></div>
+            </div>
+            
+            <div class="nav-menu" id="nav-menu">
+                <a href="#overview" class="nav-link active" data-section="overview">
+                    <span class="icon"><i class="fas fa-book"></i></span>
+                    <span>文档概述</span>
+                </a>
+                <a href="#features" class="nav-link" data-section="features">
+                    <span class="icon"><i class="fas fa-star"></i></span>
+                    <span>功能总览</span>
+                </a>
+                
+                <details class="nav-collapsible" open>
+                    <summary><i class="fas fa-images"></i> 图像列表功能</summary>
+                    <a href="#image-list" class="nav-link" data-section="image-list">功能描述</a>
+                    <a href="#image-list-usage" class="nav-link" data-section="image-list-usage">操作说明</a>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary><i class="fas fa-check-square"></i> 图片选择功能</summary>
+                    <a href="#select-feature" class="nav-link" data-section="select-feature">功能描述</a>
+                    <a href="#select-usage" class="nav-link" data-section="select-usage">操作说明</a>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary><i class="fas fa-folder-plus"></i> 类别管理功能</summary>
+                    <a href="#category-feature" class="nav-link" data-section="category-feature">功能描述</a>
+                    <a href="#category-usage" class="nav-link" data-section="category-usage">操作说明</a>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary><i class="fas fa-cube"></i> 模型选择功能</summary>
+                    <a href="#model-feature" class="nav-link" data-section="model-feature">功能描述</a>
+                    <a href="#model-usage" class="nav-link" data-section="model-usage">操作说明</a>
+                </details>
+                
+                <a href="#workflow" class="nav-link" data-section="workflow">
+                    <span class="icon"><i class="fas fa-sitemap"></i></span>
+                    <span>操作流程</span>
+                </a>
+                <a href="#faq" class="nav-link" data-section="faq">
+                    <span class="icon"><i class="fas fa-question-circle"></i></span>
+                    <span>常见问题</span>
+                </a>
+            </div>
+            
+            <div class="sidebar-footer">
+                <div class="toolbar">
+                    <button class="tool-btn" id="theme-toggle" title="切换主题">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="tool-btn" id="font-increase" title="增大字体">
+                        <i class="fas fa-font"></i>
+                    </button>
+                    <button class="tool-btn" id="font-decrease" title="减小字体">
+                        <i class="fas fa-font" style="font-size: 12px;"></i>
+                    </button>
+                    <button class="tool-btn" id="print-btn" title="打印文档">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- 主内容 -->
+        <main class="content" id="main-content">
+            <!-- 第一章：文档概述 -->
+            <section class="chapter" id="overview">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">1</span>
+                    文档概述
+                </h2>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon"><i class="fas fa-info-circle"></i></span>
+                    <div class="alert-content">
+                        <strong>本文档目的</strong>
+                        为训练推理模块的用户提供完整的新功能使用指南，帮助您快速掌握图像多选、类别管理、模型选择等增强功能。
+                    </div>
+                </div>
+                
+                <h3 class="section-title">1.1 适用对象</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>对象</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>AI 训练工程师</strong></td>
+                            <td>数据集管理、模型训练与推理</td>
+                        </tr>
+                        <tr>
+                            <td><strong>质检工程师</strong></td>
+                            <td>使用 AI 模型进行缺陷检测</td>
+                        </tr>
+                        <tr>
+                            <td><strong>系统管理员</strong></td>
+                            <td>模型管理与系统配置</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3 class="section-title">1.2 阅读建议</h3>
+                <ul>
+                    <li><strong>首次使用</strong>：建议依次阅读第 1-4 章，了解基本概念和功能说明</li>
+                    <li><strong>日常操作</strong>：重点阅读第 7 章「操作流程」</li>
+                    <li><strong>问题排查</strong>：查阅第 8 章「常见问题」</li>
+                </ul>
+            </section>
+            
+            <!-- 第二章：功能总览 -->
+            <section class="chapter" id="features">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">2</span>
+                    功能总览
+                </h2>
+                
+                <p>本次更新包含以下 4 项核心功能，全方位提升您的使用体验：</p>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">☑️</div>
+                        <h4 class="feature-title">图像列表功能增强</h4>
+                        <p class="feature-desc">每个图像项左侧添加独立复选框，支持单个选择/取消选择</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📋</div>
+                        <h4 class="feature-title">图片选择功能</h4>
+                        <p class="feature-desc">全选/取消全选/反选，支持 Ctrl 键多选不连续的图像</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📁</div>
+                        <h4 class="feature-title">类别管理优化</h4>
+                        <p class="feature-desc">每个类别带"加入"按钮，支持将选中图片批量添加到类别</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🤖</div>
+                        <h4 class="feature-title">模型选择配置</h4>
+                        <p class="feature-desc">默认选中 YOLO 模型，开箱即用，无需额外配置</p>
+                    </div>
+                </div>
+                
+                <h3 class="section-title">2.1 相关文件</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>功能名称</th>
+                            <th>相关文件</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>图像列表功能增强</td>
+                            <td><code>TrainingInferenceView.cpp</code></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>图片选择功能实现</td>
+                            <td><code>TrainingInferenceView.cpp</code></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>类别管理功能优化</td>
+                            <td><code>CategoryPanel.cpp</code></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>模型选择功能配置</td>
+                            <td><code>ModelManager.h/cpp</code>, <code>InferencePanel.cpp</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+            
+            <!-- 第三章：图像列表功能增强 -->
+            <section class="chapter" id="image-list">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">3</span>
+                    图像列表功能增强
+                </h2>
+                
+                <h3 class="section-title" id="image-list-desc">3.1 功能描述</h3>
+                
+                <p>在图像列表视图中，每一项元素左侧添加独立复选框，支持单个图像的选择与取消选择。</p>
+                
+                <div class="alert alert-success">
+                    <span class="alert-icon"><i class="fas fa-check-circle"></i></span>
+                    <div class="alert-content">
+                        <strong>技术特点</strong>
+                        <ul style="margin-top: 8px; margin-bottom: 0;">
+                            <li>复选框状态与数据模型实时同步</li>
+                            <li>性能优化：状态更新时不重建整个列表</li>
+                            <li>自适应布局：不同屏幕尺寸都能正常显示</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <h3 class="subsection-title">3.1.1 界面布局</h3>
+                
+                <div class="interface-schematic">
+<pre>
+┌─────────────────────────────────────┐
+│ [✓]  image1.jpg  [预览] [删除] │
+│ [✗]  image2.jpg  [预览] [删除] │
+│ [✓]  image3.jpg  [预览] [删除] │
+│ [✗]  image4.jpg  [预览] [删除] │
+└─────────────────────────────────────┘
+</pre>
+                </div>
+                
+                <h3 class="section-title" id="image-list-usage">3.2 操作说明</h3>
+                
+                <h4 class="subsubsection-title">3.2.1 选择单个图像</h4>
+                <ol class="steps">
+                    <li>找到目标图像项</li>
+                    <li>点击左侧复选框</li>
+                    <li>复选框变为 ✓ 状态，表示已选中</li>
+                </ol>
+                
+                <h4 class="subsubsection-title">3.2.2 取消单个图像</h4>
+                <ol class="steps">
+                    <li>找到已选中的图像项</li>
+                    <li>点击左侧复选框</li>
+                    <li>复选框变为 ✗ 状态，表示已取消</li>
+                </ol>
+            </section>
+            
+            <!-- 第四章：图片选择功能实现 -->
+            <section class="chapter" id="select-feature">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">4</span>
+                    图片选择功能实现
+                </h2>
+                
+                <h3 class="section-title" id="select-desc">4.1 功能描述</h3>
+                
+                <p>提供丰富的图片选择操作，包括全选、取消全选、反选，并支持 Ctrl 键多选。</p>
+                
+                <h3 class="subsection-title">4.1.1 界面布局</h3>
+                
+                <div class="interface-schematic">
+<pre>
+┌─────────────────────────────────────────────┐
+│ [全选] [反选] [删除] [已选: 2/5]        │
+├─────────────────────────────────────────────┤
+│ [✓]  image1.jpg  [预览] [删除] │
+│ [✓]  image2.jpg  [预览] [删除] │
+│ [✗]  image3.jpg  [预览] [删除] │
+│ [✗]  image4.jpg  [预览] [删除] │
+│ [✗]  image5.jpg  [预览] [删除] │
+└─────────────────────────────────────────────┘
+</pre>
+                </div>
+                
+                <h3 class="section-title" id="select-usage">4.2 操作说明</h3>
+                
+                <h4 class="subsubsection-title">4.2.1 全选所有图像</h4>
+                <ol class="steps">
+                    <li>点击「全选」按钮</li>
+                    <li>所有图像的复选框变为 ✓ 状态</li>
+                    <li>按钮文字自动变为「取消全选」</li>
+                </ol>
+                
+                <h4 class="subsubsection-title">4.2.2 取消全选</h4>
+                <ol class="steps">
+                    <li>点击「取消全选」按钮</li>
+                    <li>所有图像的复选框变为 ✗ 状态</li>
+                    <li>按钮文字自动恢复为「全选」</li>
+                </ol>
+                
+                <h4 class="subsubsection-title">4.2.3 反选</h4>
+                <ol class="steps">
+                    <li>点击「反选」按钮</li>
+                    <li>已选中的图像变为未选中</li>
+                    <li>未选中的图像变为选中</li>
+                </ol>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon"><i class="fas fa-lightbulb"></i></span>
+                    <div class="alert-content">
+                        <strong>示例</strong>
+                        当前状态：[✓✓✗✗✗]（选中前 2 张）→ 点击反选 → [✗✗✓✓✓]（选中后 3 张）
+                    </div>
+                </div>
+                
+                <h4 class="subsubsection-title">4.2.4 Ctrl 键多选</h4>
+                <ol class="steps">
+                    <li>按住键盘 Ctrl 键</li>
+                    <li>点击多个图像项</li>
+                    <li>可以实现不连续的多选</li>
+                </ol>
+                
+                <h3 class="section-title">4.3 选择状态稳定性</h3>
+                <ul>
+                    <li>✅ 选择状态在页面滚动时保持不变</li>
+                    <li>✅ 图像加载后自动恢复之前的选择状态</li>
+                    <li>✅ 筛选操作不会影响已选择的图像</li>
+                </ul>
+            </section>
+            
+            <!-- 第五章：类别管理功能优化 -->
+            <section class="chapter" id="category-feature">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">5</span>
+                    类别管理功能优化
+                </h2>
+                
+                <h3 class="section-title" id="category-desc">5.1 功能描述</h3>
+                
+                <p>在每个类别名称右侧添加视觉清晰的"加入类别"按钮，支持将选中的图片批量添加到指定类别。</p>
+                
+                <h3 class="subsection-title">5.1.1 界面布局</h3>
+                
+                <div class="interface-schematic">
+<pre>
+┌──────────────────────────────────────┐
+│ 类别列表                          │
+├──────────────────────────────────────┤
+│ 正常品 [加入]                   │
+│ 划痕缺陷 [加入]                 │
+│ 裂纹缺陷 [加入]                 │
+│ 污渍缺陷 [加入]                 │
+│ 变形缺陷 [加入]                 │
+└──────────────────────────────────────┘
+</pre>
+                </div>
+                
+                <h3 class="section-title" id="category-usage">5.2 操作说明</h3>
+                
+                <ol class="steps">
+                    <li>在图像列表中使用复选框选择要添加的图片（至少需要选择 1 张）</li>
+                    <li>在类别列表中找到目标类别</li>
+                    <li>点击该类别右侧的「加入」按钮</li>
+                    <li>系统弹出确认对话框，显示即将添加的图片数量和目标类别</li>
+                    <li>点击「确认」完成添加</li>
+                </ol>
+                
+                <div class="card">
+                    <h4 class="card-title">💡 按钮状态说明</h4>
+                    <ul>
+                        <li><strong>灰色</strong>：不可用（无图片选中）</li>
+                        <li><strong>蓝色</strong>：可点击（有图片选中）</li>
+                    </ul>
+                </div>
+                
+                <h3 class="section-title">5.3 视觉反馈</h3>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">✅</div>
+                        <h4 class="feature-title">成功提示</h4>
+                        <p class="feature-desc">绿色对话框，显示成功添加的图片数量</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">❌</div>
+                        <h4 class="feature-title">失败提示</h4>
+                        <p class="feature-desc">红色对话框，显示具体错误原因</p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 第六章：模型选择功能配置 -->
+            <section class="chapter" id="model-feature">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">6</span>
+                    模型选择功能配置
+                </h2>
+                
+                <h3 class="section-title" id="model-desc">6.1 功能描述</h3>
+                
+                <p>模型选择下拉菜单默认选中 YOLO 模型，无需用户额外操作，开箱即用。</p>
+                
+                <h3 class="subsection-title">6.1.1 界面布局</h3>
+                
+                <div class="interface-schematic">
+<pre>
+┌──────────────────────────────────────┐
+│ 模型选择                          │
+├──────────────────────────────────────┤
+│ ┌────────────────────────────┐    │
+│ │ ▼ yolov5s（默认）      │    │
+│ └────────────────────────────┘    │
+│                                      │
+│ [加载模型] [开始推理] [停止推理] │
+│                                      │
+│ 模型信息：                          │
+│ • 模型名称：yolov5s                │
+│ • 输入尺寸：640×640                │
+│ • 推理引擎：ONNX Runtime           │
+└──────────────────────────────────────┘
+</pre>
+                </div>
+                
+                <h3 class="section-title" id="model-usage">6.2 操作说明</h3>
+                
+                <h4 class="subsubsection-title">6.2.1 查看可用模型</h4>
+                <ol class="steps">
+                    <li>点击下拉菜单</li>
+                    <li>显示所有可用的模型列表：
+                        <ul style="margin-top: 8px;">
+                            <li>yolov5s（YOLO 目标检测）</li>
+                            <li>resnet50（ResNet 图像分类）</li>
+                            <li>defect_detector（缺陷检测专用）</li>
+                        </ul>
+                    </li>
+                </ol>
+                
+                <h4 class="subsubsection-title">6.2.2 选择其他模型</h4>
+                <ol class="steps">
+                    <li>点击下拉菜单</li>
+                    <li>从列表中选择需要的模型</li>
+                    <li>模型信息自动更新显示</li>
+                </ol>
+                
+                <h3 class="section-title">6.3 智能匹配逻辑</h3>
+                
+                <p>系统按照以下优先级选择默认模型：</p>
+                
+                <div class="card">
+                    <h4 class="card-title">选择优先级</h4>
+                    <ol>
+                        <li>优先查找完全匹配 "YOLO" 的模型</li>
+                        <li>如果没找到，查找包含 "yolo" 的模型（不区分大小写）</li>
+                        <li>如果还没找到，选择列表中的第一个模型</li>
+                        <li>如果没有模型，显示提示信息</li>
+                    </ol>
+                </div>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon"><i class="fas fa-info-circle"></i></span>
+                    <div class="alert-content">
+                        <strong>状态保持</strong>
+                        刷新页面或重新加载模块时，YOLO 模型会保持默认选中状态。
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 第七章：操作流程 -->
+            <section class="chapter" id="workflow">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">7</span>
+                    完整操作流程
+                </h2>
+                
+                <h3 class="section-title">7.1 批量标注数据流程</h3>
+                
+                <div class="card">
+                    <div class="steps">
+                        <li>导入图像</li>
+                        <li>使用复选框选择多张图像</li>
+                        <li>点击目标类别右侧的「加入」按钮</li>
+                        <li>确认添加到该类别</li>
+                        <li>重复步骤 2-4 完成批量标注</li>
+                    </div>
+                </div>
+                
+                <h3 class="section-title">7.2 AI 推理检测流程</h3>
+                
+                <div class="card">
+                    <div class="steps">
+                        <li>打开训练推理模块（默认已选择 YOLO 模型）</li>
+                        <li>导入待检测图像</li>
+                        <li>选择要推理的图像</li>
+                        <li>点击「开始推理」</li>
+                        <li>查看推理结果</li>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 第八章：常见问题 -->
+            <section class="chapter" id="faq">
+                <h2 class="chapter-title">
+                    <span class="chapter-number">8</span>
+                    常见问题
+                </h2>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q1: 复选框点击没有反应？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>原因：</strong>可能是列表正在刷新或数据正在加载。</p>
+                        <p><strong>解决方案：</strong></p>
+                        <ul>
+                            <li>等待列表加载完成后再操作</li>
+                            <li>检查是否有图片正在处理中</li>
+                        </ul>
+                    </div>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q2: "加入"按钮是灰色的，点击不了？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>原因：</strong>没有选择任何图片。</p>
+                        <p><strong>解决方案：</strong></p>
+                        <ul>
+                            <li>在图像列表中至少选择 1 张图片</li>
+                            <li>确认复选框状态为 ✓</li>
+                            <li>按钮会自动变为蓝色可点击状态</li>
+                        </ul>
+                    </div>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q3: YOLO 模型没有在列表中显示？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>原因：</strong>模型文件可能不存在或路径配置错误。</p>
+                        <p><strong>解决方案：</strong></p>
+                        <ul>
+                            <li>检查 <code>models/</code> 目录下是否存在 YOLO 模型文件</li>
+                            <li>确认文件格式为 ONNX（.onnx）</li>
+                            <li>查看系统日志获取详细错误信息</li>
+                        </ul>
+                    </div>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q4: 选择状态在滚动后消失了？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>原因：</strong>旧版本可能存在此问题，新版本已修复。</p>
+                        <p><strong>解决方案：</strong></p>
+                        <ul>
+                            <li>更新到最新版本</li>
+                            <li>确认选择状态已正确保存到数据模型</li>
+                        </ul>
+                    </div>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q5: 反选功能如何使用？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>操作示例：</strong></p>
+                        <p>假设当前状态：[✓✓✗✗✗]（选中前 2 张）</p>
+                        <ol>
+                            <li>点击「反选」按钮</li>
+                            <li>结果变为：[✗✗✓✓✓]（选中后 3 张）</li>
+                            <li>再点击一次「反选」恢复原始状态</li>
+                        </ol>
+                    </div>
+                </details>
+                
+                <details class="nav-collapsible" open>
+                    <summary>Q6: 如何快速选择所有图片？</summary>
+                    <div style="padding: var(--spacing-md);">
+                        <p><strong>方式 1：</strong>点击「全选」按钮</p>
+                        <p><strong>方式 2：</strong>按住 Shift 键点击第一个和最后一个</p>
+                    </div>
+                </details>
+                
+                <h3 class="section-title">附录：快捷键参考</h3>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>快捷键</th>
+                            <th>功能</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><kbd>Ctrl</kbd> + <kbd>A</kbd></td>
+                            <td>全选所有图像</td>
+                        </tr>
+                        <tr>
+                            <td><kbd>Ctrl</kbd> + 点击</kbd></td>
+                            <td>多选不连续的图像</td>
+                        </tr>
+                        <tr>
+                            <td><kbd>Shift</kbd> + 点击</kbd></td>
+                            <td>多选连续的图像</td>
+                        </tr>
+                        <tr>
+                            <td><kbd>Delete</kbd></td>
+                            <td>删除选中的图像</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+            
+            <footer>
+                <p><i class="fas fa-copyright"></i> 2026 奇测科技 | 奇测视觉检测系统 v2.0 | 保留所有权利</p>
+                <p style="margin-top: var(--spacing-sm); font-size: var(--font-xs);">文档生成时间：2026-05-30</p>
+            </footer>
+        </main>
+    </div>
+    
+    <!-- 回到顶部按钮 -->
+    <button class="back-to-top" id="back-to-top" title="回到顶部">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    
+    <script>
+        /* ========================================
+           初始化
+           ======================================== */
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            initNavigation();
+            initSearch();
+            initProgress();
+            initBackToTop();
+            initMobileMenu();
+            initFontAdjustment();
+            initPrint();
+        });
+        
+        /* ========================================
+           主题切换
+           ======================================== */
+        function initTheme() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            
+            document.body.dataset.theme = savedTheme;
+            updateThemeIcon(savedTheme);
+            
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.body.dataset.theme;
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                
+                document.body.dataset.theme = newTheme;
+                localStorage.setItem('theme', newTheme);
+                updateThemeIcon(newTheme);
+            });
+        }
+        
+        function updateThemeIcon(theme) {
+            const themeToggle = document.getElementById('theme-toggle');
+            const icon = themeToggle.querySelector('i');
+            icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+        
+        /* ========================================
+           导航高亮
+           ======================================== */
+        function initNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link[data-section]');
+            const sections = document.querySelectorAll('.chapter, section[id]');
+            
+            // 点击导航
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href').substring(1);
+                    const target = document.getElementById(targetId);
+                    
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth' });
+                        
+                        // 更新激活状态
+                        navLinks.forEach(l => l.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // 移动端关闭菜单
+                        document.getElementById('sidebar').classList.remove('open');
+                    }
+                });
+            });
+            
+            // 滚动时更新导航
+            const observerOptions = {
+                rootMargin: '-20% 0px -60% 0px',
+                threshold: 0
+            };
+            
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        navLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === '#' + id) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+            
+            sections.forEach(section => observer.observe(section));
+        }
+        
+        /* ========================================
+           搜索功能
+           ======================================== */
+        function initSearch() {
+            const searchInput = document.getElementById('search-input');
+            const searchResults = document.getElementById('search-results');
+            
+            const searchableContent = [];
+            
+            // 收集可搜索内容
+            document.querySelectorAll('h2, h3, h4, p').forEach(el => {
+                const text = el.textContent.trim();
+                if (text.length > 10) {
+                    const section = el.closest('section');
+                    const id = section ? section.id : '';
+                    const title = el.tagName.startsWith('H') ? text : (el.querySelector('h2, h3')?.textContent || '');
+                    
+                    searchableContent.push({
+                        text: text.toLowerCase(),
+                        originalText: text,
+                        id: id,
+                        title: title || section?.querySelector('h2, h3')?.textContent || '未命名章节'
+                    });
+                }
+            });
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase().trim();
+                
+                if (query.length < 2) {
+                    searchResults.classList.remove('active');
+                    return;
+                }
+                
+                const results = searchableContent.filter(item => 
+                    item.text.includes(query)
+                ).slice(0, 10);
+                
+                displayResults(results, query);
+            });
+            
+            searchInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    searchResults.classList.remove('active');
+                }, 200);
+            });
+            
+            searchInput.addEventListener('focus', function() {
+                if (this.value.length >= 2) {
+                    searchResults.classList.add('active');
+                }
+            });
+        }
+        
+        function displayResults(results, query) {
+            const searchResults = document.getElementById('search-results');
+            
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="search-result-item" style="color: var(--text-muted); text-align: center;">未找到相关内容</div>';
+            } else {
+                searchResults.innerHTML = results.map(result => {
+                    const highlightedText = result.originalText.replace(
+                        new RegExp(query, 'gi'),
+                        match => '<span class="search-highlight">' + match + '</span>'
+                    );
+                    
+                    return `
+                        <div class="search-result-item" onclick="document.getElementById('${result.id}').scrollIntoView({behavior: 'smooth'}); document.getElementById('search-results').classList.remove('active'); document.getElementById('search-input').value = '';">
+                            <div class="search-result-title">${result.title}</div>
+                            <div class="search-result-path">${highlightedText.substring(0, 80)}...</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            searchResults.classList.add('active');
+        }
+        
+        /* ========================================
+           阅读进度
+           ======================================== */
+        function initProgress() {
+            window.addEventListener('scroll', updateProgress);
+        }
+        
+        function updateProgress() {
+            const scrollTop = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = (scrollTop / docHeight) * 100;
+            
+            document.getElementById('progress-fill').style.width = Math.min(100, progress) + '%';
+        }
+        
+        /* ========================================
+           回到顶部
+           ======================================== */
+        function initBackToTop() {
+            const backToTop = document.getElementById('back-to-top');
+            
+            window.addEventListener('scroll', function() {
+                if (window.scrollY > 300) {
+                    backToTop.classList.add('visible');
+                } else {
+                    backToTop.classList.remove('visible');
+                }
+            });
+            
+            backToTop.addEventListener('click', function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+        
+        /* ========================================
+           移动端菜单
+           ======================================== */
+        function initMobileMenu() {
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const sidebar = document.getElementById('sidebar');
+            
+            // 检查是否为移动设备
+            if (window.innerWidth <= 992) {
+                mobileMenuBtn.style.display = 'flex';
+            }
+            
+            window.addEventListener('resize', function() {
+                if (window.innerWidth <= 992) {
+                    mobileMenuBtn.style.display = 'flex';
+                } else {
+                    mobileMenuBtn.style.display = 'none';
+                    sidebar.classList.remove('open');
+                }
+            });
+            
+            mobileMenuBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('open');
+            });
+        }
+        
+        /* ========================================
+           字体大小调整
+           ======================================== */
+        function initFontAdjustment() {
+            const increaseBtn = document.getElementById('font-increase');
+            const decreaseBtn = document.getElementById('font-decrease');
+            let currentSize = 16;
+            const minSize = 14;
+            const maxSize = 20;
+            
+            const savedSize = localStorage.getItem('fontSize');
+            if (savedSize) {
+                currentSize = parseInt(savedSize);
+                document.documentElement.style.fontSize = currentSize + 'px';
+            }
+            
+            increaseBtn.addEventListener('click', function() {
+                if (currentSize < maxSize) {
+                    currentSize += 2;
+                    document.documentElement.style.fontSize = currentSize + 'px';
+                    localStorage.setItem('fontSize', currentSize);
+                }
+            });
+            
+            decreaseBtn.addEventListener('click', function() {
+                if (currentSize > minSize) {
+                    currentSize -= 2;
+                    document.documentElement.style.fontSize = currentSize + 'px';
+                    localStorage.setItem('fontSize', currentSize);
+                }
+            });
+        }
+        
+        /* ========================================
+           打印功能
+           ======================================== */
+        function initPrint() {
+            const printBtn = document.getElementById('print-btn');
+            
+            printBtn.addEventListener('click', function() {
+                window.print();
+            });
+        }
+    </script>
+</body>
+</html>
