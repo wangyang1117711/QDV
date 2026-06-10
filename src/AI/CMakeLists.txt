@@ -3,11 +3,17 @@
 set(AI_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ModelManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ClassificationMetrics.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/VisionClassifier.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/TrainingBridge.h
 )
 
 set(AI_SOURCES
     InferenceEngine.cpp
     ModelManager.cpp
+    ClassificationMetrics.cpp
+    VisionClassifier.cpp
+    TrainingBridge.cpp
 )
 
 add_library(AI STATIC
@@ -22,6 +28,7 @@ target_include_directories(AI PUBLIC
 
 target_link_libraries(AI PUBLIC
     Core
+    ${OpenCV_LIBS}
 )
 
 if(ENABLE_GPU)
@@ -29,7 +36,7 @@ if(ENABLE_GPU)
     target_include_directories(AI PRIVATE ${CUDA_INCLUDE_DIRS})
 endif()
 
-target_compile_features(AI PUBLIC cxx_std_20)
+target_compile_features(AI PUBLIC cxx_std_17)
 
 install(TARGETS AI
     EXPORT QDVTargets
