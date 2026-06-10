@@ -271,6 +271,26 @@ Item {
         }
     }
 
+    // 4a: FilePath — TextField + 浏览按钮（v3.2.0 算子参数编辑器增强）
+    //     适用于参数名 == "filePath" 的 String 字段
+    Component {
+        id: filePathFieldComp
+        Loader {
+            id: fpLoader
+            source: "qrc:/qml/EditView/FilePathField.qml"
+            onLoaded: {
+                if (item) {
+                    item.spec = modelData
+                    item.currentValue = currentValue !== undefined && currentValue !== null
+                                         ? String(currentValue) : ""
+                    item.valuePicked.connect(function(newVal) {
+                        root.setValue(item.paramName, newVal)
+                    })
+                }
+            }
+        }
+    }
+
     // 4: String — TextField
     Component {
         id: textFieldComp
@@ -395,6 +415,8 @@ Item {
                 // 关键：根据 spec.type 选择 Component
                 sourceComponent: {
                     if (!modelData) return null
+                    // v3.2.0：filePath 字段走专用文件路径组件（带浏览按钮 + 路径记忆）
+                    if (modelData.name === "filePath") return filePathFieldComp
                     switch (modelData.type) {
                         case 0: return spinBoxComp
                         case 1: return doubleSpinBoxComp

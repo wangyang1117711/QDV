@@ -16,6 +16,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Qt.labs.settings
 import QDV.EditView 3.0 as Tok
 
 Rectangle {
@@ -35,6 +36,9 @@ Rectangle {
     property bool   rightPanelVisible: true
     property bool   leftPanelVisible: true
     property bool   rightPanelFloating: false   // v3.1.0: 右侧面板浮动模式
+    // v3.2.0：算子参数编辑器 — pin 状态
+    // true = 编辑器被锁定保持显示，不会因取消选择等操作自动收起
+    property bool   rightPanelPinned: false
     property url    previewSourceImage: ""       // v3.1.0: 原图路径
     property url    previewProcessedImage: ""    // v3.1.0: 处理后图像路径
     property var    analysisResults: []          // v3.1.0: 分析结果数据
@@ -136,6 +140,29 @@ Rectangle {
 
     // ============ 定时器 ============
     Timer { id: toastTimer; interval: 2500; onTriggered: root.toastVisible = false }
+
+    // ============ 算子参数编辑器 — 状态持久化 ============
+    // v3.2.0：编辑器的显示/隐藏 + 固定状态在软件重启后保持
+    // 存储位置：build/bin/appData/editorState.ini
+    Settings {
+        id: editorState
+        category: "EditView/Layout"
+        property bool rightPanelVisible: true
+        property bool rightPanelPinned:  false
+        property int  rightPanelWidth:  300
+    }
+
+    // 初始化：从 Settings 加载
+    Component.onCompleted: {
+        if (editorState.rightPanelVisible !== undefined)
+            root.rightPanelVisible = editorState.rightPanelVisible
+        if (editorState.rightPanelPinned !== undefined)
+            root.rightPanelPinned = editorState.rightPanelPinned
+    }
+
+    // 变化时写回
+    onRightPanelVisibleChanged: editorState.rightPanelVisible = rightPanelVisible
+    onRightPanelPinnedChanged:  editorState.rightPanelPinned  = rightPanelPinned
 
     // ============ 文件对话框 ============
     FileDialog {
@@ -1062,7 +1089,7 @@ Rectangle {
                     }
                 }
 
-                // 响应式：窄屏时显示展开右侧面板按钮
+                // 响应式：窄屏时显示展开右侧面板按钮（v3.2.0 增加 pin 状态指示）
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -1070,23 +1097,33 @@ Rectangle {
                     anchors.topMargin: Tok.DesignTokens.space2
                     width: 28; height: 28; radius: Tok.DesignTokens.radiusMd
                     color: Tok.DesignTokens.bgSurface
-                    border.color: Tok.DesignTokens.borderDefault
+                    border.color: root.rightPanelPinned
+                        ? Tok.DesignTokens.accentPrimary
+                        : Tok.DesignTokens.borderDefault
+                    border.width: root.rightPanelPinned ? 2 : Tok.DesignTokens.borderWidth
                     visible: !root.rightPanelVisible && root.currentSelectedNodeId !== ""
+                    ToolTip.text: root.rightPanelPinned
+                        ? "算子参数编辑器已固定（点击展开）"
+                        : "展开算子参数编辑器"
+                    ToolTip.visible: expandBtnArea.containsMouse
+                    ToolTip.delay: 500
                     Label {
                         anchors.centerIn: parent
-                        text: "\u25C0"
+                        text: root.rightPanelPinned ? "🔒" : "\u25C0"
                         color: Tok.DesignTokens.accentPrimary
                         font.pixelSize: Tok.DesignTokens.fontSizeLg
                     }
                     MouseArea {
+                        id: expandBtnArea
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.rightPanelVisible = true
                     }
                 }
             }
 
-            // ============ 右侧：算子详情（v3.1.0 支持浮动模式）============
+            // ============ 右侧：算子详情（v3.1.0 支持浮动模式 / v3.2.0 支持 pin）============
             PropertyPreviewPanel {
                 id: rightPanel
                 bridge: editViewBridge
@@ -1102,6 +1139,22 @@ Rectangle {
                     root.openImagePreview(sourceUrl, processedUrl, title)
                 }
                 onRequestFloat: root.toggleRightPanelFloating()
+                // v3.2.0：算子参数编辑器 — pin / hide 联动
+                pinned: root.rightPanelPinned
+                onPinToggled: {
+                    root.rightPanelPinned = !root.rightPanelPinned
+                    root.showToast("info",
+                        root.rightPanelPinned ? "算子参数编辑器已固定" : "已取消固定")
+                }
+                onRequestHide: {
+                    // pinned 时不允许隐藏
+                    if (root.rightPanelPinned) {
+                        root.showToast("warn", "编辑器已固定，请先取消固定")
+                        return
+                    }
+                    root.rightPanelVisible = false
+                    root.showToast("info", "算子参数编辑器已隐藏（再次点击右侧按钮可恢复）")
+                }
             }
         }
     }

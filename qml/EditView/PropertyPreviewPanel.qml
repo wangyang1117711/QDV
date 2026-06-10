@@ -34,6 +34,8 @@ Rectangle {
     signal previewDoubleClicked(url sourceUrl, url processedUrl, string title)
     // v3.1.0: 请求浮动/停靠切换
     signal requestFloat()
+    // v3.2.0: 请求隐藏算子参数编辑器（与 pin 状态联动）
+    signal requestHide()
 
     Accessible.role: Accessible.Pane
     Accessible.name: "算子详情面板"
@@ -93,6 +95,11 @@ Rectangle {
         }
         return ex
     }
+
+    // v3.2.0：算子参数编辑器增强 — pin 状态对外信号
+    signal pinToggled()
+    // 父组件通过 property pinned 传入
+    property bool pinned: false
 
     ScrollView {
         anchors.fill: parent
@@ -195,6 +202,88 @@ Rectangle {
                                     bridge.toggleFavorite(root.selectedNode.type)
                                 }
                             }
+                        }
+                    }
+                }
+
+                // 1a-bis：v3.2.0 算子参数编辑器 — 固定/隐藏按钮栏
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 36
+                    color: Tok.DesignTokens.bgPanel
+                    visible: root.selectedNode !== null
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        spacing: 6
+
+                        // 固定按钮（pin / unpin）
+                        ToolButton {
+                            id: pinBtn
+                            text: root.pinned ? "📌 已固定" : "📌 固定"
+                            font.pixelSize: 11
+                            font.family: Tok.DesignTokens.fontFamilyCJK
+                            Layout.preferredHeight: 28
+                            Layout.preferredWidth: 84
+                            ToolTip.text: root.pinned
+                                ? "已固定：编辑器保持显示。点击取消固定。"
+                                : "点击固定编辑器，避免被其他操作隐藏。"
+                            ToolTip.visible: hovered
+                            background: Rectangle {
+                                color: root.pinned
+                                    ? Tok.DesignTokens.accentPrimary
+                                    : (pinBtn.hovered ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgSurface)
+                                border.color: Tok.DesignTokens.borderDefault
+                                border.width: 1
+                                radius: Tok.DesignTokens.radiusSm
+                            }
+                            contentItem: Label {
+                                text: pinBtn.text
+                                color: root.pinned
+                                    ? Tok.DesignTokens.textPrimary
+                                    : Tok.DesignTokens.textSecondary
+                                font: pinBtn.font
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: root.pinToggled()
+                        }
+
+                        // 隐藏按钮
+                        ToolButton {
+                            id: hideBtn
+                            text: "◀ 隐藏"
+                            font.pixelSize: 11
+                            font.family: Tok.DesignTokens.fontFamilyCJK
+                            Layout.preferredHeight: 28
+                            ToolTip.text: "收起算子参数编辑器到侧边栏"
+                            ToolTip.visible: hovered
+                            background: Rectangle {
+                                color: hideBtn.hovered ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgSurface
+                                border.color: Tok.DesignTokens.borderDefault
+                                border.width: 1
+                                radius: Tok.DesignTokens.radiusSm
+                            }
+                            contentItem: Label {
+                                text: hideBtn.text
+                                color: Tok.DesignTokens.textSecondary
+                                font: hideBtn.font
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: root.requestHide ? root.requestHide() : null
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        // 当前固定状态指示
+                        Label {
+                            visible: root.pinned
+                            text: "🔒 锁定显示"
+                            color: Tok.DesignTokens.accentSuccess
+                            font.pixelSize: 10
+                            font.family: Tok.DesignTokens.fontFamilyCJK
                         }
                     }
                 }
