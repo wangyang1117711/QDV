@@ -1,0 +1,92 @@
+# ============================================================
+# Q-DetectVision .gitignore
+# 排除构建产物、临时文件、日志、IDE 缓存
+# ============================================================
+
+# ===== 构建产物 =====
+build/
+build_*/
+build_qt/
+build_mingw/
+build_new/
+build_new2/
+cmake-build-*/
+out/
+
+# ===== 第三方依赖 =====
+opencv_world4130.def
+
+# ===== 日志与运行时 =====
+logs/
+*.log
+build_recheck.log
+build_test_log.txt
+test_protection.txt
+
+# ===== 临时备份 =====
+Backup/
+*.bak
+*.tmp
+*.orig
+*.rej
+"CMakeLists.txt_D盘替换新"
+
+# ===== IDE / 编辑器 =====
+.trae/
+.vscode/
+.idea/
+.vs/
+*.user
+*.user.*
+*.suo
+*.swp
+*.swo
+*~
+.qmake.stash
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ===== Qt 临时 / moc / ui / qrc =====
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+
+# ===== 调试中间产物 =====
+.dbg/
+*.dbg
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.idb
+*.pdb
+
+# ===== 模型 / 训练数据 =====
+models/
+training/
+*.pt
+*.onnx
+*.h5
+*.pb
+*.weights
+*.tflite
