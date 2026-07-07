@@ -53,7 +53,7 @@ target_include_directories(Vision PUBLIC
 
 target_link_libraries(Vision PUBLIC
     Core
-    AI
+    OperatorSDK
     ${OpenCV_LIBS}
 )
 

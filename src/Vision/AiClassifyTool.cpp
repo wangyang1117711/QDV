@@ -1,5 +1,4 @@
 #include "Vision/AiClassifyTool.h"
-#include "AI/InferenceEngine.h"
 #include "Core/Logger.h"
 #include <QJsonArray>
 
@@ -7,11 +6,11 @@ using namespace QDV;
 
 AiClassifyTool::AiClassifyTool() {
     m_name = "AI分类";
-    m_engine = new InferenceEngine();
+    // Phase 1: m_engine 由 setInferenceEngine 外部注入，不再 new InferenceEngine
 }
 
 AiClassifyTool::~AiClassifyTool() {
-    delete m_engine;
+    // Phase 1: m_engine 所有权归外部（注入方），不 delete
 }
 
 bool AiClassifyTool::configure(const QJsonObject& params) {
@@ -37,7 +36,8 @@ bool AiClassifyTool::configure(const QJsonObject& params) {
     }
     m_params = params;
 
-    if (!m_modelPath.isEmpty() && !m_warmedUp) {
+    // Phase 1: 增加 m_engine nullptr 检查（RT-006）
+    if (!m_modelPath.isEmpty() && !m_warmedUp && m_engine) {
         Logger::info("AiClassifyTool loading model: " + m_modelPath);
         bool loaded = m_engine->loadModel(m_modelPath,
             QSize(m_inputWidth, m_inputHeight),
@@ -64,6 +64,14 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         return false;
     }
 
+    // Phase 1 RT-006: 引擎未注入保护
+    if (!m_engine) {
+        Logger::warn("AiClassifyTool: no inference engine injected");
+        result.ok = false;
+        result.data["error"] = "No inference engine injected";
+        return false;
+    }
+
     if (m_modelPath.isEmpty()) {
         Logger::warn("AiClassifyTool: no model configured");
         result.ok = false;
@@ -71,7 +79,7 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         return false;
     }
 
-    if (!m_warmedUp) {
+    if (!m_warmedUp && m_engine) {
         Logger::info("AiClassifyTool: loading model before first inference");
         bool loaded = m_engine->loadModel(m_modelPath,
             QSize(m_inputWidth, m_inputHeight),
@@ -111,7 +119,8 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["category_name"] = inferResult["category"].toString();
     }
 
-    InferenceMetrics metrics = m_engine->lastMetrics();
+    // Phase 1: InferenceMetrics 改用 IInferenceEngine 的 InferenceMetricsLite
+    InferenceMetricsLite metrics = m_engine->lastMetrics();
     result.elapsedMs = metrics.totalMs;
     result.data["preprocess_ms"] = metrics.preprocessMs;
     result.data["inference_ms"] = metrics.inferenceMs;

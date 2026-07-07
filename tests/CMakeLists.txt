@@ -25,6 +25,8 @@ add_executable(QDV_tests
     AI/test_classification_metrics.cpp
     UI/test_ui_smoke.cpp
     UI/test_mainwindow_upgrade.cpp
+    UI/test_editview_bridge.cpp
+    UI/test_roi_validation.cpp
     Plugins/test_plugins.cpp
     TrainingInference/test_preprocessor.cpp
     TrainingInference/test_image_manager.cpp
@@ -32,10 +34,16 @@ add_executable(QDV_tests
     TrainingInference/visual_test_utils.cpp
     TrainingInference/test_visual_verification.cpp
     Integration/test_integration.cpp
+    OperatorSDK/test_registry.cpp
+    OperatorSDK/test_plugin_loader.cpp
+    OperatorSDK/test_manifest_loader.cpp
+    Vision/test_ai_classify_di.cpp
+    Operators/test_histogram.cpp
 )
 
 target_include_directories(QDV_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(QDV_tests PRIVATE
@@ -45,6 +53,7 @@ target_link_libraries(QDV_tests PRIVATE
     Core
     AI
     Vision
+    OperatorSDK
     Communication
     Database
     Qt6::Core Qt6::Sql Qt6::Network Qt6::Widgets Qt6::Concurrent Qt6::Test

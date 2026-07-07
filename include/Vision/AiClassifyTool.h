@@ -2,9 +2,8 @@
 #define AICLASSIFYTOOL_H
 
 #include "Core/VisionTool.h"
+#include "OperatorSDK/IInferenceEngine.h"
 #include <QJsonArray>
-
-class InferenceEngine;
 
 class AiClassifyTool : public QDV::VisionTool {
 public:
@@ -35,8 +34,13 @@ public:
     int inputWidth() const { return m_inputWidth; }
     int inputHeight() const { return m_inputHeight; }
 
+    // Phase 1 依赖注入：通过 IInferenceEngine 接口注入 AI 引擎
+    // 连续注入使用最后一次（RT-008）
+    void setInferenceEngine(QDV::IInferenceEngine* engine) { m_engine = engine; }
+    QDV::IInferenceEngine* inferenceEngine() const { return m_engine; }
+
 private:
-    InferenceEngine* m_engine;
+    QDV::IInferenceEngine* m_engine = nullptr;
     QString m_modelPath;
     QStringList m_categoryLabels;
     double m_confidenceThreshold = 0.5;

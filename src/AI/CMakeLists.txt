@@ -2,14 +2,17 @@
 
 set(AI_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceEngine.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceEngineAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ModelManager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ClassificationMetrics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/VisionClassifier.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/TrainingBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../OperatorSDK/include/OperatorSDK/IInferenceEngine.h
 )
 
 set(AI_SOURCES
     InferenceEngine.cpp
+    InferenceEngineAdapter.cpp
     ModelManager.cpp
     ClassificationMetrics.cpp
     VisionClassifier.cpp
@@ -28,6 +31,7 @@ target_include_directories(AI PUBLIC
 
 target_link_libraries(AI PUBLIC
     Core
+    OperatorSDK
     ${OpenCV_LIBS}
 )
 
