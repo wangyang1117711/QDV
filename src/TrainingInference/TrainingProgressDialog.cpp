@@ -51,7 +51,7 @@ void TrainingProgressDialog::setupUI()
             height: 20px;
         }
         QProgressBar::chunk {
-            background-color: #660874;
+            background-color: #7C4DFF;
             border-radius: 3px;
         }
     )");

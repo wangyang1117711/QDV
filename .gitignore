@@ -30,6 +30,7 @@ Backup/
 *.orig
 *.rej
 "CMakeLists.txt_D盘替换新"
+"CMakeLists.txt_D盘更新"
 
 # ===== IDE / 编辑器 =====
 .trae/
@@ -54,6 +55,20 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps/
+
+# ===== Trae IDE 工作目录（Agent 协作临时文件）=====
+.agent_mesh/
+.agent_mesh_template/
+.pilot-worktree/
+.workbuddy/
+
+# ===== Python 缓存 =====
+__pycache__/
+*.pyc
+
+# ===== 临时截图 / 验证图 =====
+1.png
+verify_editview_final.png
 
 # ===== 系统文件 =====
 .DS_Store

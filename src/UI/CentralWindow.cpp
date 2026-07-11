@@ -18,6 +18,7 @@
 #include <QMouseEvent>
 #include <QEvent>
 #include <QApplication>
+#include <QPropertyAnimation>
 
 CentralWindow::CentralWindow(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -54,37 +55,46 @@ CentralWindow::~CentralWindow() {
 
 void CentralWindow::createNavigationPanel(QVBoxLayout* mainLayout) {
     QWidget* navPanel = new QWidget();
-    navPanel->setFixedHeight(72);
+    navPanel->setFixedHeight(56);  // v5.1 融合优化：42→56px，平衡紧凑与点击区域
     navPanel->setStyleSheet(R"(
         QWidget {
-            background-color: #252525;
-            border-bottom: 1px solid #444;
+            background-color: #1A1A1A;
+            border-bottom: 1px solid #3D3D3D;
         }
     )");
 
     QHBoxLayout* navLayout = new QHBoxLayout(navPanel);
     navLayout->setContentsMargins(16, 0, 16, 0);
-    navLayout->setSpacing(4);
+    navLayout->setSpacing(2);
 
     QLabel* logoLabel = new QLabel("QD");
-    logoLabel->setStyleSheet("color: #660874; font-size: 22px; font-weight: bold; padding: 0 8px; background: transparent; border: none;");
+    logoLabel->setStyleSheet("color: #7C4DFF; font-size: 18px; font-weight: bold; padding: 0 6px; background: transparent; border: none;");
     navLayout->addWidget(logoLabel);
 
-    navLayout->addSpacing(12);
+    QLabel* brandLabel = new QLabel("奇测视觉");
+    brandLabel->setStyleSheet("color: #E0E0E0; font-size: 13px; font-weight: bold; background: transparent; border: none; padding-right: 8px;");
+    navLayout->addWidget(brandLabel);
+
+    QFrame* brandSep = new QFrame();
+    brandSep->setFixedWidth(1);
+    brandSep->setStyleSheet("background-color: #3D3D3D; border: none; max-height: 24px;");
+    navLayout->addWidget(brandSep);
+
+    navLayout->addSpacing(8);
 
     struct NavItem {
         QString text;
         int index;
     };
     QList<NavItem> items = {
-        {"首页", 0},
-        {"相机", 1},
-        {"方案", 2},
-        {"编辑", 3},
-        {"IO监控", 4},
-        {"通信", 5},
-        {"监控", 6},
-        {"训练推理", 7},
+        {"\u2302 首页", 0},
+        {"\u25C9 相机", 1},
+        {"\u229E 方案", 2},
+        {"\u270E 编辑", 3},
+        {"\u21C4 IO监控", 4},
+        {"\u27E1 通信", 5},
+        {"\u26A1 监控", 6},
+        {"\u25B6 训练推理", 7},
     };
 
     for (const auto& item : items) {
@@ -101,11 +111,11 @@ void CentralWindow::createNavigationPanel(QVBoxLayout* mainLayout) {
     logoutBtn->setStyleSheet(R"(
         QToolButton {
             background: transparent;
-            border: 1px solid #555;
+            border: 1px solid #3D3D3D;
             border-radius: 4px;
-            padding: 8px 16px;
+            padding: 6px 12px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolButton:hover {
             background-color: rgba(244, 67, 54, 0.7);
@@ -126,24 +136,24 @@ QToolButton* CentralWindow::createNavButton(const QString& text, int index) {
     btn->setText(text);
     btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
     btn->setCheckable(true);
-    btn->setFixedHeight(48);
+    btn->setFixedHeight(48);  // v5.1 融合优化：42→48px，提升点击区域
     btn->setStyleSheet(R"(
         QToolButton {
             background: transparent;
             border: none;
-            border-bottom: 3px solid transparent;
-            padding: 8px 20px;
+            border-bottom: 2px solid transparent;
+            padding: 6px 16px;
             color: #aaa;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
         }
         QToolButton:hover {
             color: #e0e0e0;
-            background-color: rgba(102, 8, 116, 0.1);
+            background-color: rgba(124, 77, 255, 0.1);
         }
         QToolButton:checked {
             color: white;
-            border-bottom-color: #660874;
+            border-bottom-color: #7C4DFF;
         }
     )");
     btn->setCursor(Qt::PointingHandCursor);
@@ -164,7 +174,7 @@ QToolButton* CentralWindow::createNavButton(const QString& text, int index) {
 
 void CentralWindow::createContentViews() {
     m_contentStack = new QStackedWidget();
-    m_contentStack->setStyleSheet("background-color: #1e1e1e;");
+    m_contentStack->setStyleSheet("background-color: #1E1E1E;");
 
     m_contentStack->addWidget(createHomeView());
     m_contentStack->addWidget(m_cameraView);
@@ -178,26 +188,32 @@ void CentralWindow::createContentViews() {
 
 QWidget* CentralWindow::createHomeView() {
     QWidget* homeWidget = new QWidget();
-    homeWidget->setStyleSheet("background-color: #1e1e1e;");
+    homeWidget->setStyleSheet("background-color: #1E1E1E;");
     QVBoxLayout* homeLayout = new QVBoxLayout(homeWidget);
-    homeLayout->setContentsMargins(32, 24, 32, 24);
-    homeLayout->setSpacing(24);
+    homeLayout->setContentsMargins(48, 20, 48, 20);  // v5.0：全屏下左右 margin 增大，上下减小
+    homeLayout->setSpacing(20);
 
     QLabel* titleLabel = new QLabel("欢迎使用奇测视觉检测系统");
-    titleLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #e0e0e0; background: transparent; border: none;");
+    titleLabel->setStyleSheet("font-size: 26px; font-weight: bold; color: #e0e0e0; background: transparent; border: none;");
     homeLayout->addWidget(titleLabel);
 
     QLabel* subtitleLabel = new QLabel("选择下方功能模块开始操作");
-    subtitleLabel->setStyleSheet("font-size: 14px; color: #aaa; background: transparent; border: none; margin-bottom: 8px;");
+    subtitleLabel->setStyleSheet("font-size: 14px; color: #aaa; background: transparent; border: none;");
     homeLayout->addWidget(subtitleLabel);
 
     QHBoxLayout* statRow = new QHBoxLayout();
-    statRow->setSpacing(16);
+    statRow->setSpacing(20);
 
     statRow->addWidget(createStatCardEx("检测方案", "0", "#42A5F5", m_statSchemeValue));
     statRow->addWidget(createStatCardEx("检测工具", "0", "#FFA726", m_statToolValue));
     statRow->addWidget(createStatCardEx("检测次数", "0", "#66BB6A", m_statDetectionValue));
     statRow->addWidget(createStatCardEx("告警信息", "0", "#EF5350", m_statAlertValue));
+
+    // v5.0：统计卡片等宽拉伸，全屏下充分利用空间
+    // v5.1 修复：QBoxLayout 用 setStretch(int index, int stretch) 而非 setStretchFactor
+    for (int statIdx = 0; statIdx < statRow->count(); ++statIdx) {
+        statRow->setStretch(statIdx, 1);
+    }
 
     homeLayout->addLayout(statRow);
 
@@ -206,7 +222,7 @@ QWidget* CentralWindow::createHomeView() {
     homeLayout->addWidget(quickLabel);
 
     QHBoxLayout* stepRow = new QHBoxLayout();
-    stepRow->setSpacing(16);
+    stepRow->setSpacing(20);
 
     struct Step {
         QString number;
@@ -242,11 +258,11 @@ QWidget* CentralWindow::createStatCard(const QString& title, const QString& valu
 
 QWidget* CentralWindow::createStatCardEx(const QString& title, const QString& value, const QString& color, QLabel*& outValueLabel) {
     QWidget* card = new QWidget();
-    card->setFixedHeight(100);
+    // v5.0：不设最小高度，让卡片根据内容自动拉伸
     card->setStyleSheet(R"(
         QWidget {
-            background-color: #2d2d2d;
-            border: 1px solid #444;
+            background-color: #242424;
+            border: 1px solid #3D3D3D;
             border-radius: 8px;
         }
     )");
@@ -256,7 +272,7 @@ QWidget* CentralWindow::createStatCardEx(const QString& title, const QString& va
     cardLayout->setSpacing(4);
 
     QLabel* valueLabel = new QLabel(value);
-    valueLabel->setStyleSheet(QString("font-size: 32px; font-weight: bold; color: %1; background: transparent; border: none;").arg(color));
+    valueLabel->setStyleSheet(QString("font-size: 32px; font-weight: bold; color: %1; background: transparent; border: none;").arg(color));  // v5.1 融合优化：28→32px，提升数值醒目度
     outValueLabel = valueLabel;
 
     QLabel* titleLabel = new QLabel(title);
@@ -270,11 +286,11 @@ QWidget* CentralWindow::createStatCardEx(const QString& title, const QString& va
 
 QWidget* CentralWindow::createStepCard(const QString& number, const QString& title, const QString& description, int targetViewIndex) {
     QWidget* card = new QWidget();
-    card->setMinimumHeight(120);
+    card->setMinimumHeight(90);  // v5.0
     card->setStyleSheet(R"(
         QWidget {
-            background-color: #2d2d2d;
-            border: 1px solid #444;
+            background-color: #242424;
+            border: 1px solid #3D3D3D;
             border-radius: 8px;
         }
     )");
@@ -285,7 +301,7 @@ QWidget* CentralWindow::createStepCard(const QString& number, const QString& tit
     cardLayout->setSpacing(4);
 
     QLabel* numLabel = new QLabel(number);
-    numLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #660874; background: transparent; border: none;");
+    numLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #7C4DFF; background: transparent; border: none;");  // v5.1 融合优化：22→24px，提升步骤编号可读性
     cardLayout->addWidget(numLabel);
 
     QLabel* titleLabel = new QLabel(title);
@@ -301,7 +317,7 @@ QWidget* CentralWindow::createStepCard(const QString& number, const QString& tit
 
     QFrame* sep = new QFrame();
     sep->setFrameShape(QFrame::HLine);
-    sep->setStyleSheet("background-color: #555; border: none; max-height: 1px;");
+    sep->setStyleSheet("background-color: #3D3D3D; border: none; max-height: 1px;");
     cardLayout->addWidget(sep);
 
     m_stepCardTargets[card] = targetViewIndex;
@@ -313,8 +329,37 @@ QWidget* CentralWindow::createStepCard(const QString& number, const QString& tit
 
 void CentralWindow::switchView(int index) {
     if (index < 0 || index >= m_contentStack->count()) return;
+    const int oldIndex = m_contentStack->currentIndex();
+    if (oldIndex == index) return;  // 避免重复切换
 
-    m_contentStack->setCurrentIndex(index);
+    // v5.3.2 备注：EditView 的 QRhi 纹理管理已内聚到 EditView::showEvent/hideEvent
+    // 以及 QQuickWindow 的 sceneGraph 生命周期槽中。在 QStackedWidget 切换时会自动
+    // 卸载/重新加载 QML，无需此处手动干预。
+
+    // P1-C14 修复（交互评估 UI-005）：视图切换滑动动画
+    // 之前 QStackedWidget::setCurrentIndex 是硬切，体验生硬
+    // 现用 QPropertyAnimation 实现 200ms 水平滑动（新视图从右侧滑入）
+    // 注意：EditView 内含 QQuickWidget，QGraphicsOpacityEffect 会引起渲染冲突，
+    // 故采用 geometry 滑动而非 opacity 淡入。
+    QWidget* newWidget = m_contentStack->widget(index);
+    if (newWidget && oldIndex >= 0) {
+        const QRect targetGeometry = newWidget->geometry();
+        const int xOffset = m_contentStack->width();
+        // 起点向右偏移一个画布宽度
+        newWidget->move(targetGeometry.x() + xOffset, targetGeometry.y());
+        m_contentStack->setCurrentIndex(index);
+        QPropertyAnimation* anim = new QPropertyAnimation(newWidget, "geometry", this);
+        anim->setDuration(200);
+        anim->setStartValue(QRect(targetGeometry.x() + xOffset, targetGeometry.y(),
+                                  targetGeometry.width(), targetGeometry.height()));
+        anim->setEndValue(targetGeometry);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        connect(anim, &QPropertyAnimation::finished, anim, &QObject::deleteLater);
+        anim->start();
+    } else {
+        // 首次切换无前驱视图，直接显示
+        m_contentStack->setCurrentIndex(index);
+    }
 
     for (auto it = navButtons.begin(); it != navButtons.end(); ++it) {
         it.value()->setChecked(it.key() == index);
@@ -323,6 +368,8 @@ void CentralWindow::switchView(int index) {
     QStringList viewNames = {"首页", "相机", "方案", "编辑", "IO监控", "通信", "监控", "训练推理"};
     if (index >= 0 && index < viewNames.size()) {
         emit viewChanged(viewNames[index]);
+        // v5.0：视图切换时发出状态栏提示
+        emit statusMessageRequested(QString("已切换到：%1").arg(viewNames[index]));
     }
 }
 

@@ -30,6 +30,10 @@ Rectangle {
     radius: Tok.DesignTokens.radiusMd
     clip: true
 
+    Accessible.role: Accessible.Table
+    Accessible.name: "检测结果表"
+    Accessible.description: "显示视觉检测的判定结果，包括合格/不合格状态和置信度"
+
     // 高度自适应
     implicitHeight: contentLayout.implicitHeight + 16
     implicitWidth: 280
@@ -138,6 +142,8 @@ Rectangle {
 
                 Label {
                     text: "项目"
+                    Accessible.role: Accessible.ColumnHeader
+                    Accessible.name: "项目"
                     color: Tok.DesignTokens.textSecondary
                     font.pixelSize: Tok.DesignTokens.fontSizeXs
                     font.family: Tok.DesignTokens.fontFamilyCJK
@@ -146,6 +152,8 @@ Rectangle {
                 }
                 Label {
                     text: "数值"
+                    Accessible.role: Accessible.ColumnHeader
+                    Accessible.name: "数值"
                     color: Tok.DesignTokens.textSecondary
                     font.pixelSize: Tok.DesignTokens.fontSizeXs
                     font.family: Tok.DesignTokens.fontFamilyCJK
@@ -154,6 +162,8 @@ Rectangle {
                 }
                 Label {
                     text: "置信度"
+                    Accessible.role: Accessible.ColumnHeader
+                    Accessible.name: "置信度"
                     color: Tok.DesignTokens.textSecondary
                     font.pixelSize: Tok.DesignTokens.fontSizeXs
                     font.family: Tok.DesignTokens.fontFamilyCJK
@@ -177,6 +187,9 @@ Rectangle {
             delegate: Rectangle {
                 width: resultList.width
                 height: 30
+
+                Accessible.role: Accessible.Row
+                Accessible.description: "第 " + (index + 1) + " 行检测结果"
 
                 color: index === highlightIndex
                     ? Qt.rgba(0.486, 0.302, 1.0, 0.15)

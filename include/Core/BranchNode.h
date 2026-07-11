@@ -6,6 +6,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QList>
+#include <QRegularExpression>
+#include <QStringList>
 
 struct ToolResult;
 
@@ -48,16 +50,35 @@ public:
         sourceToolId = data["source"].toString();
         conditionOp = data["op"].toString();
         conditionValue = data["value"].toVariant();
-        
-        QJsonArray trueArray = data["trueBranch"].toArray();
-        for (const QJsonValue& v : trueArray) {
-            trueBranchToolIds.append(v.toString());
+
+        // P1-B4-H2 修复：兼容字符串格式的 trueBranch/falseBranch
+        // 历史方案数据可能以字符串形式存储（如 "tool1,tool2"），需先按逗号/换行拆分再装填
+        // 否则 QJsonValue::toArray() 对字符串返回空数组，导致分支节点失效
+        trueBranchToolIds = deserializeToolIdList(data.value("trueBranch"));
+        falseBranchToolIds = deserializeToolIdList(data.value("falseBranch"));
+    }
+
+private:
+    // P1-B4-H2：将 JSON 值（数组或字符串）反序列化为工具 ID 列表
+    static QList<QString> deserializeToolIdList(const QJsonValue& v) {
+        QList<QString> result;
+        if (v.isArray()) {
+            const QJsonArray arr = v.toArray();
+            for (const QJsonValue& item : arr) {
+                const QString s = item.toString();
+                if (!s.isEmpty()) result.append(s);
+            }
+        } else if (v.isString()) {
+            const QString s = v.toString();
+            const QStringList parts = s.split(
+                QRegularExpression(QStringLiteral("[,，\n]")),
+                Qt::SkipEmptyParts);
+            for (const QString& p : parts) {
+                const QString trimmed = p.trimmed();
+                if (!trimmed.isEmpty()) result.append(trimmed);
+            }
         }
-        
-        QJsonArray falseArray = data["falseBranch"].toArray();
-        for (const QJsonValue& v : falseArray) {
-            falseBranchToolIds.append(v.toString());
-        }
+        return result;
     }
 };
 

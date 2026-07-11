@@ -13,6 +13,7 @@ add_executable(QDV_tests
     Core/test_branch_node.cpp
     Core/test_result.cpp
     Core/test_logger.cpp
+    Core/test_agent_operator_router.cpp
     Vision/test_tools.cpp
     Vision/test_tool_chain.cpp
     Communication/test_tcp.cpp
@@ -39,6 +40,9 @@ add_executable(QDV_tests
     OperatorSDK/test_manifest_loader.cpp
     Vision/test_ai_classify_di.cpp
     Operators/test_histogram.cpp
+    Operators/test_mock_base.cpp
+    Operators/test_mock_operators.cpp
+    Operators/test_agent_mock_operators.cpp
 )
 
 target_include_directories(QDV_tests PRIVATE
@@ -54,6 +58,7 @@ target_link_libraries(QDV_tests PRIVATE
     AI
     Vision
     OperatorSDK
+    AgentOperatorRouter
     Communication
     Database
     Qt6::Core Qt6::Sql Qt6::Network Qt6::Widgets Qt6::Concurrent Qt6::Test

@@ -105,12 +105,18 @@ public:
     /// 重置单例缓存（测试/手动 reload 用）
     static void reset();
 
+    /// Phase 2: 注册外部动态算子元数据（由 OperatorPluginLoader 调用）
+    /// 不重复添加同 type；成功返回 true
+    static bool registerExternalOperator(const OperatorMeta& meta);
+
 private:
     /// 内部注册表（首次调用时初始化）
     static QList<OperatorMeta> buildRegistry();
     /// 单例缓存
     static QList<OperatorMeta> s_registry;
     static bool                s_initialized;
+    /// Phase 2: 外部动态算子元数据（与 s_registry 分离）
+    static QList<OperatorMeta> s_externalRegistry;
 };
 
 } // namespace UI

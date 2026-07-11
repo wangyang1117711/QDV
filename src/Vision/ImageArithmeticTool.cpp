@@ -14,8 +14,17 @@ bool ImageArithmeticTool::configure(const QJsonObject& params) {
         return false;
     }
 
-    m_useScalar = params.contains("scalar");
-    if (m_useScalar) {
+    // P1-B4 修复：优先使用元数据定义的 useScalar 布尔参数
+    // 之前 m_useScalar = params.contains("scalar") 仅检查 scalar 字段是否存在
+    // 但 OperatorDescriptors 同时定义了 useScalar(Bool) 和 scalar(Float) 两个参数，
+    // UI 总会带 scalar 默认值，导致用户取消勾选 useScalar 时仍被错误识别为标量模式
+    if (params.contains("useScalar")) {
+        m_useScalar = params["useScalar"].toBool();
+    } else {
+        // 回退兼容：旧存档无 useScalar 字段时，按 scalar 字段是否存在判断
+        m_useScalar = params.contains("scalar");
+    }
+    if (m_useScalar && params.contains("scalar")) {
         m_scalar = params["scalar"].toDouble();
     }
 
@@ -91,6 +100,8 @@ QJsonObject ImageArithmeticTool::serialize() const {
     obj["id"] = m_id;
     obj["type"] = type();
     obj["operation"] = m_operation;
+    // P1-B4 修复：持久化 useScalar 布尔状态，避免加载后状态丢失
+    obj["useScalar"] = m_useScalar;
     if (m_useScalar) {
         obj["scalar"] = m_scalar;
     }
@@ -100,8 +111,13 @@ QJsonObject ImageArithmeticTool::serialize() const {
 bool ImageArithmeticTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_operation = data["operation"].toString("add");
-    if (data.contains("scalar")) {
-        m_useScalar = true;
+    // P1-B4 修复：优先读取 useScalar 字段，回退到旧格式（仅 scalar 字段）
+    if (data.contains("useScalar")) {
+        m_useScalar = data["useScalar"].toBool();
+    } else {
+        m_useScalar = data.contains("scalar");
+    }
+    if (m_useScalar && data.contains("scalar")) {
         m_scalar = data["scalar"].toDouble();
     }
     return true;

@@ -70,9 +70,9 @@ void PreprocessDialog::setupUI(const QSize& imageSize) {
 
     QPushButton* applyBtn = new QPushButton("应用");
     applyBtn->setStyleSheet(
-        "QPushButton { background-color: #660874; color: white; border: none; "
+        "QPushButton { background-color: #7C4DFF; color: white; border: none; "
         "border-radius: 4px; padding: 8px 24px; font-weight: bold; }"
-        "QPushButton:hover { background-color: #7d1a8f; }"
+        "QPushButton:hover { background-color: #8E66FF; }"
     );
     connect(applyBtn, &QPushButton::clicked, this, &PreprocessDialog::onApply);
 
@@ -113,9 +113,9 @@ QWidget* PreprocessDialog::createIntSliderRow(const QString& label, int min, int
     slider->setStyleSheet(
         "QSlider::groove:horizontal { border: 1px solid #555; height: 6px; "
         "background: #252525; border-radius: 3px; }"
-        "QSlider::handle:horizontal { background: #660874; border: 1px solid #7d1a8f; "
+        "QSlider::handle:horizontal { background: #7C4DFF; border: 1px solid #8E66FF; "
         "width: 14px; margin: -4px 0; border-radius: 7px; }"
-        "QSlider::handle:horizontal:hover { background: #7d1a8f; }"
+        "QSlider::handle:horizontal:hover { background: #8E66FF; }"
     );
     layout->addWidget(slider, 1);
 
@@ -160,9 +160,9 @@ QWidget* PreprocessDialog::createDoubleSliderRow(const QString& label, double mi
     slider->setStyleSheet(
         "QSlider::groove:horizontal { border: 1px solid #555; height: 6px; "
         "background: #252525; border-radius: 3px; }"
-        "QSlider::handle:horizontal { background: #660874; border: 1px solid #7d1a8f; "
+        "QSlider::handle:horizontal { background: #7C4DFF; border: 1px solid #8E66FF; "
         "width: 14px; margin: -4px 0; border-radius: 7px; }"
-        "QSlider::handle:horizontal:hover { background: #7d1a8f; }"
+        "QSlider::handle:horizontal:hover { background: #8E66FF; }"
     );
     layout->addWidget(slider, 1);
 

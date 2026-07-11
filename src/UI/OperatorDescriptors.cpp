@@ -1,5 +1,7 @@
 #include "UI/OperatorDescriptors.h"
 #include "Core/Logger.h"
+// P1-A11 修复：引入 ToolFactory 做交叉校验，检测 operators.json 中的幽灵算子
+#include "Vision/ToolFactory.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -105,6 +107,7 @@ OperatorMeta OperatorMeta::fromMap(const QVariantMap& m) {
 
 QList<OperatorMeta> OperatorDescriptors::s_registry;
 bool                OperatorDescriptors::s_initialized = false;
+QList<OperatorMeta> OperatorDescriptors::s_externalRegistry;  // Phase 2: 外部动态算子
 
 QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
     QList<OperatorMeta> reg;
@@ -124,7 +127,7 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
                           QStringLiteral("支持 png/jpg/jpeg/bmp/tiff/tif/webp 等格式，最大 100MB"),
                           QStringLiteral("")});
         om.params.append({"colorMode", "颜色模式", ParamType::Enum,
-                          2,
+                          QStringLiteral("color"),
                           QVariant(), QVariant(), QVariant(),
                           {QStringLiteral("原样"), QStringLiteral("灰度"), QStringLiteral("彩色")},
                           {"unchanged", "grayscale", "color"},
@@ -142,7 +145,7 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
         om.iconPath    = "qrc:/icons/preprocess.svg";
         om.description = "去噪 + 形态学操作（开/闭/腐蚀/膨胀）";
         om.params.append({"denoise", "双边滤波去噪", ParamType::Bool,
-                          true,
+                          false,
                           QVariant(), QVariant(), QVariant(),
                           {}, {},
                           QStringLiteral("使用 cv::bilateralFilter，强度 d=9 / sigma=75"),
@@ -240,8 +243,8 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
                           0, 0, 179, 1, {}, {},
                           QStringLiteral("HSV 颜色空间色相下界"), ""});
         om.params.append({"hMax", "色相最大", ParamType::Int,
-                          179, 0, 179, 1, {}, {},
-                          QStringLiteral("HSV 颜色空间色相上界"), ""});
+                          180, 0, 180, 1, {}, {},
+                          QStringLiteral("HSV 颜色空间色相上界（OpenCV hue 范围 0-179，180 表示不过滤）"), ""});
         om.params.append({"sMin", "饱和度最小", ParamType::Int,
                           0, 0, 255, 1, {}, {},
                           QStringLiteral("饱和度下界"), ""});
@@ -377,7 +380,7 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
                           50.0, 1.0, 10000.0, 1.0, {}, {},
                           QStringLiteral("circle 专用"), QStringLiteral("px")});
         om.params.append({"param1", "Canny 高阈值", ParamType::Float,
-                          100.0, 1.0, 1000.0, 1.0, {}, {},
+                          150.0, 1.0, 1000.0, 1.0, {}, {},
                           QStringLiteral("circle 专用"), ""});
         om.params.append({"param2", "圆心累加阈值", ParamType::Float,
                           30.0, 1.0, 1000.0, 1.0, {}, {},
@@ -443,10 +446,10 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
             om.params.append(p);
         }
         om.params.append({"scalar", "标量", ParamType::Float,
-                          1.0, 0.0, 1e6, 1.0, {}, {},
+                          0.0, 0.0, 1e6, 1.0, {}, {},
                           QStringLiteral("与标量运算时使用"), ""});
         om.params.append({"useScalar", "使用标量", ParamType::Bool,
-                          true, QVariant(), QVariant(), QVariant(), {}, {},
+                          false, QVariant(), QVariant(), QVariant(), {}, {},
                           QStringLiteral("勾选：与标量运算；取消：与上一张缓存图运算"), ""});
         reg.append(om);
     }
@@ -626,7 +629,23 @@ QList<OperatorMeta> OperatorDescriptors::all() {
         s_registry = reg;
         s_initialized = true;
     }
-    return s_registry;
+    // Phase 2: 合并外部动态算子（如 Histogram.dll 加载的算子元数据）
+    // v5.3.7 修复：按 type 跨表去重，保留 s_registry（JSON 权威源）版本
+    if (s_externalRegistry.isEmpty()) {
+        return s_registry;
+    }
+    QList<OperatorMeta> merged = s_registry;
+    QSet<QString> seenTypes;
+    for (const OperatorMeta& om : s_registry) {
+        seenTypes.insert(om.type);
+    }
+    for (const OperatorMeta& om : s_externalRegistry) {
+        if (!seenTypes.contains(om.type)) {
+            merged.append(om);
+            seenTypes.insert(om.type);
+        }
+    }
+    return merged;
 }
 
 QStringList OperatorDescriptors::categories() {
@@ -768,12 +787,45 @@ bool OperatorDescriptors::loadFromJson(const QString& path, QString* outError) {
 
     QList<OperatorMeta> reg;
     reg.reserve(ops.size());
+    QStringList parseErrors;
     for (const QJsonValue& v : ops) {
         if (!v.isObject()) continue;
-        reg.append(OperatorMeta::fromMap(v.toObject().toVariantMap()));
+        const OperatorMeta om = OperatorMeta::fromMap(v.toObject().toVariantMap());
+        // P1-B2 修复：入库校验 — type 非空、Enum 类型 options/optionKeys 长度一致、Int/Float minValue<=maxValue
+        if (om.type.isEmpty()) {
+            parseErrors.append(QStringLiteral("跳过：type 为空的条目"));
+            continue;
+        }
+        bool metaValid = true;
+        for (const ParamSpec& p : om.params) {
+            if (p.name.isEmpty()) {
+                parseErrors.append(QStringLiteral("%1: 参数 name 为空").arg(om.type));
+                metaValid = false; break;
+            }
+            if (p.type == ParamType::Enum) {
+                if (p.options.size() != p.optionKeys.size() || p.options.isEmpty()) {
+                    parseErrors.append(QStringLiteral("%1.%2: Enum options/optionKeys 长度不一致或为空")
+                                        .arg(om.type).arg(p.name));
+                    metaValid = false; break;
+                }
+            }
+            if (p.type == ParamType::Int || p.type == ParamType::Float) {
+                bool minOk, maxOk;
+                double mn = p.minValue.toDouble(&minOk);
+                double mx = p.maxValue.toDouble(&maxOk);
+                if (minOk && maxOk && mn > mx) {
+                    parseErrors.append(QStringLiteral("%1.%2: minValue(%3) > maxValue(%4)")
+                                        .arg(om.type).arg(p.name).arg(mn).arg(mx));
+                    metaValid = false; break;
+                }
+            }
+        }
+        if (!metaValid) continue;
+        reg.append(om);
     }
     if (reg.isEmpty()) {
-        return fail(QStringLiteral("no valid operator entry parsed"));
+        return fail(QStringLiteral("no valid operator entry parsed; errors: %1")
+                        .arg(parseErrors.join("; ")));
     }
 
     std::sort(reg.begin(), reg.end(),
@@ -782,8 +834,33 @@ bool OperatorDescriptors::loadFromJson(const QString& path, QString* outError) {
                   return a.cnName < b.cnName;
               });
 
-    s_registry = reg;
+    // P1-B1 修复：剔除幽灵算子（用户选择"只剔除不实现"策略）
+    // 之前 P1-A11 仅打 warning 不剔除，用户拖拽幽灵算子时报错体验断裂
+    // 现在直接从 registry 中移除未在 ToolFactory 注册的算子，UI 不会再展示
+    QStringList registered = ToolFactory::instance()->getAvailableToolTypes();
+    QSet<QString> registeredSet(registered.begin(), registered.end());
+    QStringList ghosts;
+    QList<OperatorMeta> filtered;
+    filtered.reserve(reg.size());
+    for (const OperatorMeta& om : reg) {
+        if (registeredSet.contains(om.type)) {
+            filtered.append(om);
+        } else {
+            ghosts.append(om.type);
+        }
+    }
+    if (!ghosts.isEmpty()) {
+        Logger::warn(QStringLiteral("[OperatorDescriptors] 已剔除 %1 个未在 ToolFactory 注册的幽灵算子: %2")
+                         .arg(ghosts.size()).arg(ghosts.join(", ")));
+    }
+    if (!parseErrors.isEmpty()) {
+        Logger::warn(QStringLiteral("[OperatorDescriptors] 入库校验跳过 %1 个非法条目: %2")
+                         .arg(parseErrors.size()).arg(parseErrors.join("; ")));
+    }
+
+    s_registry = filtered;
     s_initialized = true;
+
     return true;
 }
 
@@ -821,6 +898,19 @@ bool OperatorDescriptors::exportToJson(const QString& path) {
 void OperatorDescriptors::reset() {
     s_registry.clear();
     s_initialized = false;
+    s_externalRegistry.clear();  // Phase 2: 同步清空外部算子注册表
+}
+
+// Phase 2: 注册外部动态算子元数据（由 OperatorPluginLoader 调用）
+// 不重复添加同 type；成功返回 true
+bool OperatorDescriptors::registerExternalOperator(const OperatorMeta& meta) {
+    if (meta.type.isEmpty()) return false;
+    // 不重复添加同 type
+    for (const auto& existing : s_externalRegistry) {
+        if (existing.type == meta.type) return false;
+    }
+    s_externalRegistry.append(meta);
+    return true;
 }
 
 } // namespace UI

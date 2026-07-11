@@ -104,6 +104,9 @@ private:
     QString     m_nodeId;
     QVariantMap m_nodeSnapshot;   ///< undo 用
     int         m_originIndex;    ///< 节点原位置
+    /// P1-A5 修复：缓存被删除节点相关的连接，undo 时恢复
+    /// 之前 redo 不清理连接，导致悬空连接永久残留（保存/加载后也无法消除）
+    QVariantList m_removedConnections;
 };
 
 /**

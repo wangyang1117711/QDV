@@ -36,7 +36,7 @@ void CategoryPanel::setupUI() {
             color: #e0e0e0;
             font-size: 13px;
         }
-        QLineEdit:focus { border-color: #660874; }
+        QLineEdit:focus { border-color: #7C4DFF; }
     )");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &CategoryPanel::onSearchTextChanged);
     layout->addWidget(m_searchEdit);
@@ -54,7 +54,7 @@ void CategoryPanel::setupUI() {
             color: #e0e0e0;
         }
         QTreeWidget::item { padding: 4px 6px; }
-        QTreeWidget::item:selected { background-color: #660874; color: #fff; }
+        QTreeWidget::item:selected { background-color: #7C4DFF; color: #fff; }
         QTreeWidget::item:hover { background-color: #333; }
     )");
     connect(m_tree, &QTreeWidget::customContextMenuRequested, this, &CategoryPanel::onTreeContextMenu);
@@ -101,7 +101,7 @@ void CategoryPanel::setupUI() {
     m_contextMenu->setStyleSheet(R"(
         QMenu { background-color: #3d3d3d; color: #ddd; border: 1px solid #555; padding: 4px 0; }
         QMenu::item { padding: 6px 24px; }
-        QMenu::item:selected { background-color: #660874; }
+        QMenu::item:selected { background-color: #7C4DFF; }
     )");
     m_contextMenu->addAction("添加子类别", this, &CategoryPanel::onAddCategory);
     m_contextMenu->addAction("编辑", this, &CategoryPanel::onEditCategory);
@@ -150,7 +150,7 @@ QTreeWidgetItem* CategoryPanel::createCategoryItem(const QString& name, const QS
     addBtn->setProperty("categoryName", name);
     addBtn->setStyleSheet(R"(
         QPushButton {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: white;
             border: none;
             border-radius: 3px;
@@ -159,7 +159,7 @@ QTreeWidgetItem* CategoryPanel::createCategoryItem(const QString& name, const QS
             font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #7d1a8f;
+            background-color: #8E66FF;
         }
         QPushButton:pressed {
             background-color: #4d065a;

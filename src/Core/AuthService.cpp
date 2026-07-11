@@ -11,6 +11,31 @@ using namespace QDV;
 
 static const QByteArray kAppSecretSeed = QByteArray("QDV_SecureStorage_2026_v1");
 
+// P1-C17 修复（综合测评 S3）：常量时间比较，防止时序攻击。
+// 之前 verifyToken/verifyPassword 使用 == 比较，理论上可通过测量响应时间
+// 逐字节猜测密钥。常量时间比较无论匹配与否都遍历完整缓冲区。
+static bool constantTimeEquals(const QByteArray& a, const QByteArray& b) {
+    if (a.size() != b.size()) {
+        // 即便长度不同，也消耗固定时间（避免长度泄漏）
+        volatile uchar dummy = 0;
+        for (int i = 0; i < qMax(a.size(), b.size()); ++i) {
+            dummy |= (i < a.size() ? static_cast<uchar>(a[i]) : 0);
+            dummy |= (i < b.size() ? static_cast<uchar>(b[i]) : 0);
+        }
+        Q_UNUSED(dummy)
+        return false;
+    }
+    volatile uchar diff = 0;
+    for (int i = 0; i < a.size(); ++i) {
+        diff |= static_cast<uchar>(a[i]) ^ static_cast<uchar>(b[i]);
+    }
+    return diff == 0;
+}
+
+static bool constantTimeStringEquals(const QString& a, const QString& b) {
+    return constantTimeEquals(a.toUtf8(), b.toUtf8());
+}
+
 AuthService::AuthService(QObject* parent) : QObject(parent) {
     QSettings settings("奇测科技", "QDetectVision");
     if (!settings.contains("setup/initialized")) {
@@ -29,6 +54,8 @@ void AuthService::loadUsers() {
         QString hash = settings.value("hash").toString();
         if (!username.isEmpty() && !hash.isEmpty()) {
             m_passwordHashes[username] = hash;
+            // P1-C4 修复：加载管理员标记（默认 false，兼容旧数据）
+            m_adminFlags[username] = settings.value("isAdmin", false).toBool();
         }
     }
     settings.endArray();
@@ -42,8 +69,15 @@ void AuthService::saveUsers() {
         settings.setArrayIndex(i);
         settings.setValue("name", it.key());
         settings.setValue("hash", it.value());
+        // P1-C4 修复：持久化管理员标记
+        settings.setValue("isAdmin", m_adminFlags.value(it.key(), false));
     }
     settings.endArray();
+}
+
+// P1-C4 修复：isAdmin 查询接口（综合测评 S6）
+bool AuthService::isAdmin(const QString& username) const {
+    return m_adminFlags.value(username, false);
 }
 
 AuthService* AuthService::instance() {
@@ -85,7 +119,8 @@ bool AuthService::verifyPassword(const QString& password, const QString& storedV
 
     QByteArray salt = QByteArray::fromHex(parts[0].toUtf8());
     QString computedHash = hashPassword(password, salt);
-    return computedHash == storedValue;
+    // P1-C17 修复：使用常量时间比较，防止时序攻击
+    return constantTimeStringEquals(computedHash, storedValue);
 }
 
 bool AuthService::createUser(const QString& username, const QString& password, bool isAdmin) {
@@ -100,13 +135,15 @@ bool AuthService::createUser(const QString& username, const QString& password, b
 
     QByteArray salt = generateSalt();
     m_passwordHashes[username] = hashPassword(password, salt);
+    // P1-C4 修复：实际持久化 isAdmin 标记（之前参数被完全忽略）
+    m_adminFlags[username] = isAdmin;
 
     QSettings settings("奇测科技", "QDetectVision");
     settings.setValue("setup/initialized", true);
     m_firstRun = false;
     saveUsers();
 
-    Logger::info("User created: " + username + (isAdmin ? " (admin)" : ""));
+    Logger::info("User created: " + username + (isAdmin ? " (admin)" : " (user)"));
     return true;
 }
 
@@ -303,7 +340,8 @@ bool AuthService::verifyToken(const QString& username, const QString& tokenBase6
     }
 
     QByteArray providedToken = QByteArray::fromBase64(tokenBase64.toUtf8());
-    return providedToken == storedToken;
+    // P1-C17 修复：使用常量时间比较，防止时序攻击
+    return constantTimeEquals(providedToken, storedToken);
 }
 
 bool AuthService::loginWithToken(const QString& username, const QString& tokenBase64) {

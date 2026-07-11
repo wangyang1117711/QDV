@@ -21,7 +21,11 @@ public:
     bool isFirstRun() const { return m_firstRun; }
     int remainingAttempts(const QString& username) const;
     qint64 lockoutSecondsRemaining(const QString& username) const;
-    
+
+    // P1-C4 修复（综合测评 S6）：补全 isAdmin 持久化与查询接口
+    // 之前 createUser(isAdmin) 参数被完全忽略，权限模型形同虚设
+    bool isAdmin(const QString& username) const;
+
     bool createUser(const QString& username, const QString& password, bool isAdmin = false);
     bool changePassword(const QString& username, const QString& oldPassword, const QString& newPassword);
     
@@ -60,6 +64,7 @@ private:
     bool m_firstRun = false;
     QString m_currentUser;
     QMap<QString, QString> m_passwordHashes;
+    QMap<QString, bool> m_adminFlags;  ///< P1-C4: 用户管理员标记（持久化到 QSettings）
     QMap<QString, QPair<QByteArray, QDateTime>> m_tokens;
     QMap<QString, QPair<int, QDateTime>> m_failedAttempts;
     mutable QMutex m_lockoutMutex;

@@ -1,0 +1,247 @@
+<mxfile host="app.diagrams.net" agent="Qt6 QDetectVision">
+  <diagram id="QDetectVision-Architecture" name="QDetectVision 系统架构图">
+    <mxGraphModel dx="1740" dy="876" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="k9ofFah3gCCnJ4u1jUBM-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#ECEFF1,#525752);strokeColor=#607D8B;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="180" width="1720" x="40" y="1460" as="geometry" />
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;fontColor=#333333;" value="奇测视觉检测系统 (QDetectVision) — 系统架构图" vertex="1">
+          <mxGeometry height="40" width="1000" x="400" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;fontColor=#888888;" value="Qt6 C++17 | MinGW-w64 GCC 11.2.0 | OpenCV 4.13.0 | Windows x64" vertex="1">
+          <mxGeometry height="30" width="800" x="500" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="layer5-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#FF9800;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="160" width="1720" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="layer5-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#E65100;" value="用户交互层 — User Interaction Layer" vertex="1">
+          <mxGeometry height="25" width="300" x="55" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="entrypoint" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=11;align=center;fontColor=#E65100;fontStyle=1;" value="入口点 main.cpp&#xa;QApplication 初始化&#xa;全局深色 QSS 样式&#xa;Logger 初始化" vertex="1">
+          <mxGeometry height="110" width="200" x="60" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="auth-ui" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=11;align=center;fontColor=#E65100;" value="LoginView&#xa;登录界面&#xa;用户认证输入&#xa;记住我 / 密码加密" vertex="1">
+          <mxGeometry height="110" width="200" x="310" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="mainwindow-ui" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=11;align=center;fontColor=#E65100;fontStyle=1;" value="MainWindow&#xa;主窗口容器&#xa;标题栏 / 菜单栏 / 状态栏&#xa;登录⇄主界面切换动画" vertex="1">
+          <mxGeometry height="110" width="220" x="560" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="central-ui" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=11;align=center;fontColor=#E65100;" value="CentralWindow&#xa;中央视图容器&#xa;8 视图 StackedWidget&#xa;Alt+1~8 快捷键导航" vertex="1">
+          <mxGeometry height="110" width="220" x="830" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="qss-global" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=10;align=center;fontColor=#E65100;" value="全局深色主题 QSS&#xa;背景 #1e1e1e | 字体 #e0e0e0&#xa;主题色 #660874" vertex="1">
+          <mxGeometry height="110" width="200" x="1100" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="hotkeys" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontSize=10;align=center;fontColor=#E65100;" value="键盘快捷键&#xa;Alt+1~8 视图切换&#xa;Ctrl+Q 退出&#xa;Ctrl+F 全屏" vertex="1">
+          <mxGeometry height="110" width="180" x="1350" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#2196F3;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="290" width="1720" x="40" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#1565C0;" value="表现层 — Presentation Layer (UI 视图模块)" vertex="1">
+          <mxGeometry height="25" width="350" x="55" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="view-home" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;arcSize=12;" value="🏠 HomeView&#xa;首页仪表盘&#xa;4 统计卡片 + 7 快速入口&#xa;方案/工具/检测/告警计数" vertex="1">
+          <mxGeometry height="105" width="190" x="60" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-camera" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="&lt;div&gt;图像输入：&lt;/div&gt;1/ CameraView&lt;br&gt;相机视图&lt;br&gt;OpenCV VideoCapture&lt;br&gt;快照 / 分辨率 / 帧率&lt;div&gt;支持虚拟相机&lt;br&gt;&lt;div&gt;2/本地图像+地址图像&lt;/div&gt;&lt;div&gt;批量导入+文件夹导入&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="105" width="190" x="270" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-scheme" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="📋 SchemeView&#xa;方案视图&#xa;方案 CRUD 树形展示&#xa;JSON 文件持久化" vertex="1">
+          <mxGeometry height="105" width="190" x="480" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-edit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="✏️ EditView&lt;br&gt;编辑视图&lt;br&gt;工具库 → 工具链拖放&lt;br&gt;QUndoStack + 属性面板&lt;div&gt;工具链支持模型导入&lt;/div&gt;" vertex="1">
+          <mxGeometry height="105" width="190" x="690" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-io" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="🔌 IOView&#xa;IO监控视图&#xa;DI/DO/AI/AO 通道表&#xa;定时器刷新状态" vertex="1">
+          <mxGeometry height="105" width="190" x="900" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-comm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="🌐 CommView&#xa;通信视图&#xa;TCP Socket 连接/收发&#xa;通信日志 + 指令发送" vertex="1">
+          <mxGeometry height="105" width="190" x="1110" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-monitor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=10;align=center;fontColor=#0D47A1;" value="📊 MonitorView&#xa;监控视图&#xa;检测进度条 + 计数面板&#xa;合格率 / 良品率实时显示" vertex="1">
+          <mxGeometry height="105" width="190" x="1330" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="view-training" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=10;align=center;fontColor=#1B5E20;fontStyle=1;" value="&lt;div&gt;快速训练模块&lt;/div&gt;TrainingInferenceView&amp;nbsp;&lt;br&gt;训练推理视图&lt;br&gt;图像导入 + 类别 + 推理 + 脚本 + 结果&lt;div&gt;分类的类别支持单独图像导入、选择、删除、编辑（）&lt;/div&gt;" vertex="1">
+          <mxGeometry height="105" width="190" x="690" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-entry-main" edge="1" parent="1" source="entrypoint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9800;strokeWidth=2;" target="mainwindow-ui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-login-main" edge="1" parent="1" source="auth-ui" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9800;strokeWidth=2;" target="mainwindow-ui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow-main-central" edge="1" parent="1" source="mainwindow-ui" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9800;strokeWidth=2;" target="central-ui">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="layer3-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#4CAF50;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="260" width="1720" x="40" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="layer3-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#2E7D32;" value="业务逻辑层 — Business Logic Layer" vertex="1">
+          <mxGeometry height="25" width="300" x="55" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="core-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="AuthService&#xa;认证服务 (单例)&#xa;login(username, pwd)&#xa;QSettings 记住密码" vertex="1">
+          <mxGeometry height="90" width="185" x="60" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="core-logger" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="Logger&#xa;日志系统 (单例)&#xa;info/warn/error/debug&#xa;文件 + 控制台双输出" vertex="1">
+          <mxGeometry height="90" width="185" x="265" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="core-scheme" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="SchemeManager&#xa;方案管理器&#xa;方案加载/保存/编辑&#xa;QMap + 文件持久化" vertex="1">
+          <mxGeometry height="90" width="185" x="470" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="core-undo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="UndoManager&#xa;撤销/重做管理器&#xa;QUndoStack 封装&#xa;命令模式实现" vertex="1">
+          <mxGeometry height="90" width="185" x="675" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="core-branch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="BranchNode / Scheme&#xa;方案节点定义&#xa;分支控制 + 工具链配置" vertex="1">
+          <mxGeometry height="90" width="185" x="880" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="core-config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="配置类&#xa;CameraConfig&#xa;ModelBinding&#xa;OutputConfig / TriggerConfig" vertex="1">
+          <mxGeometry height="90" width="185" x="1085" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="vision-tools" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="Vision 视觉模块&#xa;VisionTool (抽象基类)&#xa;BlobDetectTool&#xa;EdgeDetectTool&#xa;ThresholdTool&#xa;ImagePreprocessTool&#xa;ToolChainExecutor&#xa;ToolFactory" vertex="1">
+          <mxGeometry height="100" width="185" x="60" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="ai-engines" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="AI 推理模块&#xa;InferenceEngine&#xa;loadModel/unloadModel/infer&#xa;ModelManager (单例)&#xa;多模型并行管理" vertex="1">
+          <mxGeometry height="100" width="185" x="265" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="training-mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#388E3C;strokeWidth=2;fontSize=10;align=center;fontColor=#1B5E20;fontStyle=1;" value="TrainingInference 训练推理 [新]&#xa;ImageManager (单例)&#xa;CategoryManager (单例)&#xa;ExportManager (单例)&#xa;ImageViewWidget&#xa;CategoryPanel / InferencePanel&#xa;ScriptEditorWidget / ResultPanel" vertex="1">
+          <mxGeometry height="100" width="260" x="470" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="core-render" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="RenderWidget&#xa;渲染组件&#xa;图像/视频渲染显示" vertex="1">
+          <mxGeometry height="100" width="180" x="750" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="plugins" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=10;align=center;fontColor=#1B5E20;" value="Plugins 插件模块&#xa;IPlugin 接口&#xa;PluginManager&#xa;动态扩展机制" vertex="1">
+          <mxGeometry height="100" width="180" x="950" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="editor-mod" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=center;fontColor=#F57F17;" value="ScriptEditorWidget&#xa;Python 脚本编辑&#xa;QSyntaxHighlighter 语法高亮&#xa;QProcess 脚本执行" vertex="1">
+          <mxGeometry height="100" width="200" x="1150" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="qsettings" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=center;fontColor=#F57F17;" value="QSettings&#xa;持久化存储&#xa;窗口状态 / 登录信息" vertex="1">
+          <mxGeometry height="90" width="180" x="1370" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="json-io" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=center;fontColor=#F57F17;" value="JSON 文件 I/O&#xa;QJsonDocument&#xa;方案 / 类别的持久化" vertex="1">
+          <mxGeometry height="100" width="180" x="1370" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9C27B0;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="200" width="1720" x="40" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#6A1B9A;" value="数据与通信层 — Data &amp; Communication Layer" vertex="1">
+          <mxGeometry height="25" width="350" x="55" y="895" as="geometry" />
+        </mxCell>
+        <mxCell id="tcp-comm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="TCPCommunicator&#xa;TCP 网络通信&#xa;QTcpSocket 封装" vertex="1">
+          <mxGeometry height="70" width="190" x="60" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="serial-comm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="SerialCommunicator&#xa;串口通信&#xa;Win32 注册表枚举串口" vertex="1">
+          <mxGeometry height="70" width="190" x="270" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="io-ctrl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="IOController&#xa;IO 控制器&#xa;DI/DO 设备控制" vertex="1">
+          <mxGeometry height="70" width="190" x="480" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="result-db" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="ResultDatabase&#xa;结果数据库&#xa;检测结果存储/查询" vertex="1">
+          <mxGeometry height="70" width="190" x="690" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="export-data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="ExportManager&#xa;数据导出&#xa;CSV / JSON / TXT 格式" vertex="1">
+          <mxGeometry height="70" width="190" x="900" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="filesys" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="文件系统&#xa;图像 (png/jpg/bmp/tiff/webp)&#xa;模型 (.onnx/.pth/.pt)&#xa;方案 (.json)" vertex="1">
+          <mxGeometry height="70" width="220" x="1110" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="python-proc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=10;align=center;fontColor=#4A148C;" value="Python 进程通信&#xa;QProcess&#xa;stdout/stderr 管道&#xa;退出码处理" vertex="1">
+          <mxGeometry height="70" width="200" x="1350" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="composite-data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9C27B0;fontSize=11;align=center;fontColor=#6A1B9A;fontStyle=2;" value="数据流示例: 图像→预处理→推理→结果→导出" vertex="1">
+          <mxGeometry height="55" width="1490" x="60" y="1015" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECEFF1;strokeColor=#607D8B;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="180" width="1720" x="40" y="1120" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#37474F;" value="基础设施层 — Infrastructure &amp; External Dependencies" vertex="1">
+          <mxGeometry height="25" width="400" x="55" y="1125" as="geometry" />
+        </mxCell>
+        <mxCell id="qt6-core" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Qt 6 Core&#xa;信号/槽 | 事件循环 | 元对象" vertex="1">
+          <mxGeometry height="60" width="160" x="60" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="qt6-gui" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Qt 6 Gui&#xa;QPainter | QImage | QPixmap" vertex="1">
+          <mxGeometry height="60" width="160" x="235" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="qt6-widgets" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Qt 6 Widgets&#xa;QWidget | QMainWindow&#xa;QStackedWidget | QSplitter" vertex="1">
+          <mxGeometry height="60" width="180" x="410" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="qt6-network" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Qt 6 Network&#xa;QTcpSocket 网络通信" vertex="1">
+          <mxGeometry height="60" width="160" x="605" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="qt6-sql" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Qt 6 Sql" vertex="1">
+          <mxGeometry height="60" width="120" x="780" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="opencv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="OpenCV 4.13.0&#xa;cv::Mat | cv::VideoCapture&#xa;cv::imwrite | 图像处理" vertex="1">
+          <mxGeometry height="60" width="180" x="915" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="mingw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="MinGW-w64 GCC 11.2.0&#xa;C++17 | 静态链接" vertex="1">
+          <mxGeometry height="60" width="180" x="1110" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="cmake" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="CMake 3.x&#xa;AUTOMOC | windeployqt" vertex="1">
+          <mxGeometry height="60" width="160" x="1305" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="python-infra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="Python 环境&#xa;脚本执行引擎" vertex="1">
+          <mxGeometry height="60" width="140" x="1480" y="1160" as="geometry" />
+        </mxCell>
+        <mxCell id="build-output" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=10;align=center;fontColor=#263238;" value="构建输出 &amp; 部署&#xa;QDetectVision.exe | Qt6 *.dll&#xa;opencv_world4130.dll&#xa;translations/*.qm" vertex="1">
+          <mxGeometry height="50" width="1560" x="60" y="1235" as="geometry" />
+        </mxCell>
+        <mxCell id="layer-arch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#E53935;strokeWidth=2;dashed=1;" value="" vertex="1">
+          <mxGeometry height="110" width="1720" x="40" y="1320" as="geometry" />
+        </mxCell>
+        <mxCell id="layer-arch-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=14;fontStyle=1;fontColor=#B71C1C;" value="构建设计模式 — Build &amp; Design Patterns" vertex="1">
+          <mxGeometry height="25" width="350" x="55" y="1325" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-singleton" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="单例模式&#xa;AuthService | Logger&#xa;ImageManager&#xa;CategoryManager&#xa;ExportManager&#xa;ModelManager" vertex="1">
+          <mxGeometry height="58" width="170" x="60" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-command" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="命令模式&#xa;QUndoStack&#xa;AddToolCommand" vertex="1">
+          <mxGeometry height="58" width="150" x="245" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-signal" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="信号/槽 (Qt)&#xa;模块间解耦通信&#xa;跨层事件传递" vertex="1">
+          <mxGeometry height="58" width="160" x="410" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-factory" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="工厂模式&#xa;ToolFactory&#xa;视觉工具创建" vertex="1">
+          <mxGeometry height="58" width="150" x="585" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-plugin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="插件架构&#xa;IPlugin 接口&#xa;PluginManager 动态加载" vertex="1">
+          <mxGeometry height="58" width="170" x="750" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-splitter" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="组合布局&#xa;QSplitter 可拖拽分隔&#xa;QStackedWidget 视图栈" vertex="1">
+          <mxGeometry height="58" width="180" x="935" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-mvc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="MV 架构&#xa;View 自包含逻辑&#xa;Manager 层独立管理数据" vertex="1">
+          <mxGeometry height="58" width="180" x="1130" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="pattern-highlight" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#E53935;fontSize=10;align=center;fontColor=#B71C1C;" value="语法高亮&#xa;QSyntaxHighlighter&#xa;正则匹配关键字/字符串/注释" vertex="1">
+          <mxGeometry height="58" width="185" x="1325" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#333;" value="图例" vertex="1">
+          <mxGeometry height="20" width="60" x="1600" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-new" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;fontSize=9;align=center;fontColor=#1B5E20;fontStyle=1;" value="[新]" vertex="1">
+          <mxGeometry height="25" width="100" x="1600" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-core" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#43A047;fontSize=9;align=center;fontColor=#1B5E20;" value="核心业务" vertex="1">
+          <mxGeometry height="25" width="100" x="1600" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-ui" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=9;align=center;fontColor=#0D47A1;" value="UI 视图" vertex="1">
+          <mxGeometry height="25" width="100" x="1600" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#8E24AA;fontSize=9;align=center;fontColor=#4A148C;" value="数据/通信" vertex="1">
+          <mxGeometry height="25" width="100" x="1600" y="215" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-infra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFD8DC;strokeColor=#546E7A;fontSize=9;align=center;fontColor=#263238;" value="基础设施" vertex="1">
+          <mxGeometry height="25" width="100" x="1600" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="k9ofFah3gCCnJ4u1jUBM-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#ECEFF1,#212321);strokeColor=light-dark(#E53935,#97D077);fontSize=10;align=center;fontColor=#B71C1C;" value="使用说明书" vertex="1">
+          <mxGeometry height="58" width="150" x="55" y="1500" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

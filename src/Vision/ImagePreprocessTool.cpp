@@ -1,4 +1,5 @@
 #include "ImagePreprocessTool.h"
+#include "Core/Logger.h"
 #include <opencv2/imgproc.hpp>
 
 using namespace QDV;
@@ -15,7 +16,23 @@ bool ImagePreprocessTool::configure(const QJsonObject& params) {
         m_morphology = params["morphology"].toString();
     }
     if (params.contains("kernelSize")) {
-        m_kernelSize = params["kernelSize"].toInt();
+        // v2.5.0 修复：防御性校验 kernelSize，避免 OpenCV normalizeAnchor 断言失败
+        // 形态学核要求 ksize >= 1 且为奇数；偶数或 0/负数会导致
+        // cv::getStructuringElement 创建空 kernel → 触发 anchor.inside() 断言
+        int ks = params["kernelSize"].toInt();
+        if (ks < 1) {
+            ks = 1;
+            Logger::warn("ImagePreprocessTool: kernelSize < 1，已钳制为 1");
+        } else if (ks > 31) {
+            ks = 31;
+            Logger::warn("ImagePreprocessTool: kernelSize > 31，已钳制为 31");
+        } else if (ks % 2 == 0) {
+            // 偶数 → 强制 +1 变奇数（形态学核要求奇数）
+            ks += 1;
+            Logger::warn(QString("ImagePreprocessTool: kernelSize 为偶数 %1，已调整为奇数 %2")
+                         .arg(ks - 1).arg(ks));
+        }
+        m_kernelSize = ks;
     }
     return true;
 }
@@ -33,9 +50,11 @@ bool ImagePreprocessTool::execute(const cv::Mat& input, ToolResult& result) {
     }
     
     if (m_morphology != "none") {
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, 
-                                                   cv::Size(m_kernelSize, m_kernelSize));
-        
+        // v2.5.0 修复：运行时双保险，确保 kernelSize >= 1（即使 configure 被绕过也安全）
+        int ks = m_kernelSize < 1 ? 1 : m_kernelSize;
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT,
+                                                   cv::Size(ks, ks));
+
         if (m_morphology == "open") {
             cv::morphologyEx(output, output, cv::MORPH_OPEN, kernel);
         } else if (m_morphology == "close") {
@@ -74,6 +93,9 @@ bool ImagePreprocessTool::deserialize(const QJsonObject& data) {
     m_name = data["name"].toString();
     m_denoise = data["denoise"].toBool();
     m_morphology = data["morphology"].toString();
-    m_kernelSize = data["kernelSize"].toInt();
+    // v2.5.0 修复：反序列化也走防御性校验（避免旧方案文件 kernelSize=0）
+    QJsonObject params;
+    params["kernelSize"] = data["kernelSize"].toInt();
+    configure(params);
     return true;
 }

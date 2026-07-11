@@ -15,7 +15,7 @@ public:
     bool deserialize(const QJsonObject& data) override;
 
 private:
-    QString m_detectType = "line";
+    QString m_detectType = "lineP";   // 与元数据对齐：lineP (HoughLinesP) 能检测线段，更实用
     double m_rho = 1.0;
     double m_theta = CV_PI / 180.0;
     int m_threshold = 100;
@@ -23,7 +23,7 @@ private:
     double m_maxLineGap = 10.0;
     double m_minRadius = 20.0;
     double m_maxRadius = 200.0;
-    double m_dp = 1.5;
+    double m_dp = 1.0;                // 与元数据对齐：1.0 是标准累加器分辨率比
     double m_minDist = 50.0;
     double m_param1 = 150.0;
     double m_param2 = 30.0;

@@ -11,6 +11,9 @@ set(CORE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Core/OutputConfig.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Core/ModelBinding.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Core/BranchNode.h
+    # v2.6.0 变量管理
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Core/VariableManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Core/ImageVariableManager.h
 )
 
 set(CORE_SOURCES
@@ -19,6 +22,9 @@ set(CORE_SOURCES
     Logger.cpp
     AuthService.cpp
     BranchNode.cpp
+    # v2.6.0 变量管理
+    VariableManager.cpp
+    ImageVariableManager.cpp
 )
 
 add_library(Core STATIC

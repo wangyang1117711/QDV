@@ -19,6 +19,11 @@ Item {
     implicitHeight: 32
     implicitWidth: 200
 
+    // P1-B4-H8 a11y：无障碍属性
+    Accessible.role: Accessible.Group
+    Accessible.name: spec ? (spec.cnName + " ROI 选择器") : "ROI 选择器"
+    Accessible.description: spec ? (spec.help || "输入 x,y,w,h 格式的矩形区域") : "输入 x,y,w,h 格式的矩形区域"
+
     /// 内部：spec
     property var spec
     /// 当前 ROI 值（字符串格式 "x,y,w,h"，与 QDV 内部约定一致）
@@ -54,6 +59,9 @@ Item {
         TextField {
             id: roiText
             Layout.fillWidth: true
+            // P1-B4-H8 a11y
+            Accessible.name: spec ? (spec.cnName + " ROI 坐标输入") : "ROI 坐标输入"
+            Accessible.description: "输入 x,y,w,h 格式，例如 100,50,200,150"
             placeholderText: "x,y,w,h (如: 100,50,200,150)"
             text: root.currentValue
             color: Tok.DesignTokens.textPrimary

@@ -13,6 +13,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import QDV.EditView 3.0 as Tok
 
 Rectangle {
@@ -34,8 +35,12 @@ Rectangle {
     signal previewDoubleClicked(url sourceUrl, url processedUrl, string title)
     // v3.1.0: 请求浮动/停靠切换
     signal requestFloat()
-    // v3.2.0: 请求隐藏算子参数编辑器（与 pin 状态联动）
+    // v3.1.0: 请求隐藏算子参数编辑器（与 pin 状态联动）
     signal requestHide()
+    // v5.0：使用示例区折叠状态（默认折叠）
+    property bool usageExampleExpanded: false
+    // v5.0：效果预览区折叠状态（默认展开）
+    property bool previewExpanded: true
 
     Accessible.role: Accessible.Pane
     Accessible.name: "算子详情面板"
@@ -100,6 +105,35 @@ Rectangle {
     signal pinToggled()
     // 父组件通过 property pinned 传入
     property bool pinned: false
+
+    // v2.5.0 功能 4c：执行单算子预览
+    // v5.3.4：改为异步执行，避免主线程阻塞导致操作无响应
+    // 1. 设置原图到 previewSourceImage
+    // 2. 调用 bridge.runSingleOperatorAsync 异步执行上游链 + 当前算子
+    // 3. 通过 singleOperatorFinished 信号接收结果，设置输出图像
+    function runPreviewWithInput(inputPath) {
+        root.previewSourceImage = "file:///" + inputPath
+        if (!root.bridge || !root.selectedNodeId) {
+            root.previewProcessedImage = ""
+            return
+        }
+        // v5.3.4：使用异步 API，避免阻塞 UI
+        root.bridge.runSingleOperatorAsync(root.selectedNodeId, inputPath)
+    }
+
+    // v5.3.4：接收异步执行结果
+    Connections {
+        target: root.bridge
+        function onSingleOperatorFinished(result) {
+            if (!result || !result.success) {
+                root.previewProcessedImage = ""
+                return
+            }
+            if (result.outputImagePath && result.outputImagePath !== "") {
+                root.previewProcessedImage = "file:///" + result.outputImagePath
+            }
+        }
+    }
 
     ScrollView {
         anchors.fill: parent
@@ -291,14 +325,14 @@ Rectangle {
                 // 1b. 功能描述
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.margins: 10
+                    Layout.margins: 8  // v5.0：10→8
                     color: Tok.DesignTokens.bgSurface
                     radius: Tok.DesignTokens.radiusMd
                     height: descText.implicitHeight + 20
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 8  // v5.0：10→8
                         spacing: 6
 
                         Label {
@@ -324,14 +358,62 @@ Rectangle {
                 Rectangle { Layout.fillWidth: true; height: 1; color: Tok.DesignTokens.borderDefault }
 
                 // ============ 2. 输入参数区 ============
-                Label {
-                    text: "输入参数"
-                    color: Tok.DesignTokens.accentWarning
-                    font.bold: true
-                    font.pixelSize: Tok.DesignTokens.fontSizeSm
-                    font.family: Tok.DesignTokens.fontFamilyCJK
-                    Layout.margins: 10
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 10
+                    Layout.rightMargin: 10
                     Layout.topMargin: 10
+                    spacing: 6
+
+                    Label {
+                        text: "输入参数"
+                        color: Tok.DesignTokens.accentWarning
+                        font.bold: true
+                        font.pixelSize: Tok.DesignTokens.fontSizeSm
+                        font.family: Tok.DesignTokens.fontFamilyCJK
+                        Layout.fillWidth: true
+                    }
+
+                    // P1-B4-H6 复制粘贴：复制当前节点参数到剪贴板
+                    Button {
+                        text: "复制参数"
+                        Layout.preferredHeight: 22  // v5.0：24→22
+                        font.pixelSize: 10
+                        font.family: Tok.DesignTokens.fontFamilyCJK
+                        flat: true
+                        enabled: root.selectedNode !== null
+                        Accessible.name: "复制当前节点参数到剪贴板"
+                        onClicked: {
+                            if (root.bridge && root.selectedNodeId) {
+                                if (root.bridge.copyNodeParams(root.selectedNodeId)) {
+                                    // 刷新粘贴按钮 enabled 状态
+                                    pasteBtn.enabled = root.bridge.hasClipParams()
+                                }
+                            }
+                        }
+                    }
+
+                    // P1-B4-H6 复制粘贴：粘贴剪贴板参数到当前节点
+                    Button {
+                        id: pasteBtn
+                        text: root.bridge && root.bridge.hasClipParams()
+                              ? ("粘贴(" + (root.bridge.clipParamsType() || "") + ")")
+                              : "粘贴"
+                        Layout.preferredHeight: 22  // v5.0：24→22
+                        font.pixelSize: 10
+                        font.family: Tok.DesignTokens.fontFamilyCJK
+                        flat: true
+                        enabled: root.selectedNode !== null
+                               && root.bridge !== null
+                               && root.bridge.hasClipParams()
+                        Accessible.name: "从剪贴板粘贴参数到当前节点"
+                        onClicked: {
+                            if (root.bridge && root.selectedNodeId) {
+                                root.bridge.pasteNodeParams(root.selectedNodeId)
+                                // 粘贴后 PropertyPreviewPanel.refresh 会被 currentNodesChanged 触发
+                            }
+                        }
+                    }
                 }
 
                 ParamForm {
@@ -341,6 +423,8 @@ Rectangle {
                     Layout.rightMargin: 10
                     params: root.currentMeta ? root.currentMeta.params : []
                     currentValues: root.currentParams
+                    // P1-B4-H1 联动：传入算子类型供 isParamVisible 判断
+                    operatorType: root.selectedNode ? root.selectedNode.type : ""
                     onValuesChanged: function(newValues) {
                         if (root.bridge && root.selectedNodeId) {
                             root.bridge.updateOperatorParams(root.selectedNodeId, newValues)
@@ -357,7 +441,7 @@ Rectangle {
                 // ============ 3. 输出参数区（v3.0.0 动态渲染）============
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.margins: 10
+                    Layout.margins: 8  // v5.0：10→8
                     spacing: 6
 
                     Label {
@@ -414,24 +498,54 @@ Rectangle {
                 // 分隔线
                 Rectangle { Layout.fillWidth: true; height: 1; color: Tok.DesignTokens.borderDefault }
 
-                // ============ 4. 使用示例区 ============
+                // ============ 4. 使用示例区（v5.0：可折叠）============
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.margins: 10
+                    Layout.margins: 8  // v5.0：10→8
                     spacing: 6
 
-                    Label {
-                        text: "使用示例"
-                        color: Tok.DesignTokens.accentInfo
-                        font.bold: true
-                        font.pixelSize: Tok.DesignTokens.fontSizeSm
-                        font.family: Tok.DesignTokens.fontFamilyCJK
-                    }
+                    // v5.0：可折叠标题
                     Rectangle {
                         Layout.fillWidth: true
-                        height: usageText.implicitHeight + 20
+                        height: 24
+                        color: Tok.DesignTokens.bgSurface
+                        radius: Tok.DesignTokens.radiusSm
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 4
+
+                            Label {
+                                text: root.usageExampleExpanded ? "\u25BE" : "\u25B8"
+                                color: Tok.DesignTokens.accentInfo
+                                font.pixelSize: Tok.DesignTokens.fontSizeSm
+                            }
+                            Label {
+                                text: "使用示例"
+                                color: Tok.DesignTokens.accentInfo
+                                font.bold: true
+                                font.pixelSize: Tok.DesignTokens.fontSizeSm
+                                font.family: Tok.DesignTokens.fontFamilyCJK
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.usageExampleExpanded = !root.usageExampleExpanded
+                        }
+                    }
+                    // v5.0：折叠内容
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: root.usageExampleExpanded ? (usageText.implicitHeight + 20) : 0
+                        visible: root.usageExampleExpanded
                         color: Tok.DesignTokens.bgPanel
                         radius: Tok.DesignTokens.radiusMd
+                        clip: true
                         Label {
                             id: usageText
                             anchors.fill: parent
@@ -448,30 +562,55 @@ Rectangle {
                 // 分隔线
                 Rectangle { Layout.fillWidth: true; height: 1; color: Tok.DesignTokens.borderDefault }
 
-                // ============ 5. 效果预览区（v3.1.0 升级：双图对比 + 浮动触发）============
+                // ============ 5. 效果预览区（v5.0：可折叠，默认展开）============
                 Rectangle {
                     Layout.fillWidth: true
                     height: 1
                     color: Tok.DesignTokens.borderDefault
                 }
 
-                ColumnLayout {
+                // v5.0：可折叠标题
+                Rectangle {
                     Layout.fillWidth: true
-                    Layout.margins: 10
-                    spacing: 6
+                    Layout.margins: 8
+                    Layout.bottomMargin: 0
+                    height: 24
+                    color: Tok.DesignTokens.bgSurface
+                    radius: Tok.DesignTokens.radiusSm
 
                     RowLayout {
-                        Layout.fillWidth: true
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
                         spacing: 4
 
+                        Label {
+                            text: root.previewExpanded ? "\u25BE" : "\u25B8"
+                            color: Tok.DesignTokens.accentError
+                            font.pixelSize: Tok.DesignTokens.fontSizeSm
+                        }
                         Label {
                             text: "效果预览"
                             color: Tok.DesignTokens.accentError
                             font.bold: true
                             font.pixelSize: Tok.DesignTokens.fontSizeSm
                             font.family: Tok.DesignTokens.fontFamilyCJK
+                            Layout.fillWidth: true
                         }
                         Item { Layout.fillWidth: true }
+                        // v2.5.0 功能 4c：选择输入图像按钮
+                        Button {
+                            text: "选择输入图像"
+                            font.pixelSize: 10
+                            font.family: Tok.DesignTokens.fontFamilyCJK
+                            Layout.preferredHeight: 22  // v5.0：24→22
+                            flat: true
+                            enabled: root.bridge !== null && root.selectedNodeId !== ""
+                            ToolTip.text: "选择一张图像作为输入，执行当前算子（含上游链）并预览效果"
+                            ToolTip.visible: hovered
+                            onClicked: previewInputFileDialog.open()
+                        }
+
                         // 浮动/停靠切换按钮
                         ToolButton {
                             text: "↗"
@@ -487,6 +626,37 @@ Rectangle {
                             onClicked: root.requestFloat()
                         }
                     }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        // 只在非按钮区域点击时折叠
+                        z: -1
+                        onClicked: root.previewExpanded = !root.previewExpanded
+                    }
+                }
+
+                // v5.0：折叠内容
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.margins: 8
+                    spacing: 6
+                    visible: root.previewExpanded
+
+                    // v2.5.0 功能 4c：预览输入图像选择对话框
+                    FileDialog {
+                        id: previewInputFileDialog
+                        title: "选择预览输入图像"
+                        fileMode: FileDialog.OpenFile
+                        nameFilters: ["图像文件 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)", "所有文件 (*)"]
+                        onAccepted: {
+                            var path = String(selectedFile)
+                            if (path.startsWith("file:///")) path = path.substring(8)
+                            else if (path.startsWith("file://")) path = path.substring(7)
+                            root.runPreviewWithInput(path)
+                        }
+                    }
+
 
                     // 双图并排预览（对照 drawio: 原图 80x88 + 滤波后 80x88）
                     RowLayout {
@@ -610,7 +780,7 @@ Rectangle {
                     Label {
                         text: "双击效果预览图，可以打开独立窗口"
                         color: Tok.DesignTokens.textDisabled
-                        font.pixelSize: Tok.DesignTokens.fontSizeXxs || 10
+                        font.pixelSize: Tok.DesignTokens.fontSizeXxs  // v4.0.1：DesignTokens 已补全定义，移除 || 10 兜底
                         font.family: Tok.DesignTokens.fontFamilyCJK
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
@@ -623,8 +793,8 @@ Rectangle {
                 // ============ 6. 底部操作栏 ============
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.margins: 10
-                    Layout.bottomMargin: 16
+                    Layout.margins: 8  // v5.0：10→8
+                    Layout.bottomMargin: 10  // v5.0：16→10
                     spacing: 6
 
                     Button {

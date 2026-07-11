@@ -18,6 +18,53 @@ set(VISION_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ImageMergeTool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/AiClassifyTool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ReadImageTool.h
+    # 新增：滤波类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/GaussFilterTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/MeanImageTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/MedianImageTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/EmphasizeTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ScaleImageTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/FftGenericTool.h
+    # 新增：形态学类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ErosionTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DilationTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/OpeningTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ClosingTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/TopHatTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/BottomHatTool.h
+    # 新增：几何变换+分割类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/AffineTransImageTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/PolarTransImageTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DynThresholdTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/WatershedTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/RegionGrowingTool.h
+    # 新增：Blob+特征提取类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ConnectionTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/SelectShapeTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/PointsHarrisTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/EdgesSubPixTool.h
+    # 新增：匹配+测量类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/FindNccModelTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/FindShapeModelTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DistancePpTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/AngleLlTool.h
+    # 新增：分析与识别类（2026-07-09）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/HistogramTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/RgbExtractTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ChannelSplitTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/AreaCenterTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/QrCodeDetectTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/Barcode1dTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/OcrTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/HandEyeCalibTool.h
+    # 新增：图像采集类
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/OpenFramegrabberTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/GrabImageTool.h
+    # 新增：深度学习算子（2026-07-10）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DetectObjectsDlTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/SegmentDlTool.h
+    # 新增：机器人位姿算子（2026-07-10）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/RobotPoseTool.h
 )
 
 set(VISION_SOURCES
@@ -38,6 +85,53 @@ set(VISION_SOURCES
     ImageMergeTool.cpp
     AiClassifyTool.cpp
     ReadImageTool.cpp
+    # 新增：滤波类
+    GaussFilterTool.cpp
+    MeanImageTool.cpp
+    MedianImageTool.cpp
+    EmphasizeTool.cpp
+    ScaleImageTool.cpp
+    FftGenericTool.cpp
+    # 新增：形态学类
+    ErosionTool.cpp
+    DilationTool.cpp
+    OpeningTool.cpp
+    ClosingTool.cpp
+    TopHatTool.cpp
+    BottomHatTool.cpp
+    # 新增：几何变换+分割类
+    AffineTransImageTool.cpp
+    PolarTransImageTool.cpp
+    DynThresholdTool.cpp
+    WatershedTool.cpp
+    RegionGrowingTool.cpp
+    # 新增：Blob+特征提取类
+    ConnectionTool.cpp
+    SelectShapeTool.cpp
+    PointsHarrisTool.cpp
+    EdgesSubPixTool.cpp
+    # 新增：匹配+测量类
+    FindNccModelTool.cpp
+    FindShapeModelTool.cpp
+    DistancePpTool.cpp
+    AngleLlTool.cpp
+    # 新增：分析与识别类（2026-07-09）
+    HistogramTool.cpp
+    RgbExtractTool.cpp
+    ChannelSplitTool.cpp
+    AreaCenterTool.cpp
+    QrCodeDetectTool.cpp
+    Barcode1dTool.cpp
+    OcrTool.cpp
+    HandEyeCalibTool.cpp
+    # 新增：图像采集类
+    OpenFramegrabberTool.cpp
+    GrabImageTool.cpp
+    # 新增：深度学习算子（2026-07-10）
+    DetectObjectsDlTool.cpp
+    SegmentDlTool.cpp
+    # 新增：机器人位姿算子（2026-07-10）
+    RobotPoseTool.cpp
 )
 
 add_library(Vision STATIC
@@ -54,6 +148,7 @@ target_include_directories(Vision PUBLIC
 target_link_libraries(Vision PUBLIC
     Core
     OperatorSDK
+    Qt6::Network
     ${OpenCV_LIBS}
 )
 

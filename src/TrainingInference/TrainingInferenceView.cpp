@@ -43,6 +43,7 @@
 #include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QTimer>
 
 TrainingInferenceView::TrainingInferenceView(QWidget* parent) : QWidget(parent)
 {
@@ -114,6 +115,17 @@ void TrainingInferenceView::setupUI()
     m_mainSplitter->setStretchFactor(1, 3);
     m_mainSplitter->setSizes({280, 800});
 
+    // v5.0：设置中心/底部垂直 Splitter 初始比例（中心占 70%，底部训练日志占 30%）
+    // 之前未调用 setSizes，导致 Qt 默认均分，底部训练日志与中心面板比例失衡
+    QTimer::singleShot(0, this, [this]() {
+        if (m_centerSplitter && m_centerSplitter->count() >= 2) {
+            int totalH = m_centerSplitter->height();
+            if (totalH > 100) {
+                m_centerSplitter->setSizes({static_cast<int>(totalH * 0.7), static_cast<int>(totalH * 0.3)});
+            }
+        }
+    });
+
     mainLayout->addWidget(m_mainSplitter, 1);
 }
 
@@ -122,7 +134,11 @@ void TrainingInferenceView::setupToolbar(QVBoxLayout* mainLayout)
     m_toolbar = new QToolBar();
     m_toolbar->setStyleSheet(
         "QToolBar { background-color: #2d2d2d; border-bottom: 1px solid #444; "
-        "padding: 4px 8px; spacing: 6px; }");
+        "padding: 3px 12px; spacing: 6px; }"
+        "QToolBar QToolButton { background: transparent; border: 1px solid transparent; "
+        "border-radius: 4px; padding: 4px 14px; color: #e0e0e0; font-size: 12px; }"
+        "QToolBar QToolButton:hover { background-color: #555; border-color: #555; }"
+        "QToolBar QToolButton:disabled { color: #666; }");
 
     QAction* importAction = m_toolbar->addAction("导入图像");
     connect(importAction, &QAction::triggered, this, &TrainingInferenceView::onImportImages);
@@ -245,7 +261,7 @@ void TrainingInferenceView::setupImagePanel(QSplitter* splitter)
             border-bottom: 1px solid #333;
         }
         QListWidget::item:selected {
-            background-color: #660874;
+            background-color: #7C4DFF;
         }
         QListWidget::item:hover {
             background-color: #333;
@@ -270,11 +286,13 @@ void TrainingInferenceView::setupCenterPanel(QSplitter* splitter)
     topLayout->setSpacing(8);
 
     m_categoryPanel = new CategoryPanel();
-    m_categoryPanel->setFixedWidth(240);
+    m_categoryPanel->setMinimumWidth(180);   // v5.0：fixedWidth→minimumWidth，允许拉伸
+    m_categoryPanel->setMaximumWidth(320);
     topLayout->addWidget(m_categoryPanel);
 
     m_inferencePanel = new InferencePanel();
-    m_inferencePanel->setFixedWidth(240);
+    m_inferencePanel->setMinimumWidth(180);   // v5.0：fixedWidth→minimumWidth，允许拉伸
+    m_inferencePanel->setMaximumWidth(320);
     topLayout->addWidget(m_inferencePanel);
 
     m_centerStack = new QStackedWidget();
@@ -652,11 +670,11 @@ void TrainingInferenceView::rebuildImageList()
                 background-color: #2d2d2d;
             }
             QCheckBox::indicator:checked {
-                background-color: #660874;
-                border-color: #660874;
+                background-color: #7C4DFF;
+                border-color: #7C4DFF;
             }
             QCheckBox::indicator:hover {
-                border-color: #7d1a8f;
+                border-color: #8E66FF;
             }
         )");
         connect(checkBox, &QCheckBox::toggled, [this, path = entry.filePath](bool checked) {
@@ -677,7 +695,7 @@ void TrainingInferenceView::rebuildImageList()
         if (entry.isAnnotated && !entry.label.isEmpty()) {
             iconContainer->setStyleSheet(R"(
                 QWidget {
-                    border: 2px solid #660874;
+                    border: 2px solid #7C4DFF;
                     border-radius: 4px;
                     background-color: #1a1a1a;
                 }
@@ -710,7 +728,7 @@ void TrainingInferenceView::rebuildImageList()
             QLabel* tagLabel = new QLabel(QString("类别: %1").arg(entry.label));
             tagLabel->setStyleSheet(R"(
                 QLabel {
-                    color: #660874;
+                    color: #7C4DFF;
                     font-size: 11px;
                     font-weight: bold;
                     background-color: rgba(102, 8, 116, 0.15);
@@ -871,6 +889,17 @@ void TrainingInferenceView::onPreviewImage(const QString& filePath)
 
 void TrainingInferenceView::onInferenceRequested(const QString& modelPath, const QStringList& imagePaths)
 {
+    // P1-C6 修复（CodeWiki 已知限制）：明确标记模拟实现，避免误用为生产推理结果
+    // TODO(M7): 接入真实 ONNX Runtime / OpenCV DNN 推理后端
+    // 当前实现使用 QRandomGenerator 生成模拟置信度和类别，仅用于 UI 流程验证，
+    // 不可作为真实检测结果使用。
+    static bool mockWarningLogged = false;
+    if (!mockWarningLogged) {
+        QDV::Logger::warn("TrainingInferenceView::onInferenceRequested: 使用模拟推理结果（QRandomGenerator），"
+                     "M7 里程碑将接入真实 ONNX Runtime 后端");
+        mockWarningLogged = true;
+    }
+
     QList<InferenceResult> results;
 
     QStringList paths = imagePaths.isEmpty()
@@ -880,6 +909,7 @@ void TrainingInferenceView::onInferenceRequested(const QString& modelPath, const
     {
         InferenceResult result;
         result.imagePath = paths[i];
+        // 模拟置信度：0.85 ~ 1.00
         result.confidence = 0.85 + QRandomGenerator::global()->bounded(15) / 100.0;
 
         QList<CategoryNode> categories = CategoryManager::instance()->allCategories();
@@ -897,6 +927,7 @@ void TrainingInferenceView::onInferenceRequested(const QString& modelPath, const
         raw["model"] = modelPath;
         raw["latency_ms"] = 12.5;
         raw["input_size"] = "224x224";
+        raw["_mock"] = true;  // P1-C6: 标记为模拟结果，便于上层识别
         result.rawOutput = raw;
 
         results.append(result);

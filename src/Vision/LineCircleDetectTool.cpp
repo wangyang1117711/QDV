@@ -122,6 +122,11 @@ QJsonObject LineCircleDetectTool::serialize() const {
     obj["maxLineGap"] = m_maxLineGap;
     obj["minRadius"] = m_minRadius;
     obj["maxRadius"] = m_maxRadius;
+    // P1-B7 修复：补齐 dp/minDist/param1/param2 序列化（之前丢失导致加载后圆检测参数全部默认）
+    obj["dp"] = m_dp;
+    obj["minDist"] = m_minDist;
+    obj["param1"] = m_param1;
+    obj["param2"] = m_param2;
     return obj;
 }
 

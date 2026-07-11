@@ -48,11 +48,11 @@ void InferencePanel::setupUI() {
             color: #e0e0e0;
             font-size: 13px;
         }
-        QComboBox:hover { border-color: #660874; }
+        QComboBox:hover { border-color: #7C4DFF; }
         QComboBox QAbstractItemView {
             background-color: #2d2d2d;
             color: #e0e0e0;
-            selection-background-color: #660874;
+            selection-background-color: #7C4DFF;
             border: 1px solid #555;
         }
     )");
@@ -98,7 +98,7 @@ void InferencePanel::setupUI() {
     m_runBtn = new QPushButton("开始推理");
     m_runBtn->setStyleSheet(R"(
         QPushButton {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: white;
             border: none;
             border-radius: 4px;
@@ -106,7 +106,7 @@ void InferencePanel::setupUI() {
             font-size: 14px;
             font-weight: bold;
         }
-        QPushButton:hover { background-color: #7d1a8f; }
+        QPushButton:hover { background-color: #8E66FF; }
         QPushButton:disabled { background-color: #555; }
     )");
     connect(m_runBtn, &QPushButton::clicked, this, &InferencePanel::onRunInference);
@@ -140,7 +140,7 @@ void InferencePanel::setupUI() {
             text-align: center;
             color: #e0e0e0;
         }
-        QProgressBar::chunk { background-color: #660874; border-radius: 3px; }
+        QProgressBar::chunk { background-color: #7C4DFF; border-radius: 3px; }
     )");
     layout->addWidget(m_progressBar);
 

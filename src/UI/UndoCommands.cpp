@@ -87,10 +87,33 @@ RemoveNodeCommand::RemoveNodeCommand(EditViewBridge* bridge,
 
 void RemoveNodeCommand::redo() {
     if (!m_bridge) return;
+    // P1-A5 修复：删除节点时同步清理引用该节点的连接，避免悬空连接残留
+    QVariantList& conns = m_bridge->connectionsRef();
+    if (m_removedConnections.isEmpty()) {
+        // 首次 redo：缓存并删除相关连接
+        for (int i = conns.size() - 1; i >= 0; --i) {
+            const QVariantMap c = conns[i].toMap();
+            if (c.value("fromId").toString() == m_nodeId ||
+                c.value("toId").toString() == m_nodeId) {
+                m_removedConnections.append(conns[i]);
+                conns.removeAt(i);
+            }
+        }
+    } else {
+        // 后续 redo（undo 后再 redo）：从缓存中删除
+        for (int i = conns.size() - 1; i >= 0; --i) {
+            const QVariantMap c = conns[i].toMap();
+            if (c.value("fromId").toString() == m_nodeId ||
+                c.value("toId").toString() == m_nodeId) {
+                conns.removeAt(i);
+            }
+        }
+    }
     QVariantList& nodes = m_bridge->currentNodesRef();
     for (int i = 0; i < nodes.size(); ++i) {
         if (nodes[i].toMap().value("id").toString() == m_nodeId) {
             nodes.removeAt(i);
+            m_bridge->notifyConnectionsChanged();
             m_bridge->notifyCurrentNodesChanged();
             return;
         }
@@ -105,6 +128,12 @@ void RemoveNodeCommand::undo() {
     } else {
         nodes.append(m_nodeSnapshot);
     }
+    // P1-A5 修复：恢复被删除的连接
+    QVariantList& conns = m_bridge->connectionsRef();
+    for (const QVariant& c : m_removedConnections) {
+        conns.append(c);
+    }
+    m_bridge->notifyConnectionsChanged();
     m_bridge->notifyCurrentNodesChanged();
 }
 

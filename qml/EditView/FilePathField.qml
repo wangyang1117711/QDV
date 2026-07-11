@@ -6,18 +6,17 @@
 // - 在 TextField 右侧追加「浏览…」按钮
 // - 浏览时弹出 FileDialog，初始目录优先采用「上次使用目录」
 // - 路径记忆：使用 Qt.labs.settings 跨会话保存
-// - 默认路径：D:\图片\6人影.png（首次使用时）
+//
+// P1-A8/A9/A10 修复：
+// - 移除 onTextChanged 对 _text 的同步，修复手动输入路径无法回传
+// - 移除覆盖 TextField 的右键 MouseArea，恢复标准复制/粘贴菜单
+// - 移除硬编码开发机路径 D:\图片\6人影.png，改为空路径提示用户选择
 //
 // 外部接口：
 //   spec:           OperatorParamMeta（含 name/cnName/defaultValue/help）
 //   paramName:      参数名（外部注入后 binding 到 setValue）
 //   currentValue:   节点当前参数值
 //   onValuePicked:  用户浏览选择/输入确认后回传新值
-//
-// 设计要点：
-// - 复制 ParamForm 的 RowLayout + Label 风格，视觉一致
-// - 浏览按钮在 path 为空 / 有值时均可用（覆盖补全场景）
-// - 路径不合法时仅做软提示（不阻断），由上游算子执行时报错
 // =====================================================================
 
 import QtQuick
@@ -39,25 +38,19 @@ RowLayout {
     /// 新值回传：与 ParamForm.setValue(name, val) 协议对齐
     signal valuePicked(string newValue)
 
-    /// 静态默认路径（首次启动时使用）
-    readonly property string defaultImagePath: "D:\\图片\\6人影.png"
-
     // ============ 路径记忆（跨会话）============
     Settings {
         id: pathMemory
-        // 文件：build/bin/appData/lastImageDir.ini
-        // Key：lastImageDir，Value：用户上次选择的目录
         category: "EditView/FilePath"
         property string lastImageDir: ""
     }
 
-    // 当前输入框内容
+    // 当前输入框内容（P1-A10 修复：移除硬编码默认路径，改为空）
     property string _text: {
         if (currentValue !== undefined && currentValue !== null
                 && String(currentValue) !== "")
             return String(currentValue)
-        // 首次进入：显示默认路径
-        return defaultImagePath
+        return ""
     }
     onCurrentValueChanged: {
         if (currentValue !== undefined && currentValue !== null
@@ -80,7 +73,6 @@ RowLayout {
         Layout.fillWidth: true
         Accessible.name: spec.cnName + " 路径输入"
         Accessible.description: spec.help || "支持手动输入或粘贴文件路径"
-        // 提示文字（路径为空时显示）
         placeholderText: spec.help || "支持 png/jpg/bmp/tiff 格式"
         placeholderTextColor: Tok.DesignTokens.textPlaceholder
         text: root._text
@@ -88,7 +80,6 @@ RowLayout {
         font.pixelSize: 12
         font.family: Tok.DesignTokens.fontMono
         selectByMouse: true
-        // 启用复制/粘贴等标准编辑操作
         persistentSelection: true
         background: Rectangle {
             color: pathField.activeFocus ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgSurface
@@ -96,36 +87,31 @@ RowLayout {
             border.width: 1
             radius: Tok.DesignTokens.radiusSm
         }
+        // P1-A8 修复：onEditingFinished 无条件触发 valuePicked
+        // 之前 onTextChanged 已同步 _text，导致 onEditingFinished 比较永远为 false，手动输入无法回传
         onEditingFinished: {
-            if (text !== root._text) {
-                root._text = text
-                root.valuePicked(text)
-            }
+            root._text = text
+            root.valuePicked(text)
         }
-        onTextChanged: {
-            if (text !== root._text) root._text = text
-        }
-        // 右键菜单：清空
-        MouseArea {
-            anchors.fill: parent
+        // P1-B 阻断修复：TextField.menu 在 QtQuick.Controls 2 中不存在（是 Controls 1 的 API）
+        // P1-A9 错误使用 menu 属性导致 QML 加载失败 → ParamForm/PropertyPreviewPanel/Main.qml 连锁失败 → EditView 空白
+        // 改用 TapHandler 触发右键菜单（不阻止 TextField 内部鼠标处理，保留标准复制/粘贴）
+        TapHandler {
             acceptedButtons: Qt.RightButton
-            onClicked: function(mouse) {
-                clearMenu.popup()
-            }
-            Menu {
-                id: clearMenu
-                MenuItem {
-                    text: "清空"
-                    onTriggered: { pathField.text = ""; root._text = ""; root.valuePicked("") }
-                }
-                MenuItem {
-                    text: "恢复默认路径"
-                    onTriggered: {
-                        pathField.text = root.defaultImagePath
-                        root._text = root.defaultImagePath
-                        root.valuePicked(root.defaultImagePath)
-                    }
-                }
+            grabPermissions: TapHandler.CanTakeOverFromHandlersOfDifferentType
+            onTapped: contextMenu.popup(pathField, eventPoint.position.x, eventPoint.position.y)
+        }
+    }
+
+    // P1-B 阻断修复：右键上下文菜单（清空功能）
+    Menu {
+        id: contextMenu
+        MenuItem {
+            text: "清空"
+            onTriggered: {
+                pathField.clear()
+                root._text = ""
+                root.valuePicked("")
             }
         }
     }
@@ -135,12 +121,10 @@ RowLayout {
         id: browseBtn
         text: "浏览…"
         Accessible.name: "浏览文件路径"
-        // 紧凑尺寸，与 TextField 同行
         Layout.preferredWidth: 60
         Layout.preferredHeight: 32
         font.pixelSize: 11
         font.family: Tok.DesignTokens.fontFamilyCJK
-        // 复用 ParamForm 中 String field 的 bgSurface 风格
         background: Rectangle {
             color: browseBtn.hovered ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgSurface
             border.color: Tok.DesignTokens.borderDefault
@@ -162,7 +146,6 @@ RowLayout {
         id: fileDialog
         title: "选择图像文件"
         fileMode: FileDialog.OpenFile
-        // 多格式过滤（与读图算子支持的格式一致）
         nameFilters: [
             "图像文件 (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp)",
             "PNG 图像 (*.png)",
@@ -172,12 +155,11 @@ RowLayout {
             "WebP 图像 (*.webp)",
             "所有文件 (*)"
         ]
-        // 初始目录：上次记忆 > 默认目录 > 用户主目录
+        // 初始目录：上次记忆 > 当前路径目录 > 用户主目录
         currentFolder: {
             if (pathMemory.lastImageDir && pathMemory.lastImageDir !== "")
                 return "file:///" + pathMemory.lastImageDir.replace(/\\/g, "/")
-            if (root._text && root._text !== "" && root._text.indexOf("\\") >= 0) {
-                // 尝试提取当前路径的目录
+            if (root._text && root._text !== "") {
                 var idx = Math.max(root._text.lastIndexOf("\\"),
                                    root._text.lastIndexOf("/"))
                 if (idx > 0) {
@@ -185,15 +167,13 @@ RowLayout {
                     return "file:///" + dir.replace(/\\/g, "/")
                 }
             }
-            return "file:///" + root.defaultImagePath.replace(/\\/g, "/")
+            // P1-A10 修复：fallback 到用户主目录而非硬编码路径
+            return "file:///" + Qt.resolvedUrl("~").toString().substring(8)
         }
         onAccepted: {
-            // FileDialog 返回的 selectedFile 是 file:/// URL
             var picked = String(selectedFile)
-            // 转 Windows 本地路径
             if (picked.startsWith("file:///")) picked = picked.substring(8)
             else if (picked.startsWith("file://")) picked = picked.substring(7)
-            // 记忆目录（取父目录）
             var sepIdx = Math.max(picked.lastIndexOf("\\"),
                                   picked.lastIndexOf("/"))
             if (sepIdx > 0) {

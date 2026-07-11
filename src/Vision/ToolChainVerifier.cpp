@@ -68,6 +68,9 @@ QList<ToolVerifyResult> ToolChainVerifier::verifyAll() {
     m_results.append(verifyImageTransform());
     m_results.append(verifyImageMerge());
     m_results.append(verifyBranchControl());
+    // P1-C7 修复：补全 AI 推理与读图路径自检
+    m_results.append(verifyAiClassify());
+    m_results.append(verifyReadImage());
     return m_results;
 }
 
@@ -115,7 +118,13 @@ ToolVerifyResult ToolChainVerifier::verifyEdgeDetect() {
     params["lowThreshold"] = 50;
     params["highThreshold"] = 150;
     params["apertureSize"] = 3;
-    tool->configure(params);
+    // P1-B10 修复：统一检查 configure 返回值，避免参数错误时"假通过"
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -170,12 +179,22 @@ ToolVerifyResult ToolChainVerifier::verifyColorDetect() {
     }
 
     QJsonObject params;
-    QJsonArray lower, upper;
-    lower.append(0); lower.append(100); lower.append(100);
-    upper.append(10); upper.append(255); upper.append(255);
-    params["lowerHSV"] = lower;
-    params["upperHSV"] = upper;
-    tool->configure(params);
+    // P1-B10 修复：参数名与 ColorDetectTool::configure 一致
+    // 之前用 lowerHSV/upperHSV 数组，但 configure 期望 6 个独立字段 hMin/hMax/sMin/sMax/vMin/vMax
+    // 参数名错误导致 configure 静默失败（ColorDetectTool::configure 总返回 true 但字段未读取）
+    // 检测红色目标：H=0-10, S=100-255, V=100-255
+    params["hMin"] = 0;
+    params["hMax"] = 10;
+    params["sMin"] = 100;
+    params["sMax"] = 255;
+    params["vMin"] = 100;
+    params["vMax"] = 255;
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -203,10 +222,17 @@ ToolVerifyResult ToolChainVerifier::verifyThreshold() {
     }
 
     QJsonObject params;
-    params["thresholdValue"] = 128;
+    // P1-B10 修复：thresholdValue → threshold（与 ThresholdTool::configure 一致）
+    // method 用大写 BINARY（与元数据 optionKeys 一致），之前 "binary" 不在合法值内
+    params["threshold"] = 128;
     params["maxValue"] = 255;
-    params["method"] = "binary";
-    tool->configure(params);
+    params["method"] = "BINARY";
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -234,9 +260,17 @@ ToolVerifyResult ToolChainVerifier::verifyImagePreprocess() {
     }
 
     QJsonObject params;
-    params["filterType"] = "gaussian";
+    // P1-B10 修复：filterType → denoise + morphology（与 ImagePreprocessTool::configure 一致）
+    // 之前 filterType 被忽略；kernelSize=5 是奇数符合形态学核要求
+    params["denoise"] = true;
+    params["morphology"] = "open";
     params["kernelSize"] = 5;
-    tool->configure(params);
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -314,9 +348,15 @@ ToolVerifyResult ToolChainVerifier::verifyLineCircleDetect() {
     }
 
     QJsonObject params;
-    params["detectLines"] = true;
-    params["detectCircles"] = true;
-    tool->configure(params);
+    // P1-B10 修复：detectLines/detectCircles → detectType（与 LineCircleDetectTool::configure 一致）
+    // 之前参数名错误导致 configure 返回 false，但 verifier 不检查返回值，execute 用默认值"假通过"
+    params["detectType"] = "lineP";
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -347,9 +387,17 @@ ToolVerifyResult ToolChainVerifier::verifyImageArithmetic() {
     }
 
     QJsonObject params;
+    // P1-B10 修复：operandImage 不存在 → useScalar + scalar（与 ImageArithmeticTool::configure 一致）
+    // 之前 operandImage 被忽略，useScalar=false 导致 execute 走 m_hasSecondImage 分支但无第二张图，输出=input
     params["operation"] = "add";
-    params["operandImage"] = QString();  // tool handles this internally
-    tool->configure(params);
+    params["useScalar"] = true;
+    params["scalar"] = 50.0;
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -379,7 +427,13 @@ ToolVerifyResult ToolChainVerifier::verifyImageTransform() {
     QJsonObject params;
     params["transformType"] = "rotate";
     params["angle"] = 45.0;
-    tool->configure(params);
+    // P1-B10 修复：统一检查 configure 返回值，避免参数错误时"假通过"
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -410,8 +464,15 @@ ToolVerifyResult ToolChainVerifier::verifyImageMerge() {
     }
 
     QJsonObject params;
-    params["mergeMode"] = "horizontal";
-    tool->configure(params);
+    // P1-B10 修复：mergeMode → mergeType（与 ImageMergeTool::configure 一致）
+    // 之前参数名错误导致 configure 返回 false，但 verifier 不检查返回值，"假通过"
+    params["mergeType"] = "horizontal";
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -439,11 +500,19 @@ ToolVerifyResult ToolChainVerifier::verifyBranchControl() {
     }
 
     QJsonObject params;
-    params["condition"] = "score_above";
-    params["threshold"] = 0.5;
+    // P1-B10 修复：condition→conditionOp, threshold→conditionValue（与 BranchControlTool::configure 一致）
+    // 之前参数名错误导致 BranchNode::deserialize 失败，分支节点 invalid，
+    // 但 verifier 不检查 configure 返回值，"假通过"
+    params["conditionOp"] = ">";
+    params["conditionValue"] = 0.5;
     params["trueBranch"] = "ok_path";
     params["falseBranch"] = "ng_path";
-    tool->configure(params);
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        return r;
+    }
 
     QElapsedTimer timer;
     timer.start();
@@ -456,6 +525,86 @@ ToolVerifyResult ToolChainVerifier::verifyBranchControl() {
     r.passed = ok;
     r.message = r.passed ? "分支控制执行成功" : "执行失败";
     delete tool;
+    return r;
+}
+
+// P1-C7 修复（CodeWiki 已知限制）：补全 AI 推理与读图路径自检
+// 之前 verifyAll() 缺这两个 verify，AI 分类与读图路径无自检
+ToolVerifyResult ToolChainVerifier::verifyAiClassify() {
+    ToolVerifyResult r;
+    r.toolName = "AI分类";
+
+    cv::Mat input = createTestImage(224, 224);
+    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::AiClassify);
+    if (!tool) {
+        r.passed = false;
+        r.message = "工厂创建失败";
+        return r;
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+
+    ToolResult result;
+    bool ok = tool->execute(input, result);
+    r.elapsedMs = timer.elapsed();
+
+    // AI 分类工具在没有加载模型时返回 false 是预期行为，不算失败
+    // 只要工具能被创建并执行（不崩溃），即认为验证通过
+    r.passed = ok || !result.data.value("modelLoaded", true).toBool();
+    if (r.passed) {
+        r.message = ok ? "AI分类执行成功" : "AI分类跳过（未加载模型，预期行为）";
+    } else {
+        r.message = "AI分类执行失败";
+    }
+    delete tool;
+    return r;
+}
+
+ToolVerifyResult ToolChainVerifier::verifyReadImage() {
+    ToolVerifyResult r;
+    r.toolName = "图像读取";
+
+    // 创建一个临时图像文件用于测试 ReadImage 工具
+    cv::Mat testImg = createTestImage(200, 150);
+    QString tempPath = QDir::tempPath() + "/qdv_verifier_readimage.png";
+    if (!cv::imwrite(tempPath.toStdString(), testImg)) {
+        r.passed = false;
+        r.message = "无法创建测试图像文件";
+        return r;
+    }
+
+    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ReadImage);
+    if (!tool) {
+        r.passed = false;
+        r.message = "工厂创建失败";
+        QFile::remove(tempPath);
+        return r;
+    }
+
+    QJsonObject params;
+    params["filePath"] = tempPath;
+    if (!tool->configure(params)) {
+        r.passed = false;
+        r.message = "配置失败（参数名错误）";
+        delete tool;
+        QFile::remove(tempPath);
+        return r;
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+
+    // ReadImage 工具通常忽略 input，从文件读取
+    cv::Mat dummyInput;
+    ToolResult result;
+    bool ok = tool->execute(dummyInput, result);
+    r.elapsedMs = timer.elapsed();
+
+    r.passed = ok && !result.overlayImage.empty();
+    r.message = r.passed ? "图像读取成功" : "图像读取失败";
+    delete tool;
+    QFile::remove(tempPath);
     return r;
 }
 

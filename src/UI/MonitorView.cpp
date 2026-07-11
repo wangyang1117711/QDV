@@ -31,16 +31,16 @@ void MonitorView::setupUI() {
         QToolBar {
             background-color: #2d2d2d;
             border-bottom: 1px solid #444;
-            padding: 4px 8px;
+            padding: 3px 12px;
             spacing: 6px;
         }
         QToolBar QToolButton {
             background: transparent;
             border: 1px solid transparent;
             border-radius: 4px;
-            padding: 6px 12px;
+            padding: 4px 14px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolBar QToolButton:hover {
             background-color: #555;
@@ -66,55 +66,64 @@ void MonitorView::setupUI() {
     contentLayout->setContentsMargins(16, 16, 16, 16);
     contentLayout->setSpacing(16);
 
+    // v5.0：水平布局，充分利用全屏宽度
+    QWidget* topRow = new QWidget();
+    QHBoxLayout* topRowLayout = new QHBoxLayout(topRow);
+    topRowLayout->setContentsMargins(0, 0, 0, 0);
+    topRowLayout->setSpacing(16);
+
     QGroupBox* statusGroup = new QGroupBox("系统状态");
     QGridLayout* statusLayout = new QGridLayout(statusGroup);
-    statusLayout->setSpacing(16);
+    statusLayout->setSpacing(10);
 
     m_statusLabel = new QLabel("就绪");
-    m_statusLabel->setStyleSheet("color: #FFA726; font-size: 18px; font-weight: bold;");
+    m_statusLabel->setStyleSheet("color: #FFA726; font-size: 16px; font-weight: bold;");
     statusLayout->addWidget(new QLabel("状态:"), 0, 0);
     statusLayout->addWidget(m_statusLabel, 0, 1);
 
     m_throughputLabel = new QLabel("0 件/分钟");
-    m_throughputLabel->setStyleSheet("font-size: 14px;");
+    m_throughputLabel->setStyleSheet("font-size: 13px;");
     statusLayout->addWidget(new QLabel("检测速度:"), 1, 0);
     statusLayout->addWidget(m_throughputLabel, 1, 1);
 
     m_passRateLabel = new QLabel("--");
-    m_passRateLabel->setStyleSheet("color: #aaa; font-size: 14px; font-weight: bold;");
+    m_passRateLabel->setStyleSheet("color: #aaa; font-size: 13px; font-weight: bold;");
     statusLayout->addWidget(new QLabel("良品率:"), 2, 0);
     statusLayout->addWidget(m_passRateLabel, 2, 1);
 
-    contentLayout->addWidget(statusGroup);
+    topRowLayout->addWidget(statusGroup);
+
+    QGroupBox* countGroup = new QGroupBox("检测计数");
+    QGridLayout* countLayout = new QGridLayout(countGroup);
+    countLayout->setSpacing(10);
+
+    m_totalLabel = new QLabel("0");
+    m_totalLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #42A5F5;");
+    countLayout->addWidget(new QLabel("检测总数:"), 0, 0);
+    countLayout->addWidget(m_totalLabel, 0, 1);
+
+    m_passLabel = new QLabel("0");
+    m_passLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #4CAF50;");
+    countLayout->addWidget(new QLabel("合格数:"), 1, 0);
+    countLayout->addWidget(m_passLabel, 1, 1);
+
+    m_failLabel = new QLabel("0");
+    m_failLabel->setStyleSheet("font-size: 22px; font-weight: bold; color: #F44336;");
+    countLayout->addWidget(new QLabel("不合格数:"), 2, 0);
+    countLayout->addWidget(m_failLabel, 2, 1);
+
+    topRowLayout->addWidget(countGroup);
+    topRowLayout->addStretch();
+
+    contentLayout->addLayout(topRowLayout);
 
     m_progressBar = new QProgressBar();
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
     m_progressBar->setTextVisible(true);
     m_progressBar->setFormat("批次进度: %p%");
-    m_progressBar->setFixedHeight(24);
+    m_progressBar->setFixedHeight(22);
     contentLayout->addWidget(m_progressBar);
-
-    QGroupBox* countGroup = new QGroupBox("检测计数");
-    QGridLayout* countLayout = new QGridLayout(countGroup);
-    countLayout->setSpacing(12);
-
-    m_totalLabel = new QLabel("0");
-    m_totalLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #42A5F5;");
-    countLayout->addWidget(new QLabel("检测总数:"), 0, 0);
-    countLayout->addWidget(m_totalLabel, 0, 1);
-
-    m_passLabel = new QLabel("0");
-    m_passLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #4CAF50;");
-    countLayout->addWidget(new QLabel("合格数:"), 1, 0);
-    countLayout->addWidget(m_passLabel, 1, 1);
-
-    m_failLabel = new QLabel("0");
-    m_failLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #F44336;");
-    countLayout->addWidget(new QLabel("不合格数:"), 2, 0);
-    countLayout->addWidget(m_failLabel, 2, 1);
-
-    contentLayout->addWidget(countGroup);
 
     contentLayout->addStretch();
     mainLayout->addWidget(contentWidget);
@@ -136,7 +145,7 @@ void MonitorView::startDetection() {
     m_startAction->setEnabled(false);
     m_stopAction->setEnabled(true);
     m_statusLabel->setText("运行中");
-    m_statusLabel->setStyleSheet("color: #4CAF50; font-size: 18px; font-weight: bold;");
+    m_statusLabel->setStyleSheet("color: #4CAF50; font-size: 16px; font-weight: bold;");
     m_frameTimer->start(2000);
 }
 
@@ -145,7 +154,7 @@ void MonitorView::stopDetection() {
     m_stopAction->setEnabled(false);
     m_frameTimer->stop();
     m_statusLabel->setText("已停止");
-    m_statusLabel->setStyleSheet("color: #FFA726; font-size: 18px; font-weight: bold;");
+    m_statusLabel->setStyleSheet("color: #FFA726; font-size: 16px; font-weight: bold;");
 }
 
 void MonitorView::resetCounters() {

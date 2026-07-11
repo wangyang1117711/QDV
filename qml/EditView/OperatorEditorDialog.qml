@@ -19,16 +19,19 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQuick.Dialogs
 import QDV.EditView 3.0 as Tok
 
-Dialog {
+// v5.3：改为 Popup（而非 Dialog），避免 Dialog 的 Overlay 创建独立 QRhi 上下文。
+Popup {
     id: dlg
     modal: true
-    standardButtons: Dialog.NoButton   // 自定义按钮
     width: 520
     height: 640
-    title: "算子参数编辑器"
     padding: 0
+    // v5.3.1：Popup 不支持 anchors，用 x/y 手动居中
+    x: (parent.width - width) / 2
+    y: (parent.height - height) / 2
     background: Rectangle {
         color: Tok.DesignTokens.bgPanel
         border.color: Tok.DesignTokens.accentPrimary
@@ -154,6 +157,8 @@ Dialog {
                 width: formScroll.width
                 params: dlg.meta ? dlg.meta.params : []
                 currentValues: dlg.workingValues
+                // P1-B4-H1 联动：传入算子类型供 isParamVisible 判断
+                operatorType: dlg.meta ? dlg.meta.type : ""
                 onValuesChanged: function(newValues) {
                     dlg.workingValues = JSON.parse(JSON.stringify(newValues))
                 }
@@ -186,19 +191,60 @@ Dialog {
                         for (var i = 0; i < dlg.meta.params.length; ++i) {
                             defaults[dlg.meta.params[i].name] = dlg.meta.params[i].defaultValue
                         }
+                        // v5.3.7：通过 form.resetValues 刷新控件，并同步 workingValues
+                        form.resetValues(defaults)
                         dlg.workingValues = defaults
                     }
                 }
                 Button {
                     text: "撤销修改"
                     flat: true
-                    onClicked: dlg.workingValues = JSON.parse(JSON.stringify(dlg.snapshotValues))
+                    onClicked: {
+                        // v5.3.7：通过 form.resetValues 刷新控件，并同步 workingValues
+                        form.resetValues(dlg.snapshotValues)
+                        dlg.workingValues = JSON.parse(JSON.stringify(dlg.snapshotValues))
+                    }
                 }
                 Item { Layout.fillWidth: true }
+                // v2.5.0 功能 5c：运行按钮（先应用参数，再执行）
+                // v2.5.0 修复：智能识别输入源 — 若上游链含 ReadImage 节点则直接执行，
+                // 否则才弹 FileDialog
+                Button {
+                    text: "\u25B6 运行"
+                    flat: true
+                    ToolTip.text: "应用当前参数并执行此算子（含上游链）；若上游无 ReadImage 则需选择图像"
+                    ToolTip.visible: hovered
+                    onClicked: {
+                        // 先应用参数
+                        if (dlg.bridge && dlg.nodeId) {
+                            dlg.bridge.updateOperatorParams(dlg.nodeId, dlg.workingValues)
+                        }
+                        // v5.3.8：统一通过 C++ 解析运行输入源
+                        var runInput = dlg.bridge.resolveRunInput(dlg.nodeId)
+                        if (!runInput.required) {
+                            // 数据源型算子（打开相机/采集图像等）无需输入图像，直接运行
+                            runResultDialog.resultText = "运行中..."
+                            runResultDialog.open()
+                            dlg.bridge.runSingleOperatorAsync(dlg.nodeId, "")
+                            return
+                        }
+                        // 智能识别输入源
+                        var autoPath = runInput.path
+                        if (autoPath && autoPath !== "") {
+                            // v5.3.4：改为异步执行，避免阻塞 UI
+                            runResultDialog.resultText = "运行中..."
+                            runResultDialog.open()
+                            dlg.bridge.runSingleOperatorAsync(dlg.nodeId, "")
+                        } else {
+                            // 无 ReadImage 上游 → 弹 FileDialog
+                            runOperatorFileDialog.open()
+                        }
+                    }
+                }
                 Button {
                     text: "取消"
                     flat: true
-                    onClicked: dlg.reject()
+                    onClicked: dlg.close()
                 }
                 Button {
                     text: "应用"
@@ -207,10 +253,84 @@ Dialog {
                         if (dlg.bridge && dlg.nodeId) {
                             dlg.bridge.updateOperatorParams(dlg.nodeId, dlg.workingValues)
                         }
-                        dlg.accept()
+                        dlg.close()
                     }
                 }
             }
+        }
+    }
+
+    // v2.5.0 功能 5c：运行算子的输入图像选择对话框
+    FileDialog {
+        id: runOperatorFileDialog
+        title: "选择运行输入图像"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["图像文件 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)", "所有文件 (*)"]
+        onAccepted: {
+            var path = String(selectedFile)
+            if (path.startsWith("file:///")) path = path.substring(8)
+            else if (path.startsWith("file://")) path = path.substring(7)
+            // v5.3.4：改为异步执行，避免阻塞 UI
+            runResultDialog.resultText = "运行中..."
+            runResultDialog.open()
+            dlg.bridge.runSingleOperatorAsync(dlg.nodeId, path)
+        }
+    }
+
+    // v2.5.0 功能 5c：运行结果摘要（v5.3 改为 Popup 避免 QRhi 跨实例）
+    Popup {
+        id: runResultDialog
+        modal: true
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        width: 400
+        height: 200
+        property string resultText: ""
+        background: Rectangle {
+            color: Tok.DesignTokens.bgPanel
+            border.color: Tok.DesignTokens.accentPrimary
+            border.width: 1
+            radius: Tok.DesignTokens.radiusMd
+        }
+        contentItem: ColumnLayout {
+            spacing: 10
+            Label {
+                text: "运行结果"
+                color: Tok.DesignTokens.accentPrimary
+                font.bold: true
+                font.pixelSize: Tok.DesignTokens.fontSizeBase
+                font.family: Tok.DesignTokens.fontFamilyCJK
+            }
+            Text {
+                text: runResultDialog.resultText
+                color: Tok.DesignTokens.textPrimary
+                font.pixelSize: 12
+                font.family: Tok.DesignTokens.fontFamilyCJK
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            Button {
+                text: "确定"
+                Layout.alignment: Qt.AlignRight
+                onClicked: runResultDialog.close()
+            }
+        }
+    }
+
+    // v5.3.4：接收异步执行结果
+    Connections {
+        target: dlg.bridge
+        function onSingleOperatorFinished(result) {
+            if (!result || !result.success) {
+                runResultDialog.resultText =
+                    "运行失败：" + (result && result.error ? result.error : "未知错误")
+            } else {
+                runResultDialog.resultText =
+                    "运行成功\n上游算子数：" + result.upstreamCount +
+                    "\n总耗时：" + result.elapsedMs + " ms" +
+                    "\n输出图像：" + (result.outputImagePath || "无")
+            }
+            runResultDialog.open()
         }
     }
 }

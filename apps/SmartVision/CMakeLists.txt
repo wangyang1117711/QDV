@@ -27,6 +27,7 @@ target_link_libraries(QDetectVision PRIVATE
     Communication
     Database
     Plugins
+    OperatorSDK
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Sql
     ${OpenCV_LIBS}
 )
@@ -52,11 +53,11 @@ add_custom_command(TARGET QDetectVision POST_BUILD
 )
 
 # v2.1.0 M5：部署算子元数据 config/operators.json 到 exe 同级 config/
-# （若文件已存在则保留本地修改，不覆盖）
+# v5.3.5：改为 copy（强制覆盖），避免 copy_if_different 在某些情况下不触发
 add_custom_command(TARGET QDetectVision POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "$<TARGET_FILE_DIR:QDetectVision>/config"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/config/operators.json"
         "$<TARGET_FILE_DIR:QDetectVision>/config/operators.json"
     COMMENT "Deploying config/operators.json (operator metadata)"

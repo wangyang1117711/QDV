@@ -14,8 +14,14 @@ bool ImageMergeTool::configure(const QJsonObject& params) {
         return false;
     }
 
-    if (params.contains("alpha")) {
-        m_mergeType = "alphaBlend";
+    // P1-A13 修复：存储 alpha 参数
+    // P1-B5 修复：之前只要 params 包含 alpha 就强制 m_mergeType="alphaBlend"
+    // 但 OperatorDescriptors 总会带 alpha 默认值 0.5，导致用户选 horizontal/vertical/overlay 时被静默改为 alphaBlend
+    // 现在仅在 m_mergeType=="alphaBlend" 时读取 alpha，不强制覆盖 mergeType
+    if (m_mergeType == "alphaBlend" && params.contains("alpha")) {
+        m_alpha = params["alpha"].toDouble(0.5);
+        // 限制范围 [0.0, 1.0]
+        m_alpha = std::max(0.0, std::min(1.0, m_alpha));
     }
 
     return true;
@@ -51,7 +57,8 @@ bool ImageMergeTool::execute(const cv::Mat& input, ToolResult& result) {
             m_storedImage(roi).copyTo(output(roi));
         } else if (m_mergeType == "alphaBlend") {
             if (m_storedImage.size() == input.size()) {
-                cv::addWeighted(input, 0.5, m_storedImage, 0.5, 0.0, output);
+                // P1-A13 修复：使用用户设置的 alpha（之前硬编码 0.5）
+                cv::addWeighted(input, m_alpha, m_storedImage, 1.0 - m_alpha, 0.0, output);
             } else {
                 output = input.clone();
             }
@@ -74,11 +81,18 @@ QJsonObject ImageMergeTool::serialize() const {
     obj["id"] = m_id;
     obj["type"] = type();
     obj["mergeType"] = m_mergeType;
+    // P1-A13 修复：序列化 alpha 字段
+    if (m_mergeType == "alphaBlend") {
+        obj["alpha"] = m_alpha;
+    }
     return obj;
 }
 
 bool ImageMergeTool::deserialize(const QJsonObject& data) {
     m_id = data["id"].toString();
     m_mergeType = data["mergeType"].toString("horizontal");
+    // P1-A13 修复：反序列化 alpha 字段
+    m_alpha = data["alpha"].toDouble(0.5);
+    m_alpha = std::max(0.0, std::min(1.0, m_alpha));
     return true;
 }

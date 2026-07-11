@@ -26,16 +26,16 @@ void IOView::setupUI() {
         QToolBar {
             background-color: #2d2d2d;
             border-bottom: 1px solid #444;
-            padding: 4px 8px;
+            padding: 3px 12px;
             spacing: 6px;
         }
         QToolBar QToolButton {
             background: transparent;
             border: 1px solid transparent;
             border-radius: 4px;
-            padding: 6px 12px;
+            padding: 4px 14px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolBar QToolButton:hover {
             background-color: #555;
@@ -52,6 +52,12 @@ void IOView::setupUI() {
     exportAction->setToolTip("即将推出");
 
     mainLayout->addWidget(toolbar);
+
+    // v5.0：添加内容区域 margin
+    QWidget* contentWrapper = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWrapper);
+    contentLayout->setContentsMargins(16, 12, 16, 12);
+    contentLayout->setSpacing(0);
 
     QTableWidget* ioTable = new QTableWidget(0, 4);
     ioTable->setHorizontalHeaderLabels({"通道", "名称", "状态", "更新时间"});
@@ -72,7 +78,8 @@ void IOView::setupUI() {
         ioTable->setItem(i, 3, new QTableWidgetItem(QDateTime::currentDateTime().toString("HH:mm:ss")));
     }
 
-    mainLayout->addWidget(ioTable);
+    contentLayout->addWidget(ioTable);
+    mainLayout->addWidget(contentWrapper, 1);  // v5.0：contentWrapper 占满剩余空间
 
     connect(refreshAction, &QAction::triggered, [ioTable]() {
         for (int i = 0; i < ioTable->rowCount(); ++i) {

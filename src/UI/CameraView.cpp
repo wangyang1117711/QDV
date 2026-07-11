@@ -1,4 +1,6 @@
 #include "CameraView.h"
+#include "Core/CameraConfig.h"
+#include "Vision/OpenFramegrabberTool.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -16,10 +18,21 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QPixmap>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
+#include <QCheckBox>
+#include <QSlider>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QApplication>
+#include <QClipboard>
 #ifdef HAS_OPENCV
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
 #endif
+
+// v5.3.3：CameraConfig 静态成员定义
+QMutex CameraConfig::s_mutex;
 
 CameraView::CameraView(QWidget* parent) : QWidget(parent), m_capture(nullptr), m_lastFrame(nullptr) {
     setupUI();
@@ -40,16 +53,16 @@ void CameraView::setupUI() {
         QToolBar {
             background-color: #2d2d2d;
             border-bottom: 1px solid #444;
-            padding: 4px 8px;
+            padding: 3px 12px;
             spacing: 6px;
         }
         QToolBar QToolButton {
             background: transparent;
             border: 1px solid transparent;
             border-radius: 4px;
-            padding: 6px 12px;
+            padding: 4px 14px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolBar QToolButton:hover {
             background-color: #555;
@@ -80,17 +93,17 @@ void CameraView::setupUI() {
 
     QWidget* contentWidget = new QWidget();
     QHBoxLayout* contentLayout = new QHBoxLayout(contentWidget);
-    contentLayout->setContentsMargins(8, 8, 8, 8);
-    contentLayout->setSpacing(8);
+    contentLayout->setContentsMargins(12, 8, 12, 8);
+    contentLayout->setSpacing(12);
 
     QGroupBox* controlGroup = new QGroupBox("相机控制");
     QFormLayout* controlLayout = new QFormLayout(controlGroup);
-    controlLayout->setSpacing(12);
-    controlLayout->setContentsMargins(12, 20, 12, 12);
+    controlLayout->setSpacing(8);
+    controlLayout->setContentsMargins(12, 16, 12, 12);
 
     m_cameraCombo = new QComboBox();
     m_cameraCombo->addItems({"Camera 0", "Camera 1"});
-    m_cameraCombo->setFixedWidth(160);
+    m_cameraCombo->setFixedWidth(140);
     QLabel* cameraLabel = new QLabel("选择相机:");
     cameraLabel->setStyleSheet("font-weight: bold;");
     controlLayout->addRow(cameraLabel, m_cameraCombo);
@@ -98,7 +111,7 @@ void CameraView::setupUI() {
     m_resolutionCombo = new QComboBox();
     m_resolutionCombo->addItems({"640x480", "800x600", "1280x720", "1920x1080"});
     m_resolutionCombo->setCurrentText("1280x720");
-    m_resolutionCombo->setFixedWidth(160);
+    m_resolutionCombo->setFixedWidth(140);
     QLabel* resolutionLabel = new QLabel("分辨率:");
     resolutionLabel->setStyleSheet("font-weight: bold;");
     controlLayout->addRow(resolutionLabel, m_resolutionCombo);
@@ -106,7 +119,7 @@ void CameraView::setupUI() {
     m_fpsCombo = new QComboBox();
     m_fpsCombo->addItems({"15", "30", "60"});
     m_fpsCombo->setCurrentText("30");
-    m_fpsCombo->setFixedWidth(160);
+    m_fpsCombo->setFixedWidth(140);
     QLabel* fpsLabel = new QLabel("帧率:");
     fpsLabel->setStyleSheet("font-weight: bold;");
     controlLayout->addRow(fpsLabel, m_fpsCombo);
@@ -117,8 +130,39 @@ void CameraView::setupUI() {
 
     contentLayout->addWidget(controlGroup);
 
+    // v5.3.8：相机信息面板（句柄 / IP / 接口 / 复制句柄）
+    QGroupBox* infoGroup = new QGroupBox("相机信息");
+    QFormLayout* infoLayout = new QFormLayout(infoGroup);
+    infoLayout->setSpacing(8);
+    infoLayout->setContentsMargins(12, 16, 12, 12);
+
+    m_handleLabel = new QLabel("未连接");
+    m_handleLabel->setStyleSheet("color: #F44336; font-weight: bold;");
+    m_handleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    infoLayout->addRow("句柄:", m_handleLabel);
+
+    m_ipLabel = new QLabel("-");
+    m_ipLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    infoLayout->addRow("IP 地址:", m_ipLabel);
+
+    m_interfaceLabel = new QLabel("-");
+    infoLayout->addRow("接口:", m_interfaceLabel);
+
+    m_copyHandleButton = new QPushButton("复制句柄");
+    m_copyHandleButton->setEnabled(false);
+    m_copyHandleButton->setToolTip("将当前相机句柄复制到剪贴板，便于采集图像算子引用");
+    connect(m_copyHandleButton, &QPushButton::clicked, [this]() {
+        if (!m_currentHandle.isEmpty()) {
+            QApplication::clipboard()->setText(m_currentHandle);
+            QMessageBox::information(this, "已复制", QString("相机句柄已复制：%1").arg(m_currentHandle));
+        }
+    });
+    infoLayout->addRow(m_copyHandleButton);
+
+    contentLayout->addWidget(infoGroup);
+
     m_videoLabel = new QLabel();
-    m_videoLabel->setMinimumSize(640, 480);
+    m_videoLabel->setMinimumSize(480, 360);
     m_videoLabel->setAlignment(Qt::AlignCenter);
     m_videoLabel->setStyleSheet("background-color: #1e1e1e; border: 1px solid #444; color: #aaa; font-size: 16px;");
     m_videoLabel->setText("未连接相机\n请点击\"连接相机\"开始预览\n或点击\"导入图片\"加载本地图像");
@@ -197,6 +241,9 @@ void CameraView::setupUI() {
         saveSnapshot();
     });
 
+    // v5.3.3：相机设置按钮 —— 弹出设置对话框，实时调整曝光/Gain/分辨率等
+    connect(settingsAction, &QAction::triggered, this, &CameraView::showCameraSettings);
+
     connect(importAction, &QAction::triggered, this, &CameraView::importImages);
 
     connect(prevImageAction, &QAction::triggered, this, &CameraView::showPreviousImage);
@@ -209,6 +256,17 @@ void CameraView::startCamera(int cameraIndex) {
     m_capture = new cv::VideoCapture(cameraIndex);
     if (m_capture->isOpened()) {
         m_frameTimer->start(33);
+        // v5.3.7：将已打开的相机句柄注册到全局表，供 OpenFramegrabberTool/GrabImageTool 复用
+        QString handle = OpenFramegrabberTool::makeHandle("DirectShow", cameraIndex);
+        OpenFramegrabberTool::registerExternalCamera(handle, m_capture, "DirectShow", cameraIndex);
+
+        // v5.3.8：记录当前相机信息并刷新信息面板
+        m_currentHandle = handle;
+        m_currentInterface = "DirectShow";
+        // DirectShow/USB 相机无真实网络 IP，优先显示 CameraConfig 中配置的 IP，否则显示 N/A
+        CameraConfig cfg = CameraConfig::getGlobal();
+        m_currentIp = cfg.ip.isEmpty() ? QStringLiteral("N/A (本地设备)") : cfg.ip;
+        updateCameraInfoUI();
     }
 #endif
 }
@@ -217,6 +275,15 @@ void CameraView::stopCamera() {
     m_frameTimer->stop();
 #ifdef HAS_OPENCV
     if (m_capture) {
+        // v5.3.7：先从全局表注销（不 delete cap），再 release/delete
+        QStringList handles = OpenFramegrabberTool::listCameraHandles();
+        for (const QString& h : handles) {
+            cv::VideoCapture* cap = OpenFramegrabberTool::acquireCamera(h);
+            if (cap == m_capture) {
+                OpenFramegrabberTool::unregisterExternalCamera(h);
+                break;
+            }
+        }
         m_capture->release();
         delete m_capture;
         m_capture = nullptr;
@@ -227,6 +294,11 @@ void CameraView::stopCamera() {
         m_lastFrame = nullptr;
     }
 #endif
+    // v5.3.8：断开连接后清空相机信息
+    m_currentHandle.clear();
+    m_currentIp.clear();
+    m_currentInterface.clear();
+    updateCameraInfoUI();
 }
 
 void CameraView::updateFrame() {
@@ -392,4 +464,188 @@ void CameraView::exitImageMode() {
     m_importedImages.clear();
     m_currentImageIndex = -1;
     m_videoLabel->setToolTip("");
+}
+
+// v5.3.3：相机设置对话框 —— 实时调整曝光/Gain/分辨率/白平衡等
+void CameraView::showCameraSettings() {
+#ifdef HAS_OPENCV
+    if (!m_capture || !m_capture->isOpened()) {
+        QMessageBox::information(this, "相机设置", "相机未连接，请先连接相机。");
+        return;
+    }
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("相机设置");
+    dlg.setMinimumWidth(380);
+
+    QFormLayout* form = new QFormLayout(&dlg);
+    form->setSpacing(10);
+    form->setContentsMargins(16, 16, 16, 16);
+
+    // 读取当前值
+    int curWidth = static_cast<int>(m_capture->get(cv::CAP_PROP_FRAME_WIDTH));
+    int curHeight = static_cast<int>(m_capture->get(cv::CAP_PROP_FRAME_HEIGHT));
+    double curFps = m_capture->get(cv::CAP_PROP_FPS);
+    double curExposure = m_capture->get(cv::CAP_PROP_EXPOSURE);
+    double curGain = m_capture->get(cv::CAP_PROP_GAIN);
+    double curBrightness = m_capture->get(cv::CAP_PROP_BRIGHTNESS);
+    double curContrast = m_capture->get(cv::CAP_PROP_CONTRAST);
+    int autoExp = static_cast<int>(m_capture->get(cv::CAP_PROP_AUTO_EXPOSURE));
+
+    // 分辨率宽
+    QSpinBox* widthSpin = new QSpinBox(&dlg);
+    widthSpin->setRange(160, 7680);
+    widthSpin->setValue(curWidth > 0 ? curWidth : 1280);
+    form->addRow("分辨率宽 (px):", widthSpin);
+
+    // 分辨率高
+    QSpinBox* heightSpin = new QSpinBox(&dlg);
+    heightSpin->setRange(120, 4320);
+    heightSpin->setValue(curHeight > 0 ? curHeight : 720);
+    form->addRow("分辨率高 (px):", heightSpin);
+
+    // 帧率
+    QDoubleSpinBox* fpsSpin = new QDoubleSpinBox(&dlg);
+    fpsSpin->setRange(1, 240);
+    fpsSpin->setValue(curFps > 0 ? curFps : 30);
+    form->addRow("帧率 (fps):", fpsSpin);
+
+    // 自动曝光开关
+    QCheckBox* autoExpCheck = new QCheckBox("自动曝光", &dlg);
+    autoExpCheck->setChecked(autoExp == 3);  // 3=自动模式（DCAM/V4L2），1=手动
+    form->addRow(autoExpCheck);
+
+    // 曝光时间
+    QDoubleSpinBox* exposureSpin = new QDoubleSpinBox(&dlg);
+    exposureSpin->setRange(1, 1000000);
+    exposureSpin->setDecimals(0);
+    exposureSpin->setValue(curExposure > 0 ? curExposure : 5000);
+    exposureSpin->setSuffix(" us");
+    form->addRow("曝光时间:", exposureSpin);
+
+    // Gain
+    QDoubleSpinBox* gainSpin = new QDoubleSpinBox(&dlg);
+    gainSpin->setRange(0, 64);
+    gainSpin->setDecimals(2);
+    gainSpin->setValue(curGain >= 0 ? curGain : 1.0);
+    gainSpin->setSuffix(" dB");
+    form->addRow("增益 (Gain):", gainSpin);
+
+    // 亮度
+    QDoubleSpinBox* brightnessSpin = new QDoubleSpinBox(&dlg);
+    brightnessSpin->setRange(0, 255);
+    brightnessSpin->setValue(curBrightness >= 0 ? curBrightness : 128);
+    form->addRow("亮度:", brightnessSpin);
+
+    // 对比度
+    QDoubleSpinBox* contrastSpin = new QDoubleSpinBox(&dlg);
+    contrastSpin->setRange(0, 255);
+    contrastSpin->setValue(curContrast >= 0 ? curContrast : 128);
+    form->addRow("对比度:", contrastSpin);
+
+    // 当前状态显示
+    QLabel* statusLabel = new QLabel(&dlg);
+    statusLabel->setStyleSheet("color: #888; font-size: 11px;");
+    statusLabel->setText(QString("当前: %1x%2 @ %3fps\n曝光=%4  Gain=%5  亮度=%6  对比度=%7")
+                             .arg(curWidth).arg(curHeight)
+                             .arg(curFps, 0, 'f', 1)
+                             .arg(curExposure, 0, 'f', 0)
+                             .arg(curGain, 0, 'f', 2)
+                             .arg(curBrightness, 0, 'f', 0)
+                             .arg(curContrast, 0, 'f', 0));
+    form->addRow(statusLabel);
+
+    // 自动曝光联动
+    QObject::connect(autoExpCheck, &QCheckBox::toggled, [&](bool checked) {
+        exposureSpin->setEnabled(!checked);
+        applyRuntimeCameraSetting(cv::CAP_PROP_AUTO_EXPOSURE, checked ? 3.0 : 1.0);
+    });
+
+    // 实时预览：滑块/旋钮变化时即时应用
+    QObject::connect(widthSpin, QOverload<int>::of(&QSpinBox::valueChanged), [&](int v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_FRAME_WIDTH, v);
+    });
+    QObject::connect(heightSpin, QOverload<int>::of(&QSpinBox::valueChanged), [&](int v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_FRAME_HEIGHT, v);
+    });
+    QObject::connect(fpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [&](double v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_FPS, v);
+    });
+    QObject::connect(exposureSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [&](double v) {
+        if (!autoExpCheck->isChecked()) {
+            applyRuntimeCameraSetting(cv::CAP_PROP_EXPOSURE, v);
+        }
+    });
+    QObject::connect(gainSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [&](double v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_GAIN, v);
+    });
+    QObject::connect(brightnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [&](double v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_BRIGHTNESS, v);
+    });
+    QObject::connect(contrastSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [&](double v) {
+        applyRuntimeCameraSetting(cv::CAP_PROP_CONTRAST, v);
+    });
+
+    // 按钮
+    QDialogButtonBox* btns = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset, &dlg);
+    form->addRow(btns);
+
+    QObject::connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    QObject::connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    QObject::connect(btns->button(QDialogButtonBox::Reset), &QPushButton::clicked, [&]() {
+        // 重置为对话框初始值
+        widthSpin->setValue(curWidth > 0 ? curWidth : 1280);
+        heightSpin->setValue(curHeight > 0 ? curHeight : 720);
+        fpsSpin->setValue(curFps > 0 ? curFps : 30);
+        exposureSpin->setValue(curExposure > 0 ? curExposure : 5000);
+        gainSpin->setValue(curGain >= 0 ? curGain : 1.0);
+        brightnessSpin->setValue(curBrightness >= 0 ? curBrightness : 128);
+        contrastSpin->setValue(curContrast >= 0 ? curContrast : 128);
+    });
+
+    // v5.3.3：对话框确认后同步到全局 CameraConfig，供 OpenFramegrabberTool 读取
+    QObject::connect(&dlg, &QDialog::accepted, [&]() {
+        CameraConfig cfg;
+        cfg.width = widthSpin->value();
+        cfg.height = heightSpin->value();
+        cfg.fps = fpsSpin->value();
+        cfg.exposure = static_cast<int>(exposureSpin->value());
+        cfg.gain = gainSpin->value();
+        cfg.triggerMode = autoExpCheck->isChecked() ? "Continuous" : "Software";
+        cfg.pixelFormat = "Mono8";  // CameraView 不支持像素格式选择，保持默认
+        cfg.brightness = brightnessSpin->value();
+        cfg.contrast = contrastSpin->value();
+        CameraConfig::setGlobal(cfg);
+    });
+
+    dlg.exec();
+#else
+    QMessageBox::information(this, "相机设置", "未编译 OpenCV 支持，无法调整相机参数。");
+#endif
+}
+
+// v5.3.3：实时应用相机参数到已打开的 VideoCapture
+void CameraView::applyRuntimeCameraSetting(int propId, double value) {
+#ifdef HAS_OPENCV
+    if (!m_capture || !m_capture->isOpened()) return;
+    m_capture->set(propId, value);
+#endif
+}
+
+// v5.3.8：刷新相机信息面板（句柄 / IP / 接口 / 复制按钮状态）
+void CameraView::updateCameraInfoUI() {
+    if (m_currentHandle.isEmpty()) {
+        m_handleLabel->setText("未连接");
+        m_handleLabel->setStyleSheet("color: #F44336; font-weight: bold;");
+        m_ipLabel->setText("-");
+        m_interfaceLabel->setText("-");
+        m_copyHandleButton->setEnabled(false);
+    } else {
+        m_handleLabel->setText(m_currentHandle);
+        m_handleLabel->setStyleSheet("color: #4CAF50; font-weight: bold;");
+        m_ipLabel->setText(m_currentIp);
+        m_interfaceLabel->setText(m_currentInterface);
+        m_copyHandleButton->setEnabled(true);
+    }
 }

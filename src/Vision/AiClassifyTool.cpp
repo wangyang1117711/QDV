@@ -69,6 +69,7 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         Logger::warn("AiClassifyTool: no inference engine injected");
         result.ok = false;
         result.data["error"] = "No inference engine injected";
+        result.data["modelLoaded"] = false;  // v5.3：供 ToolChainVerifier 判断预期跳过
         return false;
     }
 
@@ -76,6 +77,7 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         Logger::warn("AiClassifyTool: no model configured");
         result.ok = false;
         result.data["error"] = "No model configured";
+        result.data["modelLoaded"] = false;
         return false;
     }
 
@@ -92,9 +94,11 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         } else {
             result.ok = false;
             result.data["error"] = "Failed to load model";
+            result.data["modelLoaded"] = false;
             return false;
         }
     }
+    result.data["modelLoaded"] = true;  // v5.3：模型已加载标记
 
     QJsonObject inferResult;
     bool ok = m_engine->infer(input, inferResult);

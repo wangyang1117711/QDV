@@ -15,18 +15,25 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
 
     QWidget* card = new QWidget();
     card->setObjectName("loginCard");
-    card->setFixedSize(420, 460);
+    card->setFixedSize(400, 440);
     card->setStyleSheet(R"(
         #loginCard {
-            background-color: #252525;
-            border: 1px solid #444;
+            background-color: #1A1A1A;
+            border: 1px solid #3D3D3D;
             border-radius: 8px;
+        }
+        #loginCard::before {
+            content: "";
+            position: absolute;
+            left: 0; right: 0; top: 0; bottom: 0;
+            border-radius: 8px;
+            border: 1px solid rgba(124, 77, 255, 0.15);
         }
     )");
 
     QVBoxLayout* cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(32, 32, 32, 32);
-    cardLayout->setSpacing(24);
+    cardLayout->setContentsMargins(28, 28, 28, 28);
+    cardLayout->setSpacing(20);
 
     QWidget* logoWidget = new QWidget();
     logoWidget->setFixedHeight(80);
@@ -35,7 +42,7 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     logoLayout->setSpacing(12);
 
     QLabel* logoIcon = new QLabel();
-    logoIcon->setStyleSheet("color: #660874; font-size: 36px;");
+    logoIcon->setStyleSheet("color: #7C4DFF; font-size: 36px;");
     logoIcon->setText("QD");
 
     QWidget* titleWidget = new QWidget();
@@ -54,10 +61,17 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
 
     logoLayout->addWidget(logoIcon);
     logoLayout->addWidget(titleWidget);
+
+    QLabel* versionLabel = new QLabel("v2.1");
+    versionLabel->setStyleSheet("color: #6E6E6E; font-size: 10px; background: transparent; border: none; padding: 0;");
+    versionLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    logoLayout->addStretch();
+    logoLayout->addWidget(versionLabel);
+
     cardLayout->addWidget(logoWidget);
 
     QFormLayout* formLayout = new QFormLayout();
-    formLayout->setSpacing(16);
+    formLayout->setSpacing(12);
 
     QLabel* usernameLabel = new QLabel("用户名:");
     usernameLabel->setStyleSheet("color: #ccc; font-weight: bold; font-size: 14px;");
@@ -66,16 +80,16 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     m_usernameEdit->setPlaceholderText("请输入用户名");
     m_usernameEdit->setStyleSheet(R"(
         QLineEdit {
-            border: 1px solid #555;
+            border: 1px solid #3D3D3D;
             border-radius: 4px;
             padding: 10px 12px;
             font-size: 16px;
-            background: #2d2d2d;
+            background: #242424;
             color: #e0e0e0;
             min-height: 24px;
         }
         QLineEdit:focus {
-            border-color: #660874;
+            border-color: #7C4DFF;
             border-width: 2px;
             padding: 9px 11px;
         }
@@ -90,16 +104,16 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     m_passwordEdit->setEchoMode(QLineEdit::Password);
     m_passwordEdit->setStyleSheet(R"(
         QLineEdit {
-            border: 1px solid #555;
+            border: 1px solid #3D3D3D;
             border-radius: 4px;
             padding: 10px 12px;
             font-size: 16px;
-            background: #2d2d2d;
+            background: #242424;
             color: #e0e0e0;
             min-height: 24px;
         }
         QLineEdit:focus {
-            border-color: #660874;
+            border-color: #7C4DFF;
             border-width: 2px;
             padding: 9px 11px;
         }
@@ -109,7 +123,27 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     cardLayout->addLayout(formLayout);
 
     QCheckBox* rememberCheckBox = new QCheckBox("记住我");
-    rememberCheckBox->setStyleSheet("color: #aaa; font-size: 13px;");
+    rememberCheckBox->setStyleSheet(R"(
+        QCheckBox {
+            color: #aaa;
+            font-size: 13px;
+            spacing: 8px;
+        }
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #3D3D3D;
+            border-radius: 3px;
+            background: #242424;
+        }
+        QCheckBox::indicator:checked {
+            background: #7C4DFF;
+            border-color: #7C4DFF;
+        }
+        QCheckBox::indicator:hover {
+            border-color: #7C4DFF;
+        }
+    )");
     cardLayout->addWidget(rememberCheckBox);
     m_rememberCheckBox = rememberCheckBox;
 
@@ -156,14 +190,23 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     }
 
     m_errorLabel = new QLabel();
-    m_errorLabel->setStyleSheet("color: #F44336; font-size: 12px; padding: 0;");
+    m_errorLabel->setStyleSheet(R"(
+        color: #FF5252;
+        font-size: 12px;
+        padding: 6px 8px;
+        background-color: rgba(255, 82, 82, 0.1);
+        border-radius: 4px;
+        border: 1px solid rgba(255, 82, 82, 0.2);
+    )");
     m_errorLabel->setAlignment(Qt::AlignCenter);
+    m_errorLabel->setWordWrap(true);
+    m_errorLabel->setMaximumHeight(40);
     cardLayout->addWidget(m_errorLabel);
 
     m_loginButton = new QPushButton("登录");
     m_loginButton->setStyleSheet(R"(
         QPushButton {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: white;
             border: none;
             border-radius: 4px;
@@ -172,10 +215,10 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
             font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #7d1a8f;
+            background-color: #8E66FF;
         }
         QPushButton:pressed {
-            background-color: #4f0062;
+            background-color: #6535FF;
         }
         QPushButton:disabled {
             background-color: #555;
@@ -185,6 +228,12 @@ LoginView::LoginView(QWidget* parent) : QWidget(parent) {
     cardLayout->addWidget(m_loginButton);
 
     connect(m_passwordEdit, &QLineEdit::returnPressed, m_loginButton, &QPushButton::click);
+
+    // 快捷键提示
+    QLabel* hintLabel = new QLabel("按 Enter 快速登录");
+    hintLabel->setStyleSheet("color: #6E6E6E; font-size: 11px; background: transparent; border: none;");
+    hintLabel->setAlignment(Qt::AlignCenter);
+    cardLayout->addWidget(hintLabel);
 
     QVBoxLayout* outerLayout = new QVBoxLayout(this);
     outerLayout->setAlignment(Qt::AlignCenter);
@@ -201,15 +250,23 @@ void LoginView::onLoginClicked() {
 
     m_errorLabel->clear();
 
+    // Loading 态
+    m_loginButton->setEnabled(false);
+    m_loginButton->setText("登录中...");
+
     if (username.isEmpty()) {
         m_errorLabel->setText("请输入用户名");
         m_usernameEdit->setFocus();
+        m_loginButton->setEnabled(true);
+        m_loginButton->setText("登录");
         return;
     }
 
     if (password.isEmpty()) {
         m_errorLabel->setText("请输入密码");
         m_passwordEdit->setFocus();
+        m_loginButton->setEnabled(true);
+        m_loginButton->setText("登录");
         return;
     }
 
@@ -238,6 +295,8 @@ void LoginView::onLoginClicked() {
         m_errorLabel->setText("用户名或密码错误");
         m_passwordEdit->selectAll();
         m_passwordEdit->setFocus();
+        m_loginButton->setEnabled(true);
+        m_loginButton->setText("登录");
         emit loginFailed("用户名或密码错误");
     }
 }

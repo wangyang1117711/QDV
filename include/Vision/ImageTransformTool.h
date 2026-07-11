@@ -20,8 +20,8 @@ private:
     double m_scaleX = 1.0;
     double m_scaleY = 1.0;
     int m_flipCode = 0;
-    int m_targetWidth = 100;
-    int m_targetHeight = 100;
+    int m_targetWidth = 640;    // 与元数据对齐：100 是开发占位值，640 是标准宽度
+    int m_targetHeight = 480;   // 与元数据对齐：100 是开发占位值，480 是标准高度
 };
 
 #endif // IMAGETRANSFORMTOOL_H

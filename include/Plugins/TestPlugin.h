@@ -1,10 +1,11 @@
 #ifndef TEST_PLUGIN_H
 #define TEST_PLUGIN_H
 
+// P1-C9 + P1-C12 修复：IPlugin 已继承 QObject，TestPlugin 不再多继承。
+// 接口方法签名已对齐，所有 override 现在都是真正的 override（不再是新虚函数）。
 #include "Plugins/IPlugin.h"
-#include <QObject>
 
-class TestPlugin : public QObject, public IPlugin {
+class TestPlugin : public IPlugin {
     Q_OBJECT
     Q_INTERFACES(IPlugin)
 
@@ -36,4 +37,4 @@ extern "C" {
     Q_DECL_EXPORT IPlugin* createPlugin();
 }
 
-#endif
+#endif // TEST_PLUGIN_H

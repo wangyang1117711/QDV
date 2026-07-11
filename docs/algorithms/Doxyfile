@@ -1,0 +1,107 @@
+# Doxyfile 1.9.x 配置
+# Q-DetectVision OperatorSDK + AgentOperatorRouter API 文档生成
+#
+# 用法:
+#   doxygen docs/algorithms/Doxyfile
+# 输出: docs/algorithms/api-html/
+
+PROJECT_NAME           = "Q-DetectVision OperatorSDK"
+PROJECT_NUMBER         = 1.0
+PROJECT_BRIEF          = "视觉算子开发 SDK API 参考"
+
+# 输入目录：扫描 OperatorSDK 头文件 + Router 头文件
+INPUT                  = ../../src/OperatorSDK/include \
+                         ../../src/Core/AgentOperatorRouter \
+                         ../../include/Core/VisionTool.h \
+                         ../../include/UI/OperatorDescriptors.h
+RECURSIVE              = YES
+
+# 文件过滤
+FILE_PATTERNS          = *.h *.hpp *.cpp
+EXTENSION_MAPPING      = h=C++ hp=C++ hpp=C++ cpp=C++
+
+# 输出目录
+OUTPUT_DIRECTORY       = .
+HTML_OUTPUT            = api-html
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+
+# 语言设置
+INPUT_ENCODING         = UTF-8
+OUTPUT_LANGUAGE        = Chinese
+
+# 提取选项
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+# 源码浏览
+SOURCE_BROWSER         = NO
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+# 预处理
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+
+# 预定义宏（模拟 Qt 导出宏）
+PREDEFINED             = QDV_EXPORT= \
+                         Q_DECL_EXPORT= \
+                         Q_OBJECT= \
+                         Q_PROPERTY(x)= \
+                         Q_INVOKABLE= \
+                         Q_SLOTS= \
+                         Q_SIGNALS= \
+                         Q_ENUMS(x)= \
+                         Q_DECLARE_METATYPE(x)=
+
+# 命名空间处理
+HIDE_SCOPE_NAMES       = NO
+SHOW_INCLUDE_FILES     = YES
+
+# 警告
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_FORMAT            = "$file:$line: $text"
+
+# 图形（可选，需安装 graphviz）
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+HIDE_UNDOC_RELATIONS   = YES
+
+# 搜索引擎
+SEARCHENGINE           = YES
+
+# 排序
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = NO
+
+# HTML 配置
+HTML_DYNAMIC_SECTIONS  = YES
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+
+# 美化
+HTML_HEADER            =
+HTML_FOOTER            =
+HTML_STYLESHEET        =
+HTML_EXTRA_STYLESHEET  =
+HTML_EXTRA_FILES       =
+
+# 忽略目录（不扫描实现细节）
+EXCLUDE                = ../../src/OperatorSDK/src
+EXCLUDE_PATTERNS       = */internal/* */detail/* *_p.h
+
+# 算法分组（按模块组织）
+USE_HTML_TEMPLATES     = NO
+LAYOUT_FILE           =
+
+# 标签文件（可选，便于跨项目链接）
+GENERATE_TAGFILE       = qdv_operator.tag

@@ -15,6 +15,7 @@ QtObject {
     readonly property color bgSurface:  "#242424"  // 卡片、控件
     readonly property color bgHover:    "#2F2F2F"  // 悬停态
     readonly property color bgHeader:   "#1F1F1F"  // 顶栏/分隔
+    readonly property color bgPanelHeader: "#1F1F1F"  // 面板标题栏（v2.6.0 补全：DeployDialog 引用）
 
     // ============ 文字色阶（5 档，全部通过 WCAG AA）============
     readonly property color textPrimary:    "#FFFFFF"  // 主标题 15.3:1
@@ -24,11 +25,12 @@ QtObject {
     readonly property color textPlaceholder:"#757575"  // 占位 3.5:1（豁免）
 
     // ============ 语义色 ============
-    readonly property color accentPrimary:  "#7C4DFF"  // 主强调（紫）
-    readonly property color accentSuccess:  "#69F0AE"  // 成功/输出（绿）
-    readonly property color accentWarning:  "#FFD740"  // 警告/输入端口（橙）
-    readonly property color accentError:    "#FF5252"  // 错误/删除（红）
-    readonly property color accentInfo:     "#448AFF"  // 信息/帮助（蓝）
+    readonly property color accentPrimary:      "#7C4DFF"  // 主强调（紫）
+    readonly property color accentPrimaryHover: "#9D7BFF"  // 主强调悬停态（亮紫，v4.0.1 补全：ImagePreviewWindow 滑块手柄引用）
+    readonly property color accentSuccess:      "#69F0AE"  // 成功/输出（绿）
+    readonly property color accentWarning:      "#FFD740"  // 警告/输入端口（橙）
+    readonly property color accentError:        "#FF5252"  // 错误/删除（红）
+    readonly property color accentInfo:         "#448AFF"  // 信息/帮助（蓝）
 
     // ============ 边界/分隔 ============
     readonly property color borderDefault:  "#3D3D3D"  // 默认边框
@@ -81,6 +83,7 @@ QtObject {
     readonly property string fontFamilyCJK:   '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif'
 
     // 字号
+    readonly property int fontSizeXxs:  10  // 极小字号（v4.0.1 补全：PropertyPreviewPanel 提示文字引用）
     readonly property int fontSizeXs:   11
     readonly property int fontSizeSm:   12
     readonly property int fontSizeBase: 13
@@ -110,21 +113,23 @@ QtObject {
 
     // ============ 组件尺寸 ============
     readonly property int controlHeight:     28   // 标准控件高度
-    readonly property int headerBarHeight:   44   // 顶栏
-    readonly property int nodeCardWidth:     200  // 节点卡片（v3.0.0：160→200，给 14px 文字留出宽度）
-    readonly property int nodeCardHeight:    72   // 节点卡片（v3.0.0：60→72，两行 14+13 文字更舒展）
-    readonly property int portSize:          10   // 输入/输出端口
-    readonly property int searchBarHeight:   30   // 搜索栏
-    readonly property int filterTabHeight:   26   // 筛选标签
-    readonly property int categoryRowHeight: 32   // 分类行（v3.0.0：28→32，文字更舒展）
-    readonly property int subGroupRowHeight: 28   // 子分组行（v3.0.0：24→28）
-    readonly property int operatorRowHeight: 40   // 算子行（v3.0.1：36→40，配合 14px 加粗文字 + 1.4 行高）
+    readonly property int headerBarHeight:   40   // 顶栏（v5.0：44→40，更紧凑）
+    readonly property int nodeCardWidth:     180  // 节点卡片（v5.0：200→180，画布空间更充裕）
+    readonly property int nodeCardHeight:    60   // 节点卡片（v5.0：72→60，紧凑化，适配 13px 文字）
+    readonly property int portSize:           8   // 输入/输出端口（v5.0：10→8，与紧凑卡片匹配）
+    readonly property int searchBarHeight:   28   // 搜索栏（v5.0：30→28）
+    readonly property int filterTabHeight:   24   // 筛选标签（v5.0：26→24）
+    readonly property int categoryRowHeight: 28   // 分类行（v5.0：32→28）
+    readonly property int subGroupRowHeight: 24   // 子分组行（v5.0：28→24）
+    readonly property int operatorRowHeight: 34   // 算子行（v5.0：40→34，紧凑化）
 
     // ============ 面板宽度 ============
-    readonly property int leftPanelDefault:  280  // 左侧默认
-    readonly property int leftPanelMin:      200  // 左侧最小
-    readonly property int rightPanelDefault: 340  // 右侧默认
-    readonly property int rightPanelMin:     260  // 右侧最小
+    readonly property int leftPanelDefault:  240  // 左侧默认（可折叠至 0）
+    readonly property int leftPanelMin:       0   // v5.1：左侧可完全折叠
+    readonly property int rightInfoDefault: 420  // v5.1：右侧信息列默认宽度
+    readonly property int rightInfoMin:     320  // v5.1：右侧信息列最小宽度
+    readonly property int rightPanelDefault: 300  // 右侧详情面板（浮动模式用）
+    readonly property int rightPanelMin:     220  // 右侧详情面板最小
 
     // ============ 响应式断点 ============
     readonly property int breakpointLg: 1200  // 三栏
@@ -140,4 +145,24 @@ QtObject {
             default:        return "#424242"
         }
     }
+
+    // ============ Motion Tokens ============
+    readonly property int durationFast:     150
+    readonly property int durationNormal:   250
+    readonly property int durationSlow:     400
+    readonly property string easeOutCubic:  "cubic-bezier(0.22, 1, 0.36, 1)"
+    readonly property string easeOutBack:   "cubic-bezier(0.34, 1.56, 0.64, 1)"
+    readonly property string easeInOutQuad: "cubic-bezier(0.45, 0, 0.55, 1)"
+
+    // ============ Shadow Tokens ============
+    readonly property string shadowSm:  "0 1px 2px rgba(0,0,0,0.3)"
+    readonly property string shadowMd:  "0 4px 8px rgba(0,0,0,0.3)"
+    readonly property string shadowLg:  "0 8px 24px rgba(0,0,0,0.4)"
+    readonly property string shadowGlow: "0 0 12px rgba(124,77,255,0.3)"
+
+    // ============ Component Spacing ============
+    readonly property int cardPadding: 16
+    readonly property int listPadding: 8
+    readonly property int formLabelWidth: 120
+    readonly property int inputHeight: 32
 }

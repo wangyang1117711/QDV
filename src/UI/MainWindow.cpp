@@ -43,7 +43,7 @@
 // 标题栏几何常量（v2.1.0 规范：32px 高 + 12-14pt 字体）
 // =================================================================
 namespace {
-constexpr int kTitleBarHeight = 32;       // 标题栏高度
+constexpr int kTitleBarHeight = 28;       // 标题栏高度（v5.0：32→28，全屏下更紧凑）
 constexpr int kResizeBorder   = 8;        // 8 方向边缘拖拽触发宽度
 constexpr int kMinWinWidth    = 200;      // 最小宽度（需求规范）
 constexpr int kMinWinHeight   = 100;      // 最小高度（需求规范）
@@ -105,7 +105,7 @@ void MainWindow::createTitleBar() {
     m_titleLabel->setStyleSheet(R"(
         QLabel#TitleAccent {
             color: #FFFFFF;
-            font: 14pt "Segoe UI", "Microsoft YaHei";
+            font: 13pt "Segoe UI", "Microsoft YaHei";
         }
     )");
     titleLayout->addWidget(m_titleLabel);
@@ -159,15 +159,15 @@ void MainWindow::createMenuBar() {
         QMenuBar {
             background-color: #3d3d3d;
             color: #ddd;
-            padding: 2px 8px;
-            font-size: 13px;
+            padding: 1px 8px;
+            font-size: 12px;
         }
         QMenuBar::item {
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 4px;
         }
         QMenuBar::item:selected {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: #fff;
         }
         QMenu {
@@ -180,7 +180,7 @@ void MainWindow::createMenuBar() {
             padding: 6px 32px 6px 16px;
         }
         QMenu::item:selected {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: #fff;
         }
         QMenu::separator {
@@ -235,7 +235,7 @@ void MainWindow::createMenuBar() {
 
     connect(aboutAction, &QAction::triggered, [this]() {
         QMessageBox::about(this, "关于 奇测视觉检测系统",
-            QString("<h3 style='color:#660874;'>奇测视觉检测系统 v1.0</h3>"
+            QString("<h3 style='color:#7C4DFF;'>奇测视觉检测系统 v1.0</h3>"
                     "<p>智能工业视觉检测平台</p>"
                     "<hr>"
                     "<p style='color:#ccc;'>"
@@ -298,7 +298,7 @@ void MainWindow::showFirstRunSetup() {
             font-size: 13px;
         }
         QLabel#titleLabel {
-            color: #660874;
+            color: #7C4DFF;
             font-size: 16px;
             font-weight: bold;
         }
@@ -354,7 +354,7 @@ void MainWindow::showFirstRunSetup() {
     QPushButton* createButton = new QPushButton("创建管理员账户");
     createButton->setStyleSheet(R"(
         QPushButton {
-            background-color: #660874;
+            background-color: #7C4DFF;
             color: white;
             border: none;
             border-radius: 4px;
@@ -363,7 +363,7 @@ void MainWindow::showFirstRunSetup() {
             font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #7d1a8f;
+            background-color: #8E66FF;
         }
     )");
     layout->addWidget(createButton);
@@ -427,6 +427,10 @@ void MainWindow::showMain() {
         QDV::Logger::info("[MainWindow] showMain: new CentralWindow() OK, ptr=" +
             QString::number(reinterpret_cast<quintptr>(static_cast<void*>(m_centralWindow)), 16));
         connect(m_centralWindow, &CentralWindow::logout, this, &MainWindow::onLogout);
+        // v5.0：视图切换时更新状态栏
+        connect(m_centralWindow, &CentralWindow::statusMessageRequested, this, [this](const QString& msg) {
+            if (statusBar()) statusBar()->showMessage(msg, 3000);
+        });
         QDV::Logger::info("[MainWindow] showMain: connect logout OK");
     }
     // v2.1.0 M4 修复：之前 m_centralWindow->setParent(m_stackedWidget)、
@@ -446,8 +450,8 @@ void MainWindow::showMain() {
     }
     m_stackedWidget->hide();
     this->hide();
-    QDV::Logger::info("[MainWindow] showMain: MainWindow hidden, about to show() central");
-    m_centralWindow->show();
+    QDV::Logger::info("[MainWindow] showMain: MainWindow hidden, about to showMaximized() central");
+    m_centralWindow->showMaximized();
     QDV::Logger::info("[MainWindow] showMain: central shown OK, isVisible=" +
         QString::number(m_centralWindow->isVisible()));
 }

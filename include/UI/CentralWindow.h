@@ -37,6 +37,7 @@ public slots:
 signals:
     void logout();
     void viewChanged(const QString& viewName);
+    void statusMessageRequested(const QString& message);  // v5.0：视图切换状态栏提示
     
 private slots:
     void onLogoutClicked();

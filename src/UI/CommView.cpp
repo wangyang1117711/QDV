@@ -11,6 +11,7 @@
 #include <QSpinBox>
 #include <QComboBox>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QTcpSocket>
 #include <QDateTime>
 
@@ -32,16 +33,16 @@ void CommView::setupUI() {
         QToolBar {
             background-color: #2d2d2d;
             border-bottom: 1px solid #444;
-            padding: 4px 8px;
+            padding: 3px 12px;
             spacing: 6px;
         }
         QToolBar QToolButton {
             background: transparent;
             border: 1px solid transparent;
             border-radius: 4px;
-            padding: 6px 12px;
+            padding: 4px 14px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolBar QToolButton:hover {
             background-color: #555;
@@ -61,39 +62,41 @@ void CommView::setupUI() {
 
     QWidget* contentWidget = new QWidget();
     QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
-    contentLayout->setContentsMargins(16, 16, 16, 16);
-    contentLayout->setSpacing(12);
+    contentLayout->setContentsMargins(20, 12, 20, 12);
+    contentLayout->setSpacing(10);
 
+    // v5.0：网格布局，全屏下更充分利用空间
     QGroupBox* configGroup = new QGroupBox("连接配置");
-    QHBoxLayout* configLayout = new QHBoxLayout(configGroup);
-    configLayout->setSpacing(16);
+    QGridLayout* configLayout = new QGridLayout(configGroup);
+    configLayout->setSpacing(10);
+    configLayout->setContentsMargins(12, 16, 12, 12);
 
     QLabel* addrLabel = new QLabel("地址:");
     addrLabel->setStyleSheet("font-weight: bold;");
     QLineEdit* addrEdit = new QLineEdit("127.0.0.1");
-    addrEdit->setFixedWidth(140);
+    addrEdit->setFixedWidth(200);
 
     QLabel* portLabel = new QLabel("端口:");
     portLabel->setStyleSheet("font-weight: bold;");
     QSpinBox* portSpin = new QSpinBox();
     portSpin->setRange(1, 65535);
     portSpin->setValue(8000);
-    portSpin->setFixedWidth(100);
+    portSpin->setFixedWidth(120);
 
     QLabel* baudLabel = new QLabel("波特率:");
     baudLabel->setStyleSheet("font-weight: bold;");
     QComboBox* baudCombo = new QComboBox();
     baudCombo->addItems({"9600", "19200", "38400", "57600", "115200"});
-    baudCombo->setFixedWidth(100);
+    baudCombo->setFixedWidth(120);
     baudCombo->setVisible(false);
 
-    configLayout->addWidget(addrLabel);
-    configLayout->addWidget(addrEdit);
-    configLayout->addWidget(portLabel);
-    configLayout->addWidget(portSpin);
-    configLayout->addWidget(baudLabel);
-    configLayout->addWidget(baudCombo);
-    configLayout->addStretch();
+    configLayout->addWidget(addrLabel, 0, 0);
+    configLayout->addWidget(addrEdit, 0, 1);
+    configLayout->addWidget(portLabel, 0, 2);
+    configLayout->addWidget(portSpin, 0, 3);
+    configLayout->addWidget(baudLabel, 0, 4);
+    configLayout->addWidget(baudCombo, 0, 5);
+    configLayout->setColumnStretch(6, 1);
 
     contentLayout->addWidget(configGroup);
 

@@ -103,8 +103,19 @@ int AutoTestRunner::run(QApplication& app,
             };
 
             // --- 截图辅助 lambda ---
-            auto grabAndSave = [](const QString& path) {
-                QPixmap pix = QApplication::primaryScreen()->grabWindow(0);
+            // 改为直接抓取指定 QWidget，避免被 TRAE 等顶层窗口遮挡
+            auto grabAndSave = [](const QString& path, QWidget* target) {
+                QPixmap pix;
+                if (target) {
+                    target->activateWindow();
+                    target->raise();
+                    target->show();
+                    QApplication::processEvents();
+                    QThread::msleep(200);
+                    pix = target->grab();
+                } else {
+                    pix = QApplication::primaryScreen()->grabWindow(0);
+                }
                 QDir().mkpath(QFileInfo(path).absolutePath());
                 const bool ok = pix.save(path, "PNG");
                 Logger::info(QString("[auto-test] screenshot %1: %2 (%3x%4)")
@@ -130,6 +141,7 @@ int AutoTestRunner::run(QApplication& app,
                 ::EditViewBridge* bridge = findBridge();
                 QStackedWidget* centralStack = findCentralStack();
                 QStackedWidget* canvasStack  = findCanvasStack(bridge);
+                QWidget* centralWindow = centralStack ? centralStack->window() : nullptr;
 
                 if (!canvasStack && bridge) {
                     Logger::warn("[auto-test] canvasStack (count=2) not found, will fallback");
@@ -152,7 +164,7 @@ int AutoTestRunner::run(QApplication& app,
                     QApplication::processEvents();
                     QThread::msleep(400);
                 }
-                grabAndSave(classicPath);
+                grabAndSave(classicPath, centralWindow);
 
                 // 切到 QML 画布
                 if (canvasStack) {
@@ -166,10 +178,11 @@ int AutoTestRunner::run(QApplication& app,
                 runAddOps(bridge);
 
                 // QML 画布截图
-                grabAndSave(qmlPath);
+                grabAndSave(qmlPath, centralWindow);
             } else {
                 // === 单截图模式 ===
                 QStackedWidget* centralStack = findCentralStack();
+                QWidget* centralWindow = centralStack ? centralStack->window() : nullptr;
                 if (centralStack) {
                     Logger::info(QString("[auto-test] switching to EditView index 3 (was %1)")
                                      .arg(centralStack->currentIndex()));
@@ -180,7 +193,7 @@ int AutoTestRunner::run(QApplication& app,
                 QApplication::processEvents();
 
                 runAddOps(findBridge());
-                grabAndSave(autoTestPng);
+                grabAndSave(autoTestPng, centralWindow);
             }
 
             QApplication::quit();

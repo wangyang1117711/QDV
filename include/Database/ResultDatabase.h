@@ -19,6 +19,18 @@ public:
     bool insertResult(const QString& schemeId, const QString& schemeName,
                       bool ok, double score, const QString& imagePath,
                       const QString& timestamp = QString());
+
+    // P1-C5 修复（综合测评 P2）：批量插入接口（事务包装，10x 性能提升）
+    // 单条 insert 自动提交，批量场景下需要事务包装避免每条都 fsync
+    struct ResultItem {
+        QString schemeId;
+        QString schemeName;
+        bool ok;
+        double score;
+        QString imagePath;
+        QString timestamp;
+    };
+    bool insertResultsBatch(const QList<ResultItem>& items);
     
     QList<QMap<QString, QVariant>> queryResults(const QString& schemeId = QString(),
                                                 const QString& startTime = QString(),

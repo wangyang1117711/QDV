@@ -100,12 +100,12 @@ void ResultPanel::setupUI() {
             color: #e0e0e0;
         }
         QTableWidget::item { padding: 4px 8px; }
-        QTableWidget::item:selected { background-color: #660874; color: #fff; }
+        QTableWidget::item:selected { background-color: #7C4DFF; color: #fff; }
         QHeaderView::section {
             background-color: #333;
             color: #e0e0e0;
             border: none;
-            border-bottom: 2px solid #660874;
+            border-bottom: 2px solid #7C4DFF;
             padding: 6px 8px;
             font-weight: bold;
         }

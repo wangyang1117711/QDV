@@ -88,6 +88,16 @@ bool GeometryMeasureTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["radius_mm"] = value * m_pixelScale;
         result.data["center_x"] = center.x;
         result.data["center_y"] = center.y;
+    } else if (m_measureType == "angle") {
+        // P1-B6 修复：实现 angle 测量类型
+        // 之前 configure 接受 "angle" 类型但 execute 无此分支，value 保持 0.0，
+        // 导致永远 ok=false（除非 0.0 恰好落在阈值范围内）
+        // 单图轮廓无法直接得到两条独立直线，使用 minAreaRect 的旋转角度作为几何角度
+        // （表示最大轮廓的最小外接矩形相对于水平方向的倾斜角度，范围 -90~0°）
+        cv::RotatedRect rect = cv::minAreaRect(largest);
+        value = std::abs(rect.angle);
+        result.data["angle_deg"] = value;
+        result.data["angle_rad"] = value * CV_PI / 180.0;
     }
 
     result.data["measureType"] = m_measureType;

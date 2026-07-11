@@ -16,6 +16,8 @@ set(UI_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/UI/CommView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/UI/MonitorView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/UI/AutoTestRunner.h
+    # v2.6.0 预览管理
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/UI/PreviewManager.h
 )
 
 set(UI_SOURCES
@@ -34,6 +36,8 @@ set(UI_SOURCES
     CommView.cpp
     MonitorView.cpp
     AutoTestRunner.cpp
+    # v2.6.0 预览管理
+    PreviewManager.cpp
 )
 
 # M2 v2.1.0：注册 qml/ 资源（QML 端 EditView 改造用）

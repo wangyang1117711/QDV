@@ -15,8 +15,8 @@ public:
     bool deserialize(const QJsonObject& data) override;
     
 private:
-    double m_minArea = 10.0;
-    double m_maxArea = 10000.0;
+    double m_minArea = 100.0;      // 与元数据对齐：10 过小，100 适配实际轮廓
+    double m_maxArea = 100000.0;   // 与元数据对齐：10000 过小，100000 适配大图
     bool m_filterByArea = true;
 };
 

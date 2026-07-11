@@ -8,9 +8,17 @@ Main 1.0 Main.qml
 ParamForm 1.0 ParamForm.qml
 PropertyPreviewPanel 1.0 PropertyPreviewPanel.qml
 OperatorEditorDialog 1.0 OperatorEditorDialog.qml
+OperatorTunerDialog 1.0 OperatorTunerDialog.qml
 ROISelector 1.0 ROISelector.qml
 FloatingPanel 1.0 FloatingPanel.qml
 ImagePreviewWindow 1.0 ImagePreviewWindow.qml
+ImageViewer 1.0 ImageViewer.qml
+DeployDialog 1.0 DeployDialog.qml
 AnnotateOverlay 1.0 AnnotateOverlay.qml
 ResultTable 1.0 ResultTable.qml
 FilePathField 1.0 FilePathField.qml
+ShortcutsPanel 1.0 ShortcutsPanel.qml
+# v2.6.0 新增组件：预览窗口 + 变量管理
+PreviewPanel 1.0 PreviewPanel.qml
+VariableManagerPanel 1.0 VariableManagerPanel.qml
+VarEditDialog 1.0 VarEditDialog.qml

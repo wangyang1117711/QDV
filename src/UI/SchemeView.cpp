@@ -31,16 +31,16 @@ void SchemeView::setupUI() {
         QToolBar {
             background-color: #2d2d2d;
             border-bottom: 1px solid #444;
-            padding: 4px 8px;
+            padding: 3px 12px;
             spacing: 6px;
         }
         QToolBar QToolButton {
             background: transparent;
             border: 1px solid transparent;
             border-radius: 4px;
-            padding: 6px 12px;
+            padding: 4px 14px;
             color: #e0e0e0;
-            font-size: 13px;
+            font-size: 12px;
         }
         QToolBar QToolButton:hover {
             background-color: #555;
@@ -60,6 +60,12 @@ void SchemeView::setupUI() {
 
     mainLayout->addWidget(toolbar);
 
+    // v5.0：添加内容区域 margin
+    QWidget* treeWrapper = new QWidget();
+    QVBoxLayout* treeLayout = new QVBoxLayout(treeWrapper);
+    treeLayout->setContentsMargins(16, 12, 16, 12);
+    treeLayout->setSpacing(0);
+
     m_schemeTree = new QTreeWidget();
     m_schemeTree->setHeaderLabels({"方案名称", "版本", "工具数", "更新时间"});
     m_schemeTree->setColumnWidth(0, 200);
@@ -67,7 +73,8 @@ void SchemeView::setupUI() {
     m_schemeTree->setColumnWidth(2, 80);
     m_schemeTree->setAlternatingRowColors(true);
     m_schemeTree->setSelectionMode(QAbstractItemView::SingleSelection);
-    mainLayout->addWidget(m_schemeTree);
+    treeLayout->addWidget(m_schemeTree);
+    mainLayout->addWidget(treeWrapper, 1);  // v5.0：占满剩余空间
 
     connect(newAction, &QAction::triggered, this, &SchemeView::onNewScheme);
     connect(saveAction, &QAction::triggered, this, &SchemeView::onSaveScheme);

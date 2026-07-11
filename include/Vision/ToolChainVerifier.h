@@ -36,6 +36,9 @@ public:
     ToolVerifyResult verifyImageTransform();
     ToolVerifyResult verifyImageMerge();
     ToolVerifyResult verifyBranchControl();
+    // P1-C7 修复（CodeWiki 已知限制）：补全 AI 推理与读图路径自检
+    ToolVerifyResult verifyAiClassify();
+    ToolVerifyResult verifyReadImage();
 
     int passedCount() const;
     int totalCount() const;

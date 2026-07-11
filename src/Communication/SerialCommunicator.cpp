@@ -11,6 +11,16 @@ SerialCommunicator::~SerialCommunicator() {
 
 bool SerialCommunicator::open(const QString& portName, BaudRate baudRate,
                               DataBits dataBits, StopBits stopBits, Parity parity) {
+    // P1-C8 修复（CodeWiki 已知限制）：SerialCommunicator::open 是存根实现，
+    // 仅更新内部状态，不实际打开串口设备（未集成 QtSerialPort）。
+    // 一次性警告，便于上层识别"假连接"。
+    static bool stubWarningLogged = false;
+    if (!stubWarningLogged) {
+        Logger::warn("SerialCommunicator::open: 使用存根实现，未实际打开串口设备 "
+                     "（M8 里程碑将接入 QtSerialPort 后端）");
+        stubWarningLogged = true;
+    }
+
     if (m_isOpen) {
         close();
     }
@@ -63,7 +73,10 @@ bool SerialCommunicator::send(const QByteArray& data) {
         return false;
     }
 
+    // P1-C8 修复：send 是存根实现，数据仅追加到 txBuffer，未实际写入串口设备
     m_txBuffer.append(data);
+    Logger::warn(QString("SerialCommunicator::send: 存根实现，%1 字节数据仅写入缓冲区未发送")
+                 .arg(data.size()));
     return true;
 }
 

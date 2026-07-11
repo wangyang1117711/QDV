@@ -3,7 +3,7 @@
 
 using namespace QDV;
 
-TestPlugin::TestPlugin() : QObject(nullptr) {
+TestPlugin::TestPlugin() : IPlugin() {
 }
 
 bool TestPlugin::initialize() {

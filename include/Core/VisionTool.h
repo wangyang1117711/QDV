@@ -43,6 +43,10 @@ public:
 
     QString id() const { return m_id; }
     QString name() const { return m_name; }
+    // P0 修复：公开 setId，供 buildToolChainFromNodes 设置节点 ID，
+    // 替代之前调用 deserialize({id,name,type}) 的做法——后者会覆盖 configure 已设置的参数。
+    void setId(const QString& id) { m_id = id; }
+    void setName(const QString& name) { m_name = name; }
     virtual QString type() const = 0;
 
     virtual bool configure(const QJsonObject& params) {

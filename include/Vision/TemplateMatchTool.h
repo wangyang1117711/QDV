@@ -22,7 +22,7 @@ private:
     QString m_templatePath;
     cv::Mat m_template;
     double m_threshold = 0.8;
-    QString m_matchMethod = "SQDIFF";
+    QString m_matchMethod = "CCOEFF_NORMED";   // 与元数据对齐：CCOEFF_NORMED 是推荐方法，阈值语义为 ≥
 };
 
 #endif // TEMPLATEMATCHTOOL_H

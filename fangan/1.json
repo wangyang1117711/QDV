@@ -1,0 +1,21 @@
+{
+    "connections": [
+    ],
+    "nodes": [
+        {
+            "id": "314b9860-02c3-4939-a459-a38ca94fae33",
+            "params": {
+                "deviceIndex": 0,
+                "interfaceName": "GigEVision"
+            },
+            "type": "OpenFramegrabber",
+            "x": 475.20000000000005,
+            "y": 333.5
+        }
+    ],
+    "savedAt": "2026-07-10T13:46:46",
+    "schemeName": "未命名方案",
+    "variables": [
+    ],
+    "version": "2.1.0"
+}

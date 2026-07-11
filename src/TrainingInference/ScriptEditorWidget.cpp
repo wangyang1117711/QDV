@@ -161,7 +161,7 @@ void ScriptEditorWidget::setupUI() {
             color: #e0e0e0;
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 13px;
-            selection-background-color: #660874;
+            selection-background-color: #7C4DFF;
             padding: 8px;
         }
     )");

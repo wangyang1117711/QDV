@@ -16,8 +16,8 @@ public:
     
 private:
     double m_minArea = 10.0;
-    double m_maxArea = 1000.0;
-    double m_minCircularity = 0.8;
+    double m_maxArea = 50000.0;       // 与元数据对齐：1000 过小，50000 适配实际工件
+    double m_minCircularity = 0.0;    // 与元数据对齐：0.8 过严，0 表示默认不过滤圆度
     double m_maxCircularity = 1.0;
 };
 

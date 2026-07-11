@@ -1,29 +1,43 @@
 // =====================================================================
-// ImagePreviewWindow.qml — 独立图像预览浮窗（v3.1.0）
+// ImagePreviewWindow.qml — 内嵌图像预览浮窗（v3.2.0）
 //
-// 功能：
-// - 双击效果预览图时独立弹出，显示原图 & 处理后图像
-// - 标题栏拖动、最小化（收缩为标题栏条状）、最大化（铺满工作区）
+// v3.2.0 重要变更（修复 QRhi 冲突导致闪退）：
+// 原实现为独立顶层 Window，在 QQuickWidget 中嵌套会创建第二个 QRhi 实例，
+// 导致 "Texture belongs to QRhi X, but client code attempted to use it with QRhi Y"
+// 错误，最终 Device loss 闪退。
+// 现改为 Popup（QtQuick.Controls），与主 QML 共享同一 QRhi 上下文，彻底解决冲突。
+//
+// 功能（与原 v3.1.0 保持一致）：
+// - 双击效果预览图时弹出，显示原图 & 处理后图像
+// - 标题栏拖动、最小化（收缩为标题栏条状）、最大化（铺满父窗口）
 // - 透明度滑块 30%-100% 范围调节
-// - 始终最前显示（z >= 1000），不影响主界面交互
-// - 设计尺寸基于 drawio 示意图（效果预览图 80x88 区域，独立窗口默认 640x480）
+// - z-index >= 1000，不影响主界面交互
+// - 设计尺寸基于 drawio 示意图（效果预览图 80x88 区域，浮窗默认 640x480）
 // =====================================================================
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 import QDV.EditView 3.0 as Tok
 
-Window {
+Popup {
     id: previewWindow
-    flags: Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
+    // 关键修复：modal=false 允许主界面交互；NoAutoClose 防止点击外部意外关闭
+    modal: false
+    focus: false
+    closePolicy: Popup.NoAutoClose
+    // z-index >= 1000 保证浮在最前
+    z: 1000
+
     width: 640
     height: 480
-    minimumWidth: 320
-    minimumHeight: 200
-    visible: false
-    color: "transparent"
+    // 初始位置：父窗口居中（在 open() 中设置）
+    x: 0
+    y: 0
+
+    padding: 0
+    // 透明背景：让内部 mainContainer 自行绘制圆角与边框
+    background: Item { }
 
     // ============ 外部接口 ============
     property url   sourceImage: ""       // 原图路径
@@ -45,11 +59,30 @@ Window {
     // ============ 拖拽状态 ============
     property point dragOffset: Qt.point(0, 0)
 
-    // z-index >= 1000 通过 StaysOnTopHint 保证
+    // Popup 自动带 enter/exit 过渡，无需显式定义
+
+    // ============ 首次打开居中钩子 ============
+    // 不重写 open()/close()（会破坏 Popup 默认信号机制），
+    // 改用 onAboutToShow 在弹出前同步位置，确保首次居中于父窗口。
+    onAboutToShow: {
+        if (normalX === 0 && normalY === 0) {
+            var parentItem = previewWindow.parent
+            if (parentItem) {
+                previewWindow.x = Math.max(0, (parentItem.width - previewWindow.width) / 2)
+                previewWindow.y = Math.max(0, (parentItem.height - previewWindow.height) / 2)
+                normalX = previewWindow.x
+                normalY = previewWindow.y
+            }
+        } else {
+            previewWindow.x = normalX
+            previewWindow.y = normalY
+        }
+    }
 
     // ============ 主体容器 ============
     Rectangle {
         id: mainContainer
+        // Popup 内部根 Item 已隐式提供尺寸，直接 anchors.fill 即可
         anchors.fill: parent
         anchors.margins: 1
         color: Tok.DesignTokens.bgPanel
@@ -59,30 +92,8 @@ Window {
         opacity: previewWindow.currentOpacity
         clip: true
 
-        // ============ 最小化/最大化状态：作用于 Window（QML Window 无 states 属性）============
-        // 修复：把状态机迁移到内部 Rectangle 上，因为它继承自 Item
-        states: [
-            State {
-                name: "minimized"
-                when: previewWindow.isMinimized
-                PropertyChanges {
-                    target: previewWindow
-                    width: previewWindow.normalW
-                    height: previewWindow.titleBarHeight + 2
-                }
-            },
-            State {
-                name: "maximized"
-                when: previewWindow.isMaximized && !previewWindow.isMinimized
-                PropertyChanges {
-                    target: previewWindow
-                    x: 0
-                    y: 0
-                    width: Screen.desktopAvailableWidth
-                    height: Screen.desktopAvailableHeight
-                }
-            }
-        ]
+        // ============ 最小化/最大化状态：作用于 Popup（Popup 继承自 QObject+QQuickItem，
+        // 不支持 states，这里改用 PropertyBindings 显式控制尺寸）============
 
         // ============ 标题栏 ============
         Rectangle {
@@ -90,7 +101,7 @@ Window {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: titleBarHeight
+            height: previewWindow.titleBarHeight
             color: Tok.DesignTokens.bgHeader
             radius: Tok.DesignTokens.radiusLg
 
@@ -211,7 +222,7 @@ Window {
                         color: closeBtn.hovered ? Tok.DesignTokens.accentError : "transparent"
                         radius: Tok.DesignTokens.radiusSm
                     }
-                    onClicked: previewWindow.visible = false
+                    onClicked: previewWindow.close()
                 }
             }
         }
@@ -426,6 +437,29 @@ Window {
         }
     }
 
+    // ============ 尺寸控制（替代原 Window 的 states）============
+    // 最小化时：高度收缩为标题栏+边框
+    // 最大化时：尺寸跟随父窗口（由 onWidthChanged/onHeightChanged 同步）
+    // 正常时：使用 normalW/normalH
+    Item {
+        // 占位 Item 仅用于触发绑定：监听 isMinimized/isMaximized 变化
+        // 实际尺寸控制通过下面的 Binding 块完成
+        visible: false
+    }
+
+    // 通过 Binding 显式控制 Popup 的 width/height/x/y
+    // 注意：Binding 的 when=false 时不会强制设置属性，允许其他逻辑修改
+    Binding on width {
+        when: previewWindow.isMinimized
+        value: previewWindow.normalW
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+    Binding on height {
+        when: previewWindow.isMinimized
+        value: previewWindow.titleBarHeight + 2
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+
     // ============ 功能方法 ============
     function toggleMinimize() {
         if (isMaximized) {
@@ -459,6 +493,14 @@ Window {
             normalW = previewWindow.width
             normalH = previewWindow.height
             isMaximized = true
+            // 最大化：铺满父窗口（Popup 的 parent）
+            var parentItem = previewWindow.parent
+            if (parentItem) {
+                previewWindow.x = 0
+                previewWindow.y = 0
+                previewWindow.width = parentItem.width
+                previewWindow.height = parentItem.height
+            }
         } else {
             // 恢复到保存的尺寸
             isMaximized = false
@@ -469,18 +511,8 @@ Window {
         }
     }
 
-    function open() {
-        // 首次打开居中；后续打开保留上次位置（normalX/normalY 已在 open/close 周期维护）
-        if (normalX === 0 && normalY === 0) {
-            previewWindow.x = (Screen.desktopAvailableWidth - previewWindow.width) / 2
-            previewWindow.y = (Screen.desktopAvailableHeight - previewWindow.height) / 2
-            normalX = previewWindow.x
-            normalY = previewWindow.y
-        } else {
-            previewWindow.x = normalX
-            previewWindow.y = normalY
-        }
-        previewWindow.visible = true
-        previewWindow.raise()
-    }
+    // 重写 open：首次打开居中于父窗口；后续打开保留上次位置
+    // 注：open()/close() 保留 Popup 基类默认实现，"首次居中"由 onAboutToShow 钩子完成。
+    // 如需扩展，可在此处添加自定义逻辑，但必须显式调用 Popup.open()。
+    // 当前不重写，留空避免覆盖基类。
 }
