@@ -7,6 +7,9 @@
 #include <QPixmap>
 #include <QMap>
 #include <QSet>
+#include <QFile>
+#include <QByteArray>
+#include "TrainingInference/TrainingProject.h"
 
 struct ImageEntry {
     QString filePath;
@@ -15,6 +18,11 @@ struct ImageEntry {
     bool isAnnotated = false;
     QString label;
     bool isSelected = false;
+    int width = 0;            // 图像宽度(像素)
+    int height = 0;           // 图像高度(像素)
+    int channels = 0;         // 通道数(1灰度/3彩色/4带透明)
+    QString format;           // 格式("PNG"/"JPEG"/"BMP"/"TIFF"/"WEBP")
+    qint64 fileSize = 0;      // 文件大小(字节)
 };
 
 class ImageManager : public QObject {
@@ -32,7 +40,11 @@ public:
     ImageEntry imageInfo(const QString& filePath) const;
     int imageCount() const;
     QStringList allPaths() const;
-    
+
+    // ===== 项目保存/加载快照接口 =====
+    QList<ImageEntrySnapshot> toSnapshot() const;
+    void importFromSnapshot(const QList<ImageEntrySnapshot>& snapshots);
+
     // 选择相关功能
     void setSelected(const QString& filePath, bool selected);
     bool isSelected(const QString& filePath) const;
@@ -58,4 +70,6 @@ private:
     ImageManager(QObject* parent = nullptr);
     QMap<QString, ImageEntry> m_images;
     static ImageManager* s_instance;
+
+    void extractMetadata(ImageEntry& entry);
 };

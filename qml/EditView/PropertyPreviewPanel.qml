@@ -41,6 +41,26 @@ Rectangle {
     property bool usageExampleExpanded: false
     // v5.0：效果预览区折叠状态（默认展开）
     property bool previewExpanded: true
+    // v5.4：当前节点的输出开关配置（key=输出名 value={enabled:bool}）
+    property var outputConfig: ({})
+    // v5.4：按 outputConfig 过滤后的输出参数列表（计算属性，currentMeta/outputConfig 变化时自动重算）
+    property var filteredOutputs: {
+        if (!root.currentMeta || !root.currentMeta.outputs
+            || root.currentMeta.outputs.length === 0)
+            return []
+        var filtered = []
+        var oc = root.outputConfig || ({})
+        for (var i = 0; i < root.currentMeta.outputs.length; ++i) {
+            var out = root.currentMeta.outputs[i]
+            var item = oc[out.name]
+            // 优先取 outputConfig 中的 enabled，未配置时回退到 defaultEnabled
+            var enabled = item ? (item.enabled === true) : (out.defaultEnabled !== false)
+            if (enabled) {
+                filtered.push(out)
+            }
+        }
+        return filtered
+    }
 
     Accessible.role: Accessible.Pane
     Accessible.name: "算子详情面板"
@@ -53,6 +73,8 @@ Rectangle {
         selectedNode = null
         currentMeta = null
         currentParams = ({})
+        // v5.4：重置 outputConfig，避免切换节点时残留上一个节点的开关配置
+        outputConfig = ({})
         if (!bridge || !selectedNodeId) return
         var nodes = bridge.currentNodes || []
         for (var i = 0; i < nodes.length; ++i) {
@@ -64,6 +86,10 @@ Rectangle {
         }
         if (selectedNode) {
             currentMeta = bridge.getOperatorMeta(selectedNode.type)
+            // v5.4：加载当前节点的输出开关配置
+            if (bridge && selectedNode.id) {
+                outputConfig = bridge.getOutputConfig(selectedNode.id) || ({})
+            }
         }
     }
 
@@ -82,6 +108,12 @@ Rectangle {
             }
             if (!found) {
                 root.refresh()
+            } else if (root.selectedNode && root.selectedNode.id) {
+                // v5.4：节点仍在画布中时，重新加载 outputConfig
+                // 覆盖场景：OperatorTunerDialog 切换输出开关 → bridge.updateOutputConfig
+                // → 走 UndoCommand → emit currentNodesChanged → 此处刷新 outputConfig
+                // → filteredOutputs 重算 → 输出参数列表按新开关过滤
+                root.outputConfig = bridge.getOutputConfig(root.selectedNode.id) || ({})
             }
         }
     }
@@ -425,6 +457,8 @@ Rectangle {
                     currentValues: root.currentParams
                     // P1-B4-H1 联动：传入算子类型供 isParamVisible 判断
                     operatorType: root.selectedNode ? root.selectedNode.type : ""
+                    // v5.4.0：模型库列表（用于 modelPath 参数的下拉选择）
+                    modelList: root.bridge ? root.bridge.getRegisteredModels() : []
                     onValuesChanged: function(newValues) {
                         if (root.bridge && root.selectedNodeId) {
                             root.bridge.updateOperatorParams(root.selectedNodeId, newValues)
@@ -452,14 +486,9 @@ Rectangle {
                         font.family: Tok.DesignTokens.fontFamilyCJK
                     }
 
-                    // 动态渲染输出参数列表（从 currentMeta.outputs）
+                    // 动态渲染输出参数列表（v5.4：按 outputConfig 过滤，未启用的输出不显示）
                     Repeater {
-                        model: {
-                            if (!root.currentMeta || !root.currentMeta.outputs
-                                || root.currentMeta.outputs.length === 0)
-                                return []
-                            return root.currentMeta.outputs
-                        }
+                        model: root.filteredOutputs
                         delegate: RowLayout {
                             spacing: 8
                             Rectangle {
@@ -482,10 +511,9 @@ Rectangle {
                         }
                     }
 
-                    // 无输出参数时的占位
+                    // 无输出参数时的占位（v5.4：用过滤后的数组判断）
                     Label {
-                        visible: !root.currentMeta || !root.currentMeta.outputs
-                                  || root.currentMeta.outputs.length === 0
+                        visible: root.filteredOutputs.length === 0
                         text: "算子执行后将输出处理后的图像和检测结果"
                         color: Tok.DesignTokens.textPlaceholder
                         font.pixelSize: Tok.DesignTokens.fontSizeXs

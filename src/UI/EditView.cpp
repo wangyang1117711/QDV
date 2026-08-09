@@ -208,20 +208,29 @@ void EditView::onQmlStatusChanged(QQuickWidget::Status status) {
         hideErrorOverlay();
         qDebug() << "[EditView] QML loaded successfully. status=Ready";
 
-        // 关键修复：首次加载后强制同步 root object 尺寸到 QQuickWidget viewport，
-        // 避免 SizeRootObjectToView 在 setSource 时因 widget 尚未布局而保留 1280x800 初始尺寸。
-        // 该问题表现为第一次进入编辑模块时界面未铺满，只有窗口 resize 后才触发同步。
+        // v3.2.1 修复：Main.qml 根 Rectangle 已改为 anchors.fill: parent，
+        // 理论上 SizeRootObjectToView 会自动占满 viewport。但在 QStackedWidget
+        // 中首次显示时，QQuickWidget 的尺寸可能尚未稳定，这里保留双重保险：
+        // 1) Ready 时立即同步一次；2) 延迟到下一事件循环再同步一次，确保布局完成。
         if (m_qmlCanvas) {
-            QQuickItem* rootItem = m_qmlCanvas->rootObject();
-            if (rootItem) {
+            auto syncRootSize = [this]() {
+                QQuickItem* rootItem = m_qmlCanvas->rootObject();
+                if (!rootItem) return;
                 const QSize viewportSize = m_qmlCanvas->size();
-                qDebug() << "[EditView] force sync root item size to:" << viewportSize;
-                rootItem->setWidth(viewportSize.width());
-                rootItem->setHeight(viewportSize.height());
-            }
-            // 额外触发一次 resize 事件，确保 QML 内部 SplitView 重新计算
-            QResizeEvent re(m_qmlCanvas->size(), QSize());
-            QApplication::sendEvent(m_qmlCanvas, &re);
+                if (viewportSize.width() <= 0 || viewportSize.height() <= 0) return;
+                // 只有当 root item 未占满 viewport 时才重置
+                if (!qFuzzyCompare(rootItem->width(), viewportSize.width()) ||
+                    !qFuzzyCompare(rootItem->height(), viewportSize.height())) {
+                    qDebug() << "[EditView] sync root item size to:" << viewportSize;
+                    rootItem->setWidth(viewportSize.width());
+                    rootItem->setHeight(viewportSize.height());
+                }
+                // 额外触发一次 resize 事件，确保 QML 内部 SplitView 重新计算
+                QResizeEvent re(viewportSize, QSize());
+                QApplication::sendEvent(m_qmlCanvas, &re);
+            };
+            syncRootSize();
+            QTimer::singleShot(0, this, syncRootSize);
         }
     } else if (status == QQuickWidget::Status::Error) {
         const auto errors = m_qmlCanvas->errors();

@@ -8,7 +8,7 @@
 #include <functional>
 #include <opencv2/opencv.hpp>
 
-class VisionTool;
+namespace QDV { class VisionTool; }
 class ToolResult;
 
 struct ToolVerifyResult {

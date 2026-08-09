@@ -13,6 +13,7 @@ struct TestResult {
     std::string testName;
     bool passed = true;
     std::string message;
+    std::function<void()> testFunc;  // 测试函数指针，由 main() 真正调用
 };
 
 inline std::vector<TestResult>& testResults() {
@@ -37,7 +38,9 @@ inline int& passedCount() {
     static void CONCAT(test_, __LINE__)(); \
     static struct CONCAT(TestRegistrar_, __LINE__) { \
         CONCAT(TestRegistrar_, __LINE__)() { \
-            TestResult r; r.testName = name; testResults().push_back(r); \
+            TestResult r; r.testName = name; \
+            r.testFunc = CONCAT(test_, __LINE__); \
+            testResults().push_back(r); \
         } \
     } CONCAT(testRegistrar_, __LINE__); \
     static void CONCAT(test_, __LINE__)()

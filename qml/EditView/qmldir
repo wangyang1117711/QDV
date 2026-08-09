@@ -22,3 +22,14 @@ ShortcutsPanel 1.0 ShortcutsPanel.qml
 PreviewPanel 1.0 PreviewPanel.qml
 VariableManagerPanel 1.0 VariableManagerPanel.qml
 VarEditDialog 1.0 VarEditDialog.qml
+# v2.6.0 Task 18：模型库对话框 + 详情字段组件
+ModelLibraryDialog 1.0 ModelLibraryDialog.qml
+DetailField 1.0 DetailField.qml
+# 算子流程导出对话框
+ExportDialog 1.0 ExportDialog.qml
+# spec: editor-output-connection-optimization Task5：连接管理面板
+ConnectionManagerPanel 1.0 ConnectionManagerPanel.qml
+# spec: editor-output-connection-optimization Task7：输入/输出项冲突指定面板
+ConflictPanel 1.0 ConflictPanel.qml
+# spec: editor-output-connection-optimization Task10：智能算子推荐展示区
+RecommendationPanel 1.0 RecommendationPanel.qml

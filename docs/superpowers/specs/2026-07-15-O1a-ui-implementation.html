@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O1a · 算子导入功能 — 实现阶段 UI 验收示意图</title>
+<style>
+  /* ============================================================
+   * 完全对齐 QDV DesignTokens v3.0.0（qml/EditView/DesignTokens.qml）
+   * 背景色阶 / 主强调 / 成功警告错误 / 字体 / 间距 / 圆角 均与系统一致
+   * ============================================================ */
+  :root {
+    /* 背景色阶 */
+    --bg-canvas: #121212;
+    --bg-panel: #1A1A1A;
+    --bg-surface: #242424;
+    --bg-hover: #2F2F2F;
+    --bg-header: #1F1F1F;
+    --bg-input: #1E1E1E;
+    /* 文本色阶 */
+    --text-primary: #FFFFFF;
+    --text-secondary: #C8C8C8;
+    --text-tertiary: #9E9E9E;
+    --text-disabled: #6E6E6E;
+    --text-placeholder: #757575;
+    /* 强调色 */
+    --accent-primary: #7C4DFF;
+    --accent-primary-hover: #9D7BFF;
+    --accent-primary-pressed: #6539E0;
+    --accent-primary-bg: rgba(124, 77, 255, 0.15);
+    --accent-success: #69F0AE;
+    --accent-success-bg: rgba(105, 240, 174, 0.12);
+    --accent-warning: #FFD740;
+    --accent-warning-bg: rgba(255, 215, 64, 0.12);
+    --accent-error: #FF5252;
+    --accent-error-bg: rgba(255, 82, 82, 0.12);
+    --accent-info: #448AFF;
+    --accent-info-bg: rgba(68, 138, 255, 0.12);
+    --accent-orange: #FFAB40;
+    /* 边框 */
+    --border-default: #3D3D3D;
+    --border-light: #2E2E2E;
+    --border-strong: #555555;
+    /* 圆角 */
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-xl: 8px;
+    /* 间距 */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    /* 字体 */
+    --font-cjk: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    --font-mono: "Cascadia Code", "Consolas", monospace;
+    /* 字号 */
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-base: 13px;
+    --font-lg: 14px;
+    --font-xl: 16px;
+    --font-2xl: 20px;
+    /* 控件 */
+    --control-h: 28px;
+    --header-h: 40px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-canvas);
+    color: var(--text-secondary);
+    font-family: var(--font-cjk);
+    font-size: var(--font-base);
+    line-height: 1.5;
+    padding: var(--space-6) var(--space-8) var(--space-8);
+    min-height: 100vh;
+  }
+  h1 {
+    color: var(--text-primary);
+    font-size: var(--font-2xl);
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+  }
+  .meta {
+    color: var(--text-tertiary);
+    font-size: var(--font-sm);
+    line-height: 1.7;
+    margin-bottom: var(--space-6);
+  }
+
+  /* ============ 场景切换器 ============ */
+  .scene-switcher {
+    display: flex;
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+  }
+  .scene-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-base);
+    font-family: var(--font-cjk);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .scene-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-panel);
+  }
+  .scene-tab.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+  }
+
+  /* ============ 场景容器 ============ */
+  .scene { display: none; }
+  .scene.active { display: block; }
+
+  .scene-intro {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-5);
+  }
+  .scene-intro h2 {
+    color: var(--text-primary);
+    font-size: var(--font-xl);
+    margin-bottom: var(--space-2);
+    border: none;
+    padding: 0;
+  }
+  .scene-intro p {
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    line-height: 1.7;
+  }
+
+  /* ============ 舞台布局：左侧 mockup + 右侧标注 ============ */
+  .stage {
+    display: flex;
+    gap: var(--space-6);
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .stage-mockup { flex: 0 0 auto; }
+  .stage-annotations {
+    flex: 1 1 360px;
+    min-width: 360px;
+    max-width: 520px;
+  }
+
+  /* ============ 弹窗遮罩 ============ */
+  .popup-overlay {
+    position: relative;
+    background: rgba(0, 0, 0, 0.55);
+    padding: var(--space-8);
+    border-radius: var(--radius-xl);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .popup-overlay.right-drawer {
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  /* ============ 弹窗主体 ============ */
+  .popup {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .popup-s1 { width: 580px; height: 680px; }
+  .popup-s2 { width: 420px; height: 560px; }
+
+  .popup-header {
+    background: var(--bg-header);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-h);
+    flex-shrink: 0;
+  }
+  .popup-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: var(--font-lg);
+  }
+  .popup-close {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 18px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .popup-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .popup-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .popup-footer {
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border-default);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  /* ============ 分区 ============ */
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .section-label {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .section-label .num {
+    background: var(--accent-primary);
+    color: #fff;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-xs);
+    font-weight: 700;
+  }
+  .section-hint {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+  }
+
+  /* ============ 输入框 / 按钮 ============ */
+  .input-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .input {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    height: var(--control-h);
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    font-family: var(--font-mono);
+    outline: none;
+    min-width: 0;
+  }
+  .input:read-only {
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+  }
+  .input:focus {
+    border-color: var(--accent-primary);
+  }
+  .btn {
+    height: var(--control-h);
+    padding: 0 var(--space-4);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    font-family: var(--font-cjk);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+  }
+  .btn-primary {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: var(--accent-primary-hover);
+    border-color: var(--accent-primary-hover);
+  }
+  .btn:disabled,
+  .btn-primary:disabled {
+    background: var(--bg-surface);
+    color: var(--text-disabled);
+    border-color: var(--border-default);
+    cursor: not-allowed;
+  }
+  .btn-primary:disabled:hover {
+    background: var(--bg-surface);
+    border-color: var(--border-default);
+  }
+  .btn-sm {
+    height: 22px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-xs);
+  }
+
+  /* ============ 预览区：元信息网格 ============ */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 70px 1fr 70px 1fr;
+    gap: var(--space-2) var(--space-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+  }
+  .meta-key {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    align-self: center;
+  }
+  .meta-val {
+    font-size: var(--font-sm);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    align-self: center;
+    word-break: break-all;
+  }
+  .meta-val.cn {
+    font-family: var(--font-cjk);
+  }
+  .meta-val.accent {
+    color: var(--accent-primary);
+  }
+
+  /* ============ 端口列表 ============ */
+  .port-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .port-block-title {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    margin-top: var(--space-1);
+  }
+  .port-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .port-item {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--accent-orange);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-sm);
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+  }
+  .port-item.output-port {
+    border-left-color: var(--accent-success);
+  }
+  .port-name {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    min-width: 90px;
+    font-size: var(--font-sm);
+  }
+  .port-type {
+    font-family: var(--font-mono);
+    color: var(--accent-info);
+    font-size: var(--font-xs);
+    background: var(--accent-info-bg);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+  }
+  .port-type.optional {
+    color: var(--text-tertiary);
+    background: var(--bg-hover);
+  }
+  .port-desc {
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+    margin-left: auto;
+  }
+
+  /* ============ 参数表 ============ */
+  .params-table {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .params-row {
+    display: grid;
+    grid-template-columns: 110px 70px 70px 1fr;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-sm);
+    border-bottom: 1px solid var(--border-light);
+    align-items: center;
+  }
+  .params-row:last-child {
+    border-bottom: none;
+  }
+  .params-row.head {
+    background: var(--bg-hover);
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .params-row code {
+    font-family: var(--font-mono);
+    color: var(--accent-primary);
+  }
+  .params-row .pdesc {
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+  }
+
+  /* ============ 校验结果区 ============ */
+  .validation-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .validation-item {
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-sm);
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    line-height: 1.6;
+  }
+  .validation-item .v-icon {
+    flex-shrink: 0;
+    font-weight: 700;
+    width: 16px;
+    text-align: center;
+  }
+  .validation-item .v-text {
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .validation-item .v-text strong {
+    color: var(--text-primary);
+  }
+  .validation-item .v-text code {
+    font-family: var(--font-mono);
+    background: var(--bg-canvas);
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+  }
+  .validation-success {
+    background: var(--accent-success-bg);
+    border-left: 3px solid var(--accent-success);
+  }
+  .validation-success .v-icon { color: var(--accent-success); }
+  .validation-warning {
+    background: var(--accent-warning-bg);
+    border-left: 3px solid var(--accent-warning);
+  }
+  .validation-warning .v-icon { color: var(--accent-warning); }
+  .validation-error {
+    background: var(--accent-error-bg);
+    border-left: 3px solid var(--accent-error);
+  }
+  .validation-error .v-icon { color: var(--accent-error); }
+
+  /* ============ 标注卡片 ============ */
+  .annotation {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--accent-info);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .annotation.warn {
+    border-left-color: var(--accent-warning);
+  }
+  .annotation.error {
+    border-left-color: var(--accent-error);
+  }
+  .annotation-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  .annotation-icon {
+    width: 20px;
+    height: 20px;
+    background: var(--accent-info);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-xs);
+    font-weight: 700;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .annotation.warn .annotation-icon { background: var(--accent-warning); color: #1A1A1A; }
+  .annotation.error .annotation-icon { background: var(--accent-error); }
+  .annotation-title {
+    font-size: var(--font-base);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .annotation-body {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+  .annotation-body code {
+    font-family: var(--font-mono);
+    background: var(--bg-canvas);
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    color: var(--accent-info);
+    font-size: var(--font-xs);
+  }
+  .code-chain {
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-top: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code-chain .step { color: var(--text-primary); }
+  .code-chain .arrow { color: var(--accent-primary); }
+  .code-chain .signal { color: var(--accent-warning); }
+  .code-chain .comment { color: var(--text-tertiary); }
+  .code-chain .ret { color: var(--accent-success); }
+  .code-chain .kw { color: var(--accent-primary); }
+
+  /* ============ 场景 2：抽屉面板 ============ */
+  .drawer-header {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-header);
+  }
+  .drawer-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: var(--font-lg);
+    margin-bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .search-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .search-input {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    height: var(--control-h);
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    outline: none;
+    min-width: 0;
+  }
+  .search-input::placeholder {
+    color: var(--text-placeholder);
+  }
+  .search-input:focus {
+    border-color: var(--accent-primary);
+  }
+
+  .op-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .op-item {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .op-item:hover {
+    border-color: var(--border-strong);
+  }
+  .op-item.deleted {
+    opacity: 0.5;
+  }
+  .op-item-row1 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .op-name {
+    font-weight: 600;
+    font-size: var(--font-base);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+  }
+  .op-version {
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+  }
+  .op-cnname {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+  }
+  .op-cnname::before {
+    content: "·";
+    margin: 0 var(--space-1);
+    color: var(--text-tertiary);
+  }
+  .op-meta {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    display: flex;
+    gap: var(--space-3);
+  }
+  .op-meta .cat {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .op-meta .cat::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-info);
+    display: inline-block;
+  }
+  .delete-btn {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-3);
+    background: none;
+    border: none;
+    color: var(--accent-error);
+    cursor: pointer;
+    font-size: var(--font-lg);
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .delete-btn:hover {
+    background: var(--accent-error-bg);
+  }
+  .deleted-tag {
+    font-size: 10px;
+    color: var(--accent-warning);
+    background: var(--accent-warning-bg);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    margin-left: auto;
+    margin-right: var(--space-8);
+    border: 1px solid var(--accent-warning);
+  }
+  .drawer-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-default);
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    background: var(--bg-header);
+  }
+  .drawer-footer .ft-title {
+    color: var(--accent-warning);
+    font-weight: 600;
+    display: block;
+    margin-bottom: var(--space-1);
+  }
+
+  /* ============ 场景 3：EditView 三栏 ============ */
+  .editview {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    height: 680px;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+  .ev-col {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .ev-col.left {
+    width: 280px;
+    border-right: 1px solid var(--border-default);
+    background: var(--bg-panel);
+  }
+  .ev-col.center {
+    flex: 1;
+    background: var(--bg-canvas);
+    position: relative;
+  }
+  .ev-col.right {
+    width: 300px;
+    border-left: 1px solid var(--border-default);
+    background: var(--bg-panel);
+  }
+  .ev-col-header {
+    background: var(--bg-header);
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: var(--font-base);
+    border-bottom: 1px solid var(--border-default);
+    height: var(--header-h);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .ev-col-header .sub {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+  .ev-col-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .ev-cat {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    margin-top: var(--space-2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .ev-op {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .ev-op:hover {
+    background: var(--bg-hover);
+  }
+  .ev-op.selected {
+    background: var(--accent-primary-bg);
+    border-color: var(--accent-primary);
+  }
+  .ev-op-name {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ev-op-cn {
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+  }
+  .imported-tag {
+    display: none;
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-sm);
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .ev-op.imported .imported-tag {
+    display: inline-flex;
+  }
+
+  /* 算子库面板底部入口 */
+  .entry-row {
+    padding: var(--space-2);
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-header);
+    display: flex;
+    gap: var(--space-1);
+    flex-shrink: 0;
+  }
+  .entry-row .btn {
+    flex: 1;
+    font-size: var(--font-xs);
+    padding: 0 var(--space-2);
+    height: var(--control-h);
+  }
+  .entry-row .btn .count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-1);
+    font-family: var(--font-mono);
+  }
+
+  /* 画布节点 */
+  .ev-canvas {
+    flex: 1;
+    position: relative;
+    background-image:
+      radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 16px 16px;
+    background-position: 0 0;
+  }
+  .ev-node {
+    position: absolute;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-xs);
+    width: 150px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .ev-node-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .ev-node.using-imported {
+    border-color: var(--accent-primary);
+  }
+  .ev-node.using-imported .ev-node-title::after {
+    content: "I";
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 9px;
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+  }
+  .ev-node-port {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+  .ev-node-port .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+  }
+  .ev-node-port.out .dot {
+    background: var(--accent-success);
+  }
+
+  /* 详情面板 */
+  .detail-section {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .detail-section h3 {
+    font-size: var(--font-sm);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+  }
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-sm);
+    padding: var(--space-1) 0;
+  }
+  .detail-row .k { color: var(--text-tertiary); }
+  .detail-row .v {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+  }
+
+  /* 高亮徽章 */
+  .hl-badge {
+    position: absolute;
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 10px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(124, 77, 255, 0.4);
+  }
+  .hl-badge::after {
+    content: "";
+    position: absolute;
+    border: 5px solid transparent;
+  }
+  .hl-badge.right::after {
+    border-right-color: var(--accent-primary);
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .hl-badge.left::after {
+    border-left-color: var(--accent-primary);
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .hl-badge.bottom::after {
+    border-bottom-color: var(--accent-primary);
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* ============ Toast ============ */
+  .toast {
+    position: fixed;
+    top: var(--space-6);
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--bg-surface);
+    border: 1px solid var(--accent-success);
+    color: var(--accent-success);
+    padding: var(--space-2) var(--space-5);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-base);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    pointer-events: none;
+    max-width: 80vw;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  .toast.error {
+    border-color: var(--accent-error);
+    color: var(--accent-error);
+  }
+  .toast.warning {
+    border-color: var(--accent-warning);
+    color: var(--accent-warning);
+  }
+
+  /* ============ 通用 ============ */
+  .scroll-y { overflow-y: auto; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: var(--radius-sm);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-disabled); }
+
+  .legend {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-sm);
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<h1>O1a · 算子导入功能 — 实现阶段 UI 验收示意图</h1>
+<div class="meta">
+  范围：tasks.md 阶段 7-9（OperatorImportDialog / ImportedOperatorsPanel / Main.qml 入口） ｜
+  UI 技术栈：QML（对齐 EditView DesignTokens v3.0.0） ｜
+  生成日期：2026-07-15 ｜
+  配套 spec：2026-07-15-O1a-operator-import-design.md
+</div>
+
+<div class="scene-switcher">
+  <button class="scene-tab active" onclick="showScene(1)">场景 1 · 阶段 7 — OperatorImportDialog 导入对话框</button>
+  <button class="scene-tab" onclick="showScene(2)">场景 2 · 阶段 8 — ImportedOperatorsPanel 已导入算子面板</button>
+  <button class="scene-tab" onclick="showScene(3)">场景 3 · 阶段 9 — Main.qml 入口按钮接入位置</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- 场景 1 · 阶段 7 — OperatorImportDialog 导入对话框（580×680） -->
+<!-- ============================================================ -->
+<div class="scene active" id="scene1">
+  <div class="scene-intro">
+    <h2>场景 1 · 阶段 7 — OperatorImportDialog 导入对话框</h2>
+    <p>
+      580×680 Popup，4 分区布局：选文件区 / 预览区 / 校验结果区 / 操作按钮区。
+      展示从 .qdvop 文件加载预览到提交导入的完整流程，校验结果三色分区（成功/警告/错误），
+      当存在错误项时"提交导入"按钮禁用并显示"请先解决冲突"。
+    </p>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-orange);"></span>输入端口</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-success);"></span>输出端口</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-success-bg);border:1px solid var(--accent-success);"></span>校验通过</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-warning-bg);border:1px solid var(--accent-warning);"></span>校验警告</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-error-bg);border:1px solid var(--accent-error);"></span>校验错误</div>
+  </div>
+
+  <div class="stage">
+    <div class="stage-mockup">
+      <div class="popup-overlay">
+        <div class="popup popup-s1">
+          <div class="popup-header">
+            <div class="popup-title">导入算子</div>
+            <button class="popup-close" onclick="closePopup()" title="关闭">×</button>
+          </div>
+
+          <div class="popup-body">
+            <!-- ① 选文件区 -->
+            <div class="section">
+              <div class="section-label"><span class="num">1</span>选文件区</div>
+              <div class="input-row">
+                <input class="input" readonly value="D:/projects/qdv/config/operators_imported/myops/ColorGrade.qdvop" />
+                <button class="btn" onclick="showToast('已选择文件，触发预览解析', 'success')">浏览…</button>
+              </div>
+              <div class="section-hint">文件过滤器：*.qdvop（QDV 算子包格式，单文件 ZIP 容器）</div>
+            </div>
+
+            <!-- ② 预览区 -->
+            <div class="section">
+              <div class="section-label"><span class="num">2</span>预览区 — 算子元信息</div>
+              <div class="meta-grid">
+                <span class="meta-key">type</span><span class="meta-val accent">com.example.ColorGrade</span>
+                <span class="meta-key">version</span><span class="meta-val">1.2.0</span>
+                <span class="meta-key">cnName</span><span class="meta-val cn">色彩校正</span>
+                <span class="meta-key">category</span><span class="meta-val cn">色彩</span>
+                <span class="meta-key">author</span><span class="meta-val cn">示例作者</span>
+                <span class="meta-key">desc</span><span class="meta-val cn">对图像进行色彩分级处理</span>
+              </div>
+
+              <div class="port-block">
+                <div class="port-block-title">输入端口（橙色左边框）</div>
+                <div class="port-list">
+                  <div class="port-item">
+                    <span class="port-name">image</span>
+                    <span class="port-type">ImageData</span>
+                    <span class="port-desc">输入图像（必填）</span>
+                  </div>
+                  <div class="port-item">
+                    <span class="port-name">mask</span>
+                    <span class="port-type optional">ImageData?</span>
+                    <span class="port-desc">可选遮罩</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="port-block">
+                <div class="port-block-title">输出端口（绿色左边框）</div>
+                <div class="port-list">
+                  <div class="port-item output-port">
+                    <span class="port-name">output</span>
+                    <span class="port-type">ImageData</span>
+                    <span class="port-desc">处理后图像</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="port-block">
+                <div class="port-block-title">参数列表（只读）</div>
+                <div class="params-table">
+                  <div class="params-row head">
+                    <span>name</span><span>type</span><span>default</span><span>说明</span>
+                  </div>
+                  <div class="params-row">
+                    <code>gain</code><code>float</code><code>1.0</code><span class="pdesc">增益</span>
+                  </div>
+                  <div class="params-row">
+                    <code>offset</code><code>float</code><code>0.0</code><span class="pdesc">偏移</span>
+                  </div>
+                  <div class="params-row">
+                    <code>gamma</code><code>float</code><code>1.0</code><span class="pdesc">伽马值</span>
+                  </div>
+                  <div class="params-row">
+                    <code>lutPath</code><code>string</code><code>""</code><span class="pdesc">LUT 文件路径</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ③ 校验结果区 -->
+            <div class="section">
+              <div class="section-label"><span class="num">3</span>校验结果区（三色分区）</div>
+              <div class="validation-list">
+                <div class="validation-item validation-success">
+                  <span class="v-icon">✓</span>
+                  <span class="v-text">通过: <strong>8</strong> 项检查（格式 / 端口签名 / 参数默认值 / 依赖完整性 / 元信息完整）</span>
+                </div>
+                <div class="validation-item validation-warning">
+                  <span class="v-icon">⚠</span>
+                  <span class="v-text">警告: recipe 引用未知算子 <code>'com.example.OldFilter'</code>，运行时将跳过该步骤（不阻断导入）</span>
+                </div>
+                <div class="validation-item validation-error">
+                  <span class="v-icon">✗</span>
+                  <span class="v-text">错误: type <code>'com.example.ColorGrade'</code> 已存在（内置算子），提交将被禁用</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ④ 操作按钮区 -->
+          <div class="popup-footer">
+            <button class="btn" onclick="closePopup()">取消</button>
+            <button class="btn btn-primary" disabled title="存在错误项，请先解决冲突">提交导入（请先解决冲突）</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标注区 -->
+    <div class="stage-annotations">
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">A</span>
+          <span class="annotation-title">选文件后触发预览解析</span>
+        </div>
+        <div class="annotation-body">
+          用户点击"浏览"选择 <code>.qdvop</code> 文件后，QML 将路径传递给 Bridge 层，Bridge 转发至 Controller 解析文件，返回 <code>ImportPreview</code> 结构体给 QML 渲染预览区。预览为只读，不产生副作用。
+        </div>
+        <div class="code-chain"><span class="comment">// QML onSelectFile</span>
+<span class="step">OperatorLibraryBridge::requestPreview(path)</span>
+<span class="arrow">→</span> <span class="step">Controller::importFile(path)</span>
+<span class="arrow">→</span> <span class="ret">return ImportPreview { meta, ports, params, validation }</span></div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">B</span>
+          <span class="annotation-title">提交按钮触发实际导入</span>
+        </div>
+        <div class="annotation-body">
+          校验结果区无错误项时按钮可用。点击后 Bridge 将 preview 提交至 Controller，Controller 执行实际导入（写入 <code>config/operators_imported</code>）并发射信号通知 QML 刷新算子库面板。
+        </div>
+        <div class="code-chain"><span class="comment">// QML onSubmit</span>
+<span class="step">OperatorLibraryBridge::commitImport(preview)</span>
+<span class="arrow">→</span> <span class="step">Controller::commitImport(preview)</span>
+<span class="arrow">→</span> <span class="signal">emit importedChanged(type, "added")</span></div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">C</span>
+          <span class="annotation-title">信号监听刷新算子面板</span>
+        </div>
+        <div class="annotation-body">
+          QML 端监听 <code>importedChanged</code> 信号，通过置空 model 触发 rebuild，复用 Main.qml 中已有的算子列表重建模式（L1383-1384）。
+        </div>
+        <div class="code-chain"><span class="comment">// QML onImportedChanged(type, action)</span>
+<span class="step">operatorList.model = null</span>
+<span class="arrow">→</span> <span class="step">operatorList.model = operatorList.buildModel()</span>
+<span class="comment">// 复用 Main.qml L1383-1384 模式</span></div>
+      </div>
+
+      <div class="annotation error">
+        <div class="annotation-header">
+          <span class="annotation-icon">!</span>
+          <span class="annotation-title">冲突禁用规则（强约束）</span>
+        </div>
+        <div class="annotation-body">
+          当校验结果区存在红色"错误"项时，"提交导入"按钮必须禁用，按钮文字显示"<strong>请先解决冲突</strong>"。警告项（黄色）不阻断提交，由用户自行决定是否继续。本场景示意图展示的就是"有冲突被禁用"的状态。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- 场景 2 · 阶段 8 — ImportedOperatorsPanel 已导入算子面板（420×560） -->
+<!-- ============================================================ -->
+<div class="scene" id="scene2">
+  <div class="scene-intro">
+    <h2>场景 2 · 阶段 8 — ImportedOperatorsPanel 已导入算子面板</h2>
+    <p>
+      420×560 Popup，从右侧抽屉滑入。包含顶部搜索框、算子列表（ListView）、底部说明文字。
+      列表项展示算子名/版本/中文名/分类/删除按钮；已删除但本次仍可见的算子置灰显示并标注"已删除·重启生效"。
+    </p>
+  </div>
+
+  <div class="stage">
+    <div class="stage-mockup">
+      <div class="popup-overlay right-drawer">
+        <div class="popup popup-s2">
+          <!-- 顶部搜索框 -->
+          <div class="drawer-header">
+            <div class="drawer-title">
+              <span>已导入算子</span>
+              <button class="popup-close" onclick="closePopup()" title="关闭">×</button>
+            </div>
+            <div class="search-row">
+              <input class="search-input" placeholder="搜索 type / cnName…" />
+              <button class="btn" onclick="showToast('共 5 个已导入算子', 'success')" title="刷新">↻</button>
+            </div>
+          </div>
+
+          <!-- 列表区 -->
+          <div class="op-list">
+            <div class="op-item">
+              <div class="op-item-row1">
+                <span class="op-name">com.example.ColorGrade</span>
+                <span class="op-version">v1.2.0</span>
+              </div>
+              <div class="op-cnname">色彩校正</div>
+              <div class="op-meta">
+                <span class="cat">色彩</span>
+              </div>
+              <button class="delete-btn" onclick="confirmDelete('com.example.ColorGrade')" title="删除">×</button>
+            </div>
+
+            <div class="op-item">
+              <div class="op-item-row1">
+                <span class="op-name">com.example.NoiseGen</span>
+                <span class="op-version">v0.4.1</span>
+              </div>
+              <div class="op-cnname">噪声生成</div>
+              <div class="op-meta">
+                <span class="cat">生成器</span>
+              </div>
+              <button class="delete-btn" onclick="confirmDelete('com.example.NoiseGen')" title="删除">×</button>
+            </div>
+
+            <div class="op-item">
+              <div class="op-item-row1">
+                <span class="op-name">com.example.DepthMap</span>
+                <span class="op-version">v2.0.0</span>
+              </div>
+              <div class="op-cnname">深度图提取</div>
+              <div class="op-meta">
+                <span class="cat">几何</span>
+              </div>
+              <button class="delete-btn" onclick="confirmDelete('com.example.DepthMap')" title="删除">×</button>
+            </div>
+
+            <div class="op-item">
+              <div class="op-item-row1">
+                <span class="op-name">com.example.OldFilter</span>
+                <span class="op-version">v1.0.0</span>
+              </div>
+              <div class="op-cnname">旧版滤镜</div>
+              <div class="op-meta">
+                <span class="cat">滤镜</span>
+              </div>
+              <button class="delete-btn" onclick="confirmDelete('com.example.OldFilter')" title="删除">×</button>
+            </div>
+
+            <!-- 已删除但本次仍可见 -->
+            <div class="op-item deleted">
+              <div class="op-item-row1">
+                <span class="op-name">com.example.DeprecatedBlur</span>
+                <span class="op-version">v0.9.0</span>
+                <span class="deleted-tag">已删除·重启生效</span>
+              </div>
+              <div class="op-cnname">已弃用模糊</div>
+              <div class="op-meta">
+                <span class="cat">滤镜</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部说明文字 -->
+          <div class="drawer-footer">
+            <span class="ft-title">说明</span>
+            已删除的算子在下次启动后彻底消失，本次会话中仍可见但不可使用。这是由于 <code style="font-family:var(--font-mono);">OperatorDescriptors</code> 无反注册 API（已知技术债），删除后文件消失但 <code style="font-family:var(--font-mono);">s_externalRegistry</code> 仍保留。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标注区 -->
+    <div class="stage-annotations">
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">A</span>
+          <span class="annotation-title">列表数据源</span>
+        </div>
+        <div class="annotation-body">
+          QML 打开面板时调用 Bridge 拉取已导入算子列表，Bridge 转发至 Controller 查询 <code>config/operators_imported</code> 目录，返回 <code>QVariantList</code> 给 QML 作为 ListView model。
+        </div>
+        <div class="code-chain"><span class="comment">// QML onOpened</span>
+<span class="step">OperatorLibraryBridge::listImported()</span>
+<span class="arrow">→</span> <span class="step">Controller::query()</span>
+<span class="arrow">→</span> <span class="ret">return QVariantList</span></div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">B</span>
+          <span class="annotation-title">删除按钮 → 二次确认 → 移除</span>
+        </div>
+        <div class="annotation-body">
+          点击删除按钮先弹出 MessageDialog 二次确认；确认后 Bridge 调用 Controller 移除算子文件，Controller 发射 <code>importedChanged(type, "removed")</code> 信号通知 QML 刷新列表与算子库面板。
+        </div>
+        <div class="code-chain"><span class="comment">// QML onDelete → MessageDialog 确认</span>
+<span class="step">OperatorLibraryBridge::removeImported(type)</span>
+<span class="arrow">→</span> <span class="step">Controller::removeImported(type)</span>
+<span class="arrow">→</span> <span class="signal">emit importedChanged(type, "removed")</span></div>
+      </div>
+
+      <div class="annotation warn">
+        <div class="annotation-header">
+          <span class="annotation-icon">C</span>
+          <span class="annotation-title">画布预检阻断</span>
+        </div>
+        <div class="annotation-body">
+          删除前 Bridge 层遍历 <code>EditViewBridge::currentNodes</code> 检查该 type 在画布上的使用情况。若有节点正在使用，阻断删除并提示用户先清理画布上的相关节点。
+        </div>
+        <div class="code-chain"><span class="comment">// Bridge 画布预检</span>
+<span class="kw">for</span> node <span class="kw">in</span> <span class="step">EditViewBridge::currentNodes</span>:
+    <span class="kw">if</span> node.type == type:
+        <span class="ret">block + tip: "画布上存在 N 个使用该算子的节点"</span></div>
+      </div>
+
+      <div class="annotation warn">
+        <div class="annotation-header">
+          <span class="annotation-icon">D</span>
+          <span class="annotation-title">置灰逻辑（已知技术债）</span>
+        </div>
+        <div class="annotation-body">
+          <code>OperatorDescriptors</code> 没有反注册 API，删除后文件消失但内存中的 <code>s_externalRegistry</code> 仍保留描述符，因此本次会话中算子仍可见但置灰（<code>opacity 0.5</code>），标注"已删除·重启生效"。下次启动时彻底从注册表移除。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- 场景 3 · 阶段 9 — Main.qml 入口按钮接入位置 -->
+<!-- ============================================================ -->
+<div class="scene" id="scene3">
+  <div class="scene-intro">
+    <h2>场景 3 · 阶段 9 — Main.qml 入口按钮接入位置</h2>
+    <p>
+      展示 EditView 三栏布局（左：算子库面板 / 中：画布 / 右：详情面板），重点标注算子库面板底部新增的 RowLayout（两个入口按钮）、
+      已导入算子在列表中的紫色 "I" 标识，以及 Main.qml 中 Loader 的实例化位置。
+    </p>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-primary);"></span>新增入口按钮</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-primary);width:14px;height:14px;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;">I</span> 已导入算子标识</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent-primary);opacity:0.4;border:1px dashed var(--accent-primary);"></span>Loader 实例化位置</div>
+  </div>
+
+  <div class="editview">
+    <!-- 左栏：算子库面板 -->
+    <div class="ev-col left">
+      <div class="ev-col-header">
+        <span>算子库</span>
+        <span class="sub" id="importedCountLabel">已导入 5</span>
+      </div>
+      <div class="ev-col-body">
+        <div class="ev-cat">内置</div>
+        <div class="ev-op">
+          <span class="ev-op-name">ImageLoad</span>
+          <span class="ev-op-cn">图像加载</span>
+        </div>
+        <div class="ev-op">
+          <span class="ev-op-name">ImageSave</span>
+          <span class="ev-op-cn">图像保存</span>
+        </div>
+        <div class="ev-op">
+          <span class="ev-op-name">Resize</span>
+          <span class="ev-op-cn">缩放</span>
+        </div>
+        <div class="ev-op">
+          <span class="ev-op-name">Blur</span>
+          <span class="ev-op-cn">模糊</span>
+        </div>
+        <div class="ev-op">
+          <span class="ev-op-name">Threshold</span>
+          <span class="ev-op-cn">阈值化</span>
+        </div>
+
+        <div class="ev-cat">已导入</div>
+        <div class="ev-op imported">
+          <span class="imported-tag" title="已导入算子">I</span>
+          <span class="ev-op-name">com.example.ColorGrade</span>
+        </div>
+        <div class="ev-op imported selected">
+          <span class="imported-tag" title="已导入算子">I</span>
+          <span class="ev-op-name">com.example.NoiseGen</span>
+        </div>
+        <div class="ev-op imported">
+          <span class="imported-tag" title="已导入算子">I</span>
+          <span class="ev-op-name">com.example.DepthMap</span>
+        </div>
+        <div class="ev-op imported">
+          <span class="imported-tag" title="已导入算子">I</span>
+          <span class="ev-op-name">com.example.OldFilter</span>
+        </div>
+      </div>
+
+      <!-- 新增入口按钮 RowLayout -->
+      <div class="entry-row" style="position:relative;">
+        <button class="btn btn-primary" onclick="showToast('打开 OperatorImportDialog', 'success')" title="operatorImportDialogLoader.item.open()">
+          ＋ 导入算子
+        </button>
+        <button class="btn" onclick="showToast('打开 ImportedOperatorsPanel', 'success')" title="importedOperatorsPanelLoader.item.open()">
+          已导入 <span class="count">5</span>
+        </button>
+        <span class="hl-badge right" style="top:-8px;right:8px;">新增 RowLayout</span>
+      </div>
+    </div>
+
+    <!-- 中栏：画布 -->
+    <div class="ev-col center">
+      <div class="ev-col-header">
+        <span>画布</span>
+        <span class="sub">3 个节点 · 2 条连接</span>
+      </div>
+      <div class="ev-canvas">
+        <div class="ev-node" style="top:40px;left:40px;">
+          <div class="ev-node-title">ImageLoad</div>
+          <div class="ev-node-port out"><span class="dot"></span>output</div>
+        </div>
+        <div class="ev-node using-imported" style="top:120px;left:200px;">
+          <div class="ev-node-title">com.example.NoiseGen</div>
+          <div class="ev-node-port"><span class="dot"></span>image</div>
+          <div class="ev-node-port out"><span class="dot"></span>output</div>
+          <span class="hl-badge bottom" style="top:auto;bottom:-26px;left:50%;transform:translateX(-50%);">画布上使用已导入算子</span>
+        </div>
+        <div class="ev-node" style="top:240px;left:360px;">
+          <div class="ev-node-title">ImageSave</div>
+          <div class="ev-node-port"><span class="dot"></span>input</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：详情面板 -->
+    <div class="ev-col right">
+      <div class="ev-col-header">
+        <span>节点详情</span>
+      </div>
+      <div class="ev-col-body">
+        <div class="detail-section">
+          <h3>基本信息</h3>
+          <div class="detail-row"><span class="k">type</span><span class="v">com.example.NoiseGen</span></div>
+          <div class="detail-row"><span class="k">cnName</span><span class="v" style="font-family:var(--font-cjk);">噪声生成</span></div>
+          <div class="detail-row"><span class="k">version</span><span class="v">0.4.1</span></div>
+          <div class="detail-row"><span class="k">category</span><span class="v" style="font-family:var(--font-cjk);">生成器</span></div>
+          <div class="detail-row"><span class="k">来源</span><span class="v" style="color:var(--accent-primary);">已导入</span></div>
+        </div>
+        <div class="detail-section">
+          <h3>输入端口</h3>
+          <div class="detail-row"><span class="k">image</span><span class="v">ImageData</span></div>
+        </div>
+        <div class="detail-section">
+          <h3>输出端口</h3>
+          <div class="detail-row"><span class="k">output</span><span class="v">ImageData</span></div>
+        </div>
+        <div class="detail-section">
+          <h3>参数</h3>
+          <div class="detail-row"><span class="k">strength</span><span class="v">0.5</span></div>
+          <div class="detail-row"><span class="k">seed</span><span class="v">42</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 标注区 -->
+  <div class="stage" style="margin-top:var(--space-6);">
+    <div class="stage-annotations" style="max-width:none;flex:1;">
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">A</span>
+          <span class="annotation-title">入口位置 — 算子库面板底部</span>
+        </div>
+        <div class="annotation-body">
+          在 <code>qml/EditView/Main.qml</code> 算子库面板的 <code>panel-body</code> 之后、面板结束前，新增一个 <code>RowLayout</code> 包含两个按钮。"已导入 (N)" 中的 N 绑定到 <code>operatorLibraryBridge.importedCount</code>，随导入/删除实时刷新。
+        </div>
+        <div class="code-chain"><span class="comment">// qml/EditView/Main.qml 算子库面板</span>
+<span class="comment">// panel-body 之后 / 面板结束前</span>
+RowLayout {
+    Button {
+        text: "＋ 导入算子"
+        onClicked: <span class="step">operatorImportDialogLoader.item.open()</span>
+    }
+    Button {
+        text: "已导入 (" + <span class="step">operatorLibraryBridge.importedCount</span> + ")"
+        onClicked: <span class="step">importedOperatorsPanelLoader.item.open()</span>
+    }
+}</div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">B</span>
+          <span class="annotation-title">已导入算子标识 — 紫色 "I" 标签</span>
+        </div>
+        <div class="annotation-body">
+          在算子库列表的每一项中，若该算子来自 <code>config/operators_imported</code> 目录，则在算子名右侧显示紫色小标签 "I"（imported 标记），便于用户区分内置算子与已导入算子。详情面板的"来源"字段也显示"已导入"。
+        </div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">C</span>
+          <span class="annotation-title">Loader 实例化 — Main.qml</span>
+        </div>
+        <div class="annotation-body">
+          在 Main.qml 中添加两个 Loader，分别加载 <code>OperatorImportDialog.qml</code> 和 <code>ImportedOperatorsPanel.qml</code>，使用 <code>active: false</code> 懒加载，首次点击入口按钮时才实例化。
+        </div>
+        <div class="code-chain"><span class="comment">// qml/EditView/Main.qml</span>
+Loader {
+    id: operatorImportDialogLoader
+    source: "OperatorImportDialog.qml"
+    active: false  <span class="comment">// 懒加载</span>
+}
+Loader {
+    id: importedOperatorsPanelLoader
+    source: "ImportedOperatorsPanel.qml"
+    active: false
+}</div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">D</span>
+          <span class="annotation-title">刷新机制 — 监听 importedChanged 信号</span>
+        </div>
+        <div class="annotation-body">
+          Main.qml 监听 Bridge 的 <code>importedChanged</code> 信号，触发后置空算子列表 model 并重建，复用现有 L1383-1384 模式。无论 added 还是 removed 都会触发刷新，确保列表与磁盘状态一致。
+        </div>
+        <div class="code-chain"><span class="comment">// qml/EditView/Main.qml</span>
+Connections {
+    target: operatorLibraryBridge
+    <span class="kw">function</span> onImportedChanged(type, action) {
+        <span class="step">operatorList.model = null</span>
+        <span class="step">operatorList.model = operatorList.buildModel()</span>
+        <span class="comment">// 复用 Main.qml L1383-1384 模式</span>
+    }
+}</div>
+      </div>
+
+      <div class="annotation">
+        <div class="annotation-header">
+          <span class="annotation-icon">E</span>
+          <span class="annotation-title">初始化时机 — main.cpp 启动</span>
+        </div>
+        <div class="annotation-body">
+          <code>main.cpp</code> 启动时调用 Controller 单例的 init 方法，指定已导入算子的存储目录与内置算子目录。Controller 会扫描目录并填充 <code>s_externalRegistry</code>，供 Bridge 查询。
+        </div>
+        <div class="code-chain"><span class="comment">// main.cpp 启动阶段</span>
+<span class="step">OperatorLibraryController::instance()->init(
+    "config/operators_imported",  <span class="comment">// 已导入目录</span>
+    ""                             <span class="comment">// 内置目录（默认）</span>
+)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Toast 提示 -->
+<div class="toast" id="toast">操作成功</div>
+
+<script>
+  // 场景切换
+  function showScene(n) {
+    var scenes = document.querySelectorAll('.scene');
+    var tabs = document.querySelectorAll('.scene-tab');
+    for (var i = 0; i < scenes.length; i++) {
+      scenes[i].classList.remove('active');
+    }
+    for (var j = 0; j < tabs.length; j++) {
+      tabs[j].classList.remove('active');
+    }
+    document.getElementById('scene' + n).classList.add('active');
+    tabs[n - 1].classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // 弹窗关闭提示
+  function closePopup() {
+    showToast('弹窗已关闭', 'warning');
+  }
+
+  // Toast 提示（顶部居中，3 秒后自动消失）
+  var toastTimer = null;
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (type || '');
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(function () {
+      t.className = 'toast ' + (type || '');
+    }, 3000);
+  }
+
+  // 场景 2 删除确认
+  function confirmDelete(name) {
+    if (confirm('确认删除已导入算子 "' + name + '"？\n\n画布预检：未发现使用该算子的节点。\n删除后将在下次启动后彻底生效（本次会话中仍可见但置灰）。')) {
+      showToast('已删除算子 ' + name + '（重启生效）', 'success');
+    }
+  }
+</script>
+
+</body>
+</html>

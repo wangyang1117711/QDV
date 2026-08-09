@@ -21,8 +21,12 @@ import QDV.EditView 3.0 as Tok
 
 Rectangle {
     id: root
-    width: 1280
-    height: 800
+    // v3.2.1 修复首次未铺满：根元素必须跟随 QQuickWidget viewport 自动拉伸。
+    // 原固定 width:1280/height:800 在 QQuickWidget::SizeRootObjectToView 模式下，
+    // 首次加载时若 viewport 尚未完成布局，会导致界面只显示 1280x800 区域，
+    // 窗口最大化后右侧/底部出现大片空白。改为 anchors.fill: parent 让 root
+    // 自动占满 QQuickWidget 的视口，彻底消除该问题。
+    anchors.fill: parent
     color: Tok.DesignTokens.bgCanvas
 
     property string currentSelectedNodeId: ""
@@ -33,6 +37,9 @@ Rectangle {
     property string activeFilter: "all"
     property real   canvasZoom: 1.0
     property var    selectedNodeIds: []    // v3.0.0：多选
+
+    // spec: editor-output-connection-optimization Task7：冲突数量角标
+    property int    conflictCount: 0
 
     // P1-B01 修复：画布平移偏移量（节点世界坐标 → 屏幕坐标 = world * zoom + offset）
     // 之前 canvasOffsetX/Y 未定义，小地图视口框绘制为 NaN，点击导航设置属性后画布不响应
@@ -90,6 +97,69 @@ Rectangle {
     // v2.5.0 功能 2 增强：连接线独立选中状态（-1=无选中）
     property int    selectedConnectionIndex: -1
 
+    // v2.7.0 Phase 3.1：分组容器折叠状态字典
+    // key=分组ID（loopToolId / branchToolId / branchId），value=true 表示已折叠
+    // 折叠时通过 nodeRepeater.itemAt(idx).visible=false 隐藏对应子节点
+    property var    groupCollapsed: ({})
+
+    // v2.7.0 Phase 3.1：计算一组节点 ID 在画布上的屏幕坐标包围盒
+    // 返回 {minX, minY, maxX, maxY, valid}（valid=false 表示无节点匹配）
+    // 屏幕坐标 = 世界坐标 * canvasZoom + canvasOffset
+    function computeNodeBBox(nodeIds) {
+        var nodes = editViewBridge.currentNodes
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        var found = 0
+        var nw = Tok.DesignTokens.nodeCardWidth
+        var nh = Tok.DesignTokens.nodeCardHeight
+        for (var i = 0; i < nodeIds.length; i++) {
+            var id = nodeIds[i]
+            for (var j = 0; j < nodes.length; j++) {
+                if (nodes[j].id === id) {
+                    var nx = nodes[j].x
+                    var ny = nodes[j].y
+                    if (nx < minX) minX = nx
+                    if (ny < minY) minY = ny
+                    if (nx + nw > maxX) maxX = nx + nw
+                    if (ny + nh > maxY) maxY = ny + nh
+                    found++
+                    break
+                }
+            }
+        }
+        if (found === 0) return {minX: 0, minY: 0, maxX: 0, maxY: 0, valid: false}
+        var z = root.canvasZoom
+        return {
+            minX: minX * z + root.canvasOffsetX,
+            minY: minY * z + root.canvasOffsetY,
+            maxX: maxX * z + root.canvasOffsetX,
+            maxY: maxY * z + root.canvasOffsetY,
+            valid: true
+        }
+    }
+
+    // v2.7.0 Phase 3.1：切换分组折叠状态，并同步设置子节点 delegate.visible
+    // 不修改节点 Repeater 的 model/delegate，仅通过 itemAt() 访问实例改 visible
+    function toggleGroupCollapse(groupId, childIds) {
+        var st = root.groupCollapsed
+        var newCollapsed = !(st[groupId] === true)
+        // 复制字典以触发属性变更通知
+        var newSt = {}
+        for (var k in st) newSt[k] = st[k]
+        newSt[groupId] = newCollapsed
+        root.groupCollapsed = newSt
+        // 遍历节点 Repeater，设置匹配 ID 的 delegate.visible
+        for (var i = 0; i < childIds.length; i++) {
+            var id = childIds[i]
+            for (var j = 0; j < nodeRepeater.count; j++) {
+                var item = nodeRepeater.itemAt(j)
+                if (item && item.nodeData && item.nodeData.id === id) {
+                    item.visible = !newCollapsed
+                    break
+                }
+            }
+        }
+    }
+
     // v5.3.2 修复 QRhi 跨实例错误：
     // 根因：QQuickWidget 嵌入 QStackedWidget 时，隐藏/显示或 GPU device loss 会重建
     // QRhi 上下文；若 QML 场景保持常驻，旧 QSG 纹理仍引用已销毁的 QRhi，导致
@@ -139,6 +209,18 @@ Rectangle {
                     nodeId: nodeId
                 }).open()
             }
+        }
+    }
+
+    // v2.8.0：打开算子帮助弹窗（通过 operatorHelpDialogLoader 延迟加载单例）
+    function openOperatorHelp(operatorType) {
+        if (!operatorType || operatorType === "") return
+        if (!operatorHelpDialogLoader.item) {
+            operatorHelpDialogLoader.active = true
+        }
+        if (operatorHelpDialogLoader.item) {
+            operatorHelpDialogLoader.item.operatorType = operatorType
+            operatorHelpDialogLoader.item.open()
         }
     }
 
@@ -211,49 +293,142 @@ Rectangle {
         previewWindow.open()
     }
 
-    // v2.5.0 功能 2：连线命中检测
-    // 计算屏幕坐标 (px, py) 到第 idx 条连线的最短距离
-    // 连线为贝塞尔曲线，采样 20 个点近似为线段，计算点到线段最短距离
-    // 返回值：距离 < threshold 时返回最近的那条连线索引，-1 表示未命中
-    function hitTestConnection(px, py) {
-        var nodes = editViewBridge.currentNodes
+    // ============ spec: editor-output-connection-optimization Task5 ============
+    // 分层处理 + 连线标签 + 交叉避让 的几何计算（O(n)）支持
+    // buildConnectionMaps：一次性构建所有连线的分组计数/索引/节点映射，
+    // 供绘制层与命中检测层共用，保证「绘制曲线」与「点击命中」几何完全一致。
+    function buildConnectionMaps() {
         var conns = editViewBridge.connections
+        var n = conns.length
+        // 节点 id → 节点对象 映射（避免绘制时 O(n²) 遍历查找）
+        var nodeMap = {}
+        var curNodes = editViewBridge.currentNodes
+        for (var ni = 0; ni < curNodes.length; ni++) {
+            nodeMap[curNodes[ni].id] = curNodes[ni]
+        }
+        var pairCount = {}, fromCount = {}, toCount = {}
+        var pairIdx = [], fromIdx = [], toIdx = []
+        var pairSeen = {}, fromSeen = {}, toSeen = {}
+        for (var i = 0; i < n; i++) {
+            var c = conns[i]
+            var pk = c.fromId + "|" + c.toId
+            pairCount[pk] = (pairCount[pk] || 0) + 1
+            fromCount[c.fromId] = (fromCount[c.fromId] || 0) + 1
+            toCount[c.toId] = (toCount[c.toId] || 0) + 1
+        }
+        for (var j = 0; j < n; j++) {
+            var cc = conns[j]
+            var pk2 = cc.fromId + "|" + cc.toId
+            pairIdx[j] = pairSeen[pk2] || 0
+            pairSeen[pk2] = pairIdx[j] + 1
+            fromIdx[j] = fromSeen[cc.fromId] || 0
+            fromSeen[cc.fromId] = fromIdx[j] + 1
+            toIdx[j] = toSeen[cc.toId] || 0
+            toSeen[cc.toId] = toIdx[j] + 1
+        }
+        return {nodeMap: nodeMap, pairCount: pairCount, fromCount: fromCount, toCount: toCount,
+                pairIdx: pairIdx, fromIdx: fromIdx, toIdx: toIdx}
+    }
+
+    // connectionCurve：计算第 idx 条连线的屏幕端点/控制点/中点（含分层与交叉避让偏移）
+    // 分层：同一对节点间多条连线按索引垂直错开（平行连线免重叠）
+    // 扇出/扇入：同源/同目标多条连线轻微散开，避免汇聚重叠
+    function connectionCurve(idx, maps) {
+        var conns = editViewBridge.connections
+        if (idx < 0 || idx >= conns.length) return null
+        var conn = conns[idx]
+        var fromNode = maps.nodeMap[conn.fromId]
+        var toNode = maps.nodeMap[conn.toId]
+        if (!fromNode || !toNode) return null
         var z = root.canvasZoom
         var ox = root.canvasOffsetX
         var oy = root.canvasOffsetY
         var nodeW = Tok.DesignTokens.nodeCardWidth
         var nodeH = Tok.DesignTokens.nodeCardHeight
-        var threshold = 12  // 命中阈值（像素），适当放宽以提高点击成功率
-        var livePos = connectionsCanvas.livePositions  // v2.5.0 修复：实时位置字典
-
-        // v2.5.0 修复：优先用 livePositions 中的实时坐标
+        var livePos = connectionsCanvas.livePositions
         function getNodePos(node) {
             var live = livePos[node.id]
             if (live !== undefined) return {x: live.x, y: live.y}
             return {x: node.x, y: node.y}
         }
+        var fromPos = getNodePos(fromNode)
+        var toPos = getNodePos(toNode)
+        // 屏幕坐标 = world * zoom + offset
+        var fx = (fromPos.x + nodeW) * z + ox
+        var fy = (fromPos.y + nodeH / 2) * z + oy
+        var tx = toPos.x * z + ox
+        var ty = (toPos.y + nodeH / 2) * z + oy
+
+        var pk = conn.fromId + "|" + conn.toId
+        var pairCount = maps.pairCount[pk] || 1
+        var pairIdx = maps.pairIdx[idx] || 0
+        var fromCount = maps.fromCount[conn.fromId] || 1
+        var fromIdx = maps.fromIdx[idx] || 0
+        var toCount = maps.toCount[conn.toId] || 1
+        var toIdx = maps.toIdx[idx] || 0
+
+        // 分层偏移：同一对节点间多条连线垂直错开（主机制）
+        var offsetY = 0
+        if (pairCount > 1) {
+            offsetY += (pairIdx - (pairCount - 1) / 2) * (16 * z)
+        }
+        // 扇出/扇入弯曲：同源/同目标多条连线轻微散开
+        if (fromCount > 1) {
+            offsetY += (fromIdx - (fromCount - 1) / 2) * (6 * z)
+        }
+        if (toCount > 1) {
+            offsetY += (toIdx - (toCount - 1) / 2) * (6 * z)
+        }
+
+        var absDx = Math.abs(tx - fx)
+        var cx1 = fx + absDx * 0.4
+        var cy1 = fy + offsetY
+        var cx2 = tx - absDx * 0.4
+        var cy2 = ty + offsetY
+        // 三次贝塞尔中点（t=0.5）：(P0 + 3P1 + 3P2 + P3)/8，用于绘制连线标签
+        var ux = (fx + 3 * cx1 + 3 * cx2 + tx) / 8
+        var uy = (fy + 3 * cy1 + 3 * cy2 + ty) / 8
+        return {fx: fx, fy: fy, tx: tx, ty: ty, cx1: cx1, cy1: cy1, cx2: cx2, cy2: cy2, ux: ux, uy: uy, fromPort: conn.fromPort, toPort: conn.toPort}
+    }
+
+    // v2.5.0 功能 2：连线命中检测
+    // 计算屏幕坐标 (px, py) 到第 idx 条连线的最短距离
+    // 连线为贝塞尔曲线，采样 20 个点近似为线段，计算点到线段最短距离
+    // 返回值：距离 < threshold 时返回最近的那条连线索引，-1 表示未命中
+    function hitTestConnection(px, py) {
+        // 修复：节点/端口排除保护。
+        // 若点击点落在任一节点卡片屏幕矩形内，一律不判定为连线命中，
+        // 把点击还给节点及其端口。否则已连线的节点（如 A→B 曲线从 A 输出端口出发）
+        // 其端口会被曲线命中检测拦截，导致无法再次点击 A 输出端口建立第二条连接。
+        var curNodes = editViewBridge.currentNodes
+        var zz = root.canvasZoom
+        var ox = root.canvasOffsetX
+        var oy = root.canvasOffsetY
+        var nW = Tok.DesignTokens.nodeCardWidth * zz
+        var nH = Tok.DesignTokens.nodeCardHeight * zz
+        var live = connectionsCanvas.livePositions
+        for (var ni = 0; ni < curNodes.length; ni++) {
+            var nd = curNodes[ni]
+            var livePos = live[nd.id]
+            var nx = (livePos !== undefined ? livePos.x : nd.x) * zz + ox
+            var ny = (livePos !== undefined ? livePos.y : nd.y) * zz + oy
+            if (px >= nx && px <= nx + nW && py >= ny && py <= ny + nH) {
+                return -1
+            }
+        }
+
+        var conns = editViewBridge.connections
+        var threshold = 12  // 命中阈值（像素），适当放宽以提高点击成功率
 
         var bestIdx = -1
         var bestDist = threshold
+        // spec: 复用与绘制一致的几何（含分层/交叉避让偏移），保证点击命中与实际显示相符
+        var maps = root.buildConnectionMaps()
         for (var ci = 0; ci < conns.length; ci++) {
-            var conn = conns[ci]
-            var fromNode = null, toNode = null
-            for (var ni = 0; ni < nodes.length; ni++) {
-                if (nodes[ni].id === conn.fromId) fromNode = nodes[ni]
-                if (nodes[ni].id === conn.toId) toNode = nodes[ni]
-            }
-            if (!fromNode || !toNode) continue
-
-            // v2.5.0 修复：用实时坐标计算贝塞尔曲线端点
-            var fromPos = getNodePos(fromNode)
-            var toPos = getNodePos(toNode)
-            // 贝塞尔曲线端点（屏幕坐标）
-            var fx = (fromPos.x + nodeW) * z + ox
-            var fy = (fromPos.y + nodeH / 2) * z + oy
-            var tx = toPos.x * z + ox
-            var ty = (toPos.y + nodeH / 2) * z + oy
-            var cx1 = fx + Math.abs(tx - fx) * 0.4
-            var cx2 = tx - Math.abs(tx - fx) * 0.4
+            var g = root.connectionCurve(ci, maps)
+            if (!g) continue
+            var fx = g.fx, fy = g.fy, tx = g.tx, ty = g.ty
+            var cx1 = g.cx1, cy1 = g.cy1, cx2 = g.cx2, cy2 = g.cy2
 
             // 采样 20 个点，计算点到每段线段的最短距离
             var prevX = fx, prevY = fy
@@ -267,26 +442,32 @@ Rectangle {
                       + 3 * oneMinusU * u * u * cx2
                       + u * u * u * tx
                 var y = oneMinusU * oneMinusU * oneMinusU * fy
-                      + 3 * oneMinusU * oneMinusU * u * fy
-                      + 3 * oneMinusU * u * u * ty
+                      + 3 * oneMinusU * oneMinusU * u * cy1
+                      + 3 * oneMinusU * u * u * cy2
                       + u * u * u * ty
 
                 // 点 (px,py) 到线段 (prevX,prevY)-(x,y) 的最短距离
-                var dx = x - prevX
-                var dy = y - prevY
-                var lenSq = dx * dx + dy * dy
-                var proj = 0
-                if (lenSq > 0.0001) {
-                    proj = ((px - prevX) * dx + (py - prevY) * dy) / lenSq
-                    proj = Math.max(0, Math.min(1, proj))
-                }
-                var closestX = prevX + proj * dx
-                var closestY = prevY + proj * dy
-                var distX = px - closestX
-                var distY = py - closestY
-                var dist = Math.sqrt(distX * distX + distY * distY)
-                if (dist < connMinDist) {
-                    connMinDist = dist
+                // 修复：跳过端口附近的端点段（t==1 起点段、t==20 终点段）。
+                // 连线曲线从源输出端口中心出发、在目标输入端口中心结束，
+                // 若不跳过，点击端口会被判为命中连线并被 connectionHitArea(z:1) 拦截，
+                // 导致无法点击输出端口启动第二条连接 / 无法点击输入端口完成建连。
+                if (t >= 2 && t <= 19) {
+                    var dx = x - prevX
+                    var dy = y - prevY
+                    var lenSq = dx * dx + dy * dy
+                    var proj = 0
+                    if (lenSq > 0.0001) {
+                        proj = ((px - prevX) * dx + (py - prevY) * dy) / lenSq
+                        proj = Math.max(0, Math.min(1, proj))
+                    }
+                    var closestX = prevX + proj * dx
+                    var closestY = prevY + proj * dy
+                    var distX = px - closestX
+                    var distY = py - closestY
+                    var dist = Math.sqrt(distX * distX + distY * distY)
+                    if (dist < connMinDist) {
+                        connMinDist = dist
+                    }
                 }
                 prevX = x
                 prevY = y
@@ -539,6 +720,9 @@ Rectangle {
             root.rightPanelPinned = editorState.rightPanelPinned
         // P1-B02：让 root 获取焦点以接收空格键 Keys 事件
         root.forceActiveFocus()
+        // spec: editor-output-connection-optimization Task7：初始化冲突角标
+        root.conflictCount = (editViewBridge && editViewBridge.conflictDetector)
+                             ? editViewBridge.conflictDetector.detectAll().length : 0
     }
 
     // 变化时写回
@@ -565,9 +749,10 @@ Rectangle {
             }
         }
         function onFavoritesChanged() {
-            // 收藏变化时刷新算子库面板
+            // 收藏变化时刷新算子库面板（v-spec: 重建分类列表模型）
             if (root.activeFilter === "favorites") {
-                operatorListView.model = root.getFilteredOperators()
+                operatorList.model = null
+                operatorList.model = operatorList.buildModel()
             }
         }
         // 异步部署完成 → 处理结果
@@ -582,6 +767,23 @@ Rectangle {
                 root.syncPreviewToNode(root.currentSelectedNodeId)
             }
         }
+        // spec: editor-output-connection-optimization Task7：冲突变化时刷新角标
+        function onConflictsChanged() {
+            root.conflictCount = (editViewBridge && editViewBridge.conflictDetector)
+                                 ? editViewBridge.conflictDetector.detectAll().length : 0
+        }
+    }
+
+    // v2.7.0 O1a：监听算子导入/删除信号，刷新算子库面板
+    // 导入成功后新算子需出现在左侧算子库列表中
+    Connections {
+        target: editViewBridge && editViewBridge.operatorLibraryBridge
+                ? editViewBridge.operatorLibraryBridge : null
+        function onImportedChanged(type, action) {
+            // 复用 L1383-1384 模式：重建算子列表
+            operatorList.model = null
+            operatorList.model = operatorList.buildModel()
+        }
     }
 
     // ============ 文件对话框 ============
@@ -589,6 +791,45 @@ Rectangle {
     // 中文/空格路径会变成 %20 等编码，导致 QSaveFile 找不到目录。
     // 正确做法：用 decodeURIComponent 解码 QUrl 的百分号编码。
     // 同时增加多格式支持：JSON / 压缩包 .qdvz / XML
+
+    // 导出对话框（Loader 延迟加载，避免资源浪费）
+    Loader {
+        id: exportDialogLoader
+        source: "qrc:/qml/EditView/ExportDialog.qml"
+        onLoaded: {
+            item.parent = root
+            item.bridge = editViewBridge
+        }
+    }
+
+    // v2.7.0 O1a：算子导入对话框 + 已导入算子面板（Loader 延迟加载）
+    Loader {
+        id: operatorImportDialogLoader
+        source: "qrc:/qml/EditView/OperatorImportDialog.qml"
+        onLoaded: {
+            item.parent = root
+            item.bridge = editViewBridge
+        }
+    }
+    Loader {
+        id: importedOperatorsPanelLoader
+        source: "qrc:/qml/EditView/ImportedOperatorsPanel.qml"
+        onLoaded: {
+            item.parent = root
+            item.bridge = editViewBridge
+        }
+    }
+
+    // v2.8.0：算子帮助弹窗（延迟加载，首次调用 openOperatorHelp 时激活）
+    Loader {
+        id: operatorHelpDialogLoader
+        active: false
+        source: "qrc:/qml/EditView/OperatorHelpDialog.qml"
+        onLoaded: {
+            item.parent = root
+        }
+    }
+
     FileDialog {
         id: saveFileDialog
         title: "保存方案"
@@ -969,6 +1210,76 @@ Rectangle {
                 // v5.0：竖线分隔
                 Rectangle { width: 1; height: 18; color: Tok.DesignTokens.borderDefault; Layout.leftMargin: 2; Layout.rightMargin: 2 }
 
+                // spec: editor-output-connection-optimization Task5：连接管理面板入口
+                ToolButton {
+                    id: connManagerBtn
+                    text: "连"
+                    ToolTip.text: "连接管理（查看/筛选/删除所有连线）"
+                    ToolTip.visible: hovered
+                    implicitWidth: 26; implicitHeight: 26
+                    contentItem: Label {
+                        text: connManagerBtn.text
+                        color: Tok.DesignTokens.textSecondary
+                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: connManagerBtn.hovered ? Tok.DesignTokens.bgHover : "transparent"
+                        radius: Tok.DesignTokens.radiusSm
+                    }
+                    onClicked: {
+                        connectionManagerPanel.refresh()
+                        connectionManagerPanel.open()
+                    }
+                }
+                // spec: editor-output-connection-optimization Task7：输入/输出项冲突指定面板入口
+                ToolButton {
+                    id: conflictBtn
+                    text: "冲"
+                    ToolTip.text: "输入/输出冲突（查看并指定主方案）"
+                    ToolTip.visible: hovered
+                    implicitWidth: 26; implicitHeight: 26
+                    contentItem: Label {
+                        text: conflictBtn.text
+                        color: root.conflictCount > 0 ? Tok.DesignTokens.accentError : Tok.DesignTokens.textSecondary
+                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: conflictBtn.hovered ? Tok.DesignTokens.bgHover : "transparent"
+                        radius: Tok.DesignTokens.radiusSm
+                    }
+                    onClicked: {
+                        conflictPanel.refresh()
+                        conflictPanel.open()
+                    }
+                    // 冲突数量角标（红色数字）
+                    Rectangle {
+                        visible: root.conflictCount > 0
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        width: 16; height: 16
+                        radius: 8
+                        color: Tok.DesignTokens.accentError
+                        border.color: Tok.DesignTokens.bgHeader
+                        border.width: 1
+                        z: 10
+                        Label {
+                            anchors.centerIn: parent
+                            text: root.conflictCount > 99 ? "99+" : root.conflictCount
+                            color: "#FFFFFF"
+                            font.pixelSize: 9
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+                // v5.0：竖线分隔
+                Rectangle { width: 1; height: 18; color: Tok.DesignTokens.borderDefault; Layout.leftMargin: 2; Layout.rightMargin: 2 }
+
                 // v5.0：算子编辑（紧凑图标风格，去掉文字）
                 ToolButton {
                     id: editNodeBtn
@@ -1098,6 +1409,27 @@ Rectangle {
                         radius: Tok.DesignTokens.radiusSm
                     }
                     onClicked: loadFileDialog.open()
+                }
+
+                // 导出算子流程按钮
+                ToolButton {
+                    id: exportBtn
+                    text: "导"
+                    ToolTip.text: "导出算子流程为 DLL/EXE/Python"
+                    ToolTip.visible: hovered
+                    implicitWidth: 26; implicitHeight: 26
+                    contentItem: Label {
+                        text: exportBtn.text
+                        color: Tok.DesignTokens.textSecondary
+                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: exportBtn.hovered ? Tok.DesignTokens.bgHover : "transparent"
+                        radius: Tok.DesignTokens.radiusSm
+                    }
+                    onClicked: exportDialogLoader.item.open()
                 }
 
                 // 网格模式切换（v4.0）
@@ -1437,8 +1769,25 @@ Rectangle {
                         currentIndex: -1
                         keyNavigationWraps: false
                         focus: false
+                        // v-spec: 算子库飞级菜单 — 左侧仅渲染固定分类列表，不再就地展开
                         property var collapsed: ({})
                         property var filteredList: getFilteredOperators()
+                        // v-spec: 悬停展开的当前分类（空=不显示飞级菜单）
+                        property string hoveredCategory: ""
+                        property int hoveredCategoryIndex: -1
+                        // v-spec-fix: 缓存飞级菜单行，避免每次 model 绑定求值都返回新数组
+                        // 导致 ListView delegate 反复重建、hover 状态频繁重置（子菜单抖动关闭）
+                        property var flyoutRows: []
+
+                        function updateFlyout() {
+                            operatorList.flyoutRows = operatorList.flyoutModel()
+                        }
+                        // [RecDiag] 悬停分类变化点（经 C++ 落盘）
+                        onHoveredCategoryChanged: {
+                            if (editViewBridge) editViewBridge.logDiag(
+                                "[RecDiag] hoveredCategory => <" + operatorList.hoveredCategory + ">")
+                            updateFlyout()
+                        }
 
                         // 默认折叠所有分类：组件加载完成后初始化
                         Component.onCompleted: {
@@ -1455,6 +1804,7 @@ Rectangle {
                             model = buildModel()
                         }
 
+                        // v-spec: 仅生成分类行（保持固定，不展开算子/子分组）
                         function buildModel() {
                             var rows = []
                             var ops = getFilteredOperators()
@@ -1462,65 +1812,129 @@ Rectangle {
                             for (var i = 0; i < ops.length; ++i) {
                                 var op = ops[i]
                                 var cat = op.category || "其他"
-                                if (!catMap[cat]) catMap[cat] = []
-                                catMap[cat].push(op)
+                                if (!catMap[cat]) catMap[cat] = 0
+                                catMap[cat]++
                             }
                             var cats = Object.keys(catMap).sort()
                             for (var ci = 0; ci < cats.length; ++ci) {
-                                var cat = cats[ci]
-                                rows.push({ kind: "category", category: cat,
-                                    expanded: !operatorList.collapsed[cat] })
-                                if (!operatorList.collapsed[cat]) {
-                                    var catOps = catMap[cat]
-                                    var sgMap = {}, noSg = []
-                                    for (var oi = 0; oi < catOps.length; ++oi) {
-                                        var sg = catOps[oi].subGroup || ""
-                                        if (sg) {
-                                            if (!sgMap[sg]) sgMap[sg] = []
-                                            sgMap[sg].push(catOps[oi])
-                                        } else { noSg.push(catOps[oi]) }
-                                    }
-                                    for (var ni = 0; ni < noSg.length; ++ni)
-                                        rows.push({ kind: "operator", category: cat, subGroup: "", meta: noSg[ni] })
-                                    var sgKeys = Object.keys(sgMap).sort()
-                                    for (var si = 0; si < sgKeys.length; ++si) {
-                                        var sg = sgKeys[si], sgKey = cat + "::" + sg
-                                        rows.push({ kind: "subGroup", category: cat, subGroup: sg,
-                                            expanded: !operatorList.collapsed[sgKey] })
-                                        if (!operatorList.collapsed[sgKey]) {
-                                            for (var soi = 0; soi < sgMap[sg].length; ++soi)
-                                                rows.push({ kind: "operator", category: cat, subGroup: sg, meta: sgMap[sg][soi] })
-                                        }
-                                    }
-                                }
+                                rows.push({ kind: "category", category: cats[ci],
+                                    count: catMap[cats[ci]] })
                             }
                             return rows
                         }
+
+                        // v-spec: 飞级菜单内容（当前悬停分类下的算子，按子分组分组）
+                        function flyoutModel() {
+                            if (!operatorList.hoveredCategory) return []
+                            var rows = []
+                            // [RecDiag] 诊断：打印悬停分类与算子数据源首项字段（经 C++ 落盘）
+                            var _ops = getFilteredOperators()
+                            if (_ops.length > 0) {
+                                var _f = _ops[0]
+                                if (editViewBridge) editViewBridge.logDiag(
+                                    "[RecDiag] flyoutModel cat=" + operatorList.hoveredCategory
+                                    + " ops=" + _ops.length
+                                    + " key0=" + JSON.stringify(Object.keys(_f))
+                                    + " cnName=<" + (_f.cnName||"") + "> type=<" + (_f.type||"") + ">")
+                            } else {
+                                if (editViewBridge) editViewBridge.logDiag(
+                                    "[RecDiag] flyoutModel cat=" + operatorList.hoveredCategory
+                                    + " ops=0 (getFilteredOperators 为空)")
+                            }
+                            var ops = getFilteredOperators()
+                            var catOps = []
+                            for (var i = 0; i < ops.length; ++i) {
+                                if ((ops[i].category || "其他") === operatorList.hoveredCategory)
+                                    catOps.push(ops[i])
+                            }
+                            var sgMap = {}, noSg = []
+                            for (var j = 0; j < catOps.length; ++j) {
+                                var sg = catOps[j].subGroup || ""
+                                if (sg) {
+                                    if (!sgMap[sg]) sgMap[sg] = []
+                                    sgMap[sg].push(catOps[j])
+                                } else { noSg.push(catOps[j]) }
+                            }
+                            // v-spec-fix: 将 name/type 扁平化到行对象，避免委托内经 modelData.meta.cnName
+                            // 嵌套访问 QVariantMap 导致名称显示为空；同时保留 meta 供添加算子使用
+                            function opRow(op) {
+                                return {
+                                    kind: "operator",
+                                    category: operatorList.hoveredCategory,
+                                    subGroup: op.subGroup || "",
+                                    name: (op.cnName || op.type || ""),
+                                    type: op.type || "",
+                                    meta: op
+                                }
+                            }
+                            for (var n = 0; n < noSg.length; ++n)
+                                rows.push(opRow(noSg[n]))
+                            var sgKeys = Object.keys(sgMap).sort()
+                            for (var s = 0; s < sgKeys.length; ++s) {
+                                rows.push({ kind: "subGroup", category: operatorList.hoveredCategory,
+                                    subGroup: sgKeys[s] })
+                                for (var o = 0; o < sgMap[sgKeys[s]].length; ++o)
+                                    rows.push(opRow(sgMap[sgKeys[s]][o]))
+                            }
+                            return rows
+                        }
+
+                        // v-spec: 飞级菜单高度（按行类型累加）
+                        // v-fix: 面板结构 = ColumnLayout(margins 上下各3=6) + 分类标题(高26) + 算子列表。
+                        // 若只累加 6+行高，则 flyoutList 实际高度 = Σ行高 - 26，底部算子行被裁剪，
+                        // 导致"算子名称不显示"。必须计入 6(margin) + 26(标题)。
+                        function flyoutHeight() {
+                            var rows = operatorList.flyoutRows
+                            var h = 6 + 26
+                            for (var i = 0; i < rows.length; ++i) {
+                                h += rows[i].kind === "operator"
+                                    ? Tok.DesignTokens.operatorRowHeight
+                                    : Tok.DesignTokens.subGroupRowHeight
+                            }
+                            return h
+                        }
+
+                        // v-spec: 延迟收起定时器（悬停切换更平滑，避免闪跳）
+                        // v-fix: 120→250ms，给鼠标从分类行横移进入子菜单留出更充裕时间，
+                        // 避免路径稍长时定时器在鼠标进入面板前触发导致"立刻关闭"
+                        // v-fix6: 兜底防护 —— 定时器触发时若鼠标仍停留在二级框内
+                        // (flyoutHoverArea.containsMouse)，则说明 catArea.onExited 的 start()
+                        // 与 flyoutHoverArea.onEntered 的 stop() 竞争导致误触发，直接取消收起，
+                        // 彻底杜绝"悬停一级分类二级框仍自动关闭"。
+                        Timer {
+                            id: flyoutCollapseTimer
+                            interval: 250
+                            // [RecDiag] 收起触发点（经 C++ 落盘）
+                            onTriggered: {
+                                var inFly = flyoutHoverArea && flyoutHoverArea.containsMouse
+                                if (editViewBridge) editViewBridge.logDiag(
+                                    "[RecDiag] flyoutCollapseTimer TRIGGERED cat=<<" + operatorList.hoveredCategory
+                                    + ">> inFlyout=" + (inFly ? "yes" : "no"))
+                                if (inFly) return  // 鼠标仍在二级框内，取消收起
+                                operatorList.hoveredCategory = ""
+                            }
+                        }
+
                         model: buildModel()
 
                         delegate: Rectangle {
                             width: ListView.view.width
-                            height: modelData.kind === "category"
-                                ? Tok.DesignTokens.categoryRowHeight
-                                : modelData.kind === "subGroup"
-                                    ? Tok.DesignTokens.subGroupRowHeight
-                                    : Tok.DesignTokens.operatorRowHeight
+                            height: Tok.DesignTokens.categoryRowHeight
 
-                            // 分类行
+                            // v-spec: 分类行（固定列表，悬停触发右侧飞级菜单）
                             Rectangle {
                                 anchors.fill: parent
-                                visible: modelData.kind === "category"
                                 color: catArea.containsMouse ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgHeader
                                 radius: Tok.DesignTokens.radiusSm
 
-                                Row {
+                                RowLayout {
                                     anchors.fill: parent
                                     anchors.leftMargin: Tok.DesignTokens.space1
                                     anchors.rightMargin: Tok.DesignTokens.space1
                                     spacing: Tok.DesignTokens.space1
 
                                     Label {
-                                        text: modelData.expanded ? "\u25BE" : "\u25B8"
+                                        text: "\u25B8"
                                         color: Tok.DesignTokens.accentPrimary
                                         font.pixelSize: Tok.DesignTokens.fontSizeSm
                                         anchors.verticalCenter: parent.verticalCenter
@@ -1532,16 +1946,22 @@ Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Label {
-                                        // v5.0：分类行文字 Lg 14→Base 13
                                         text: modelData.category
                                         color: Tok.DesignTokens.textPrimary
                                         font.bold: true
-                                        font.pixelSize: Tok.DesignTokens.fontSizeBase  // v5.0：Lg→Base
+                                        font.pixelSize: Tok.DesignTokens.fontSizeBase
                                         font.family: Tok.DesignTokens.fontFamilyCJK
                                         font.letterSpacing: 0.5
                                         lineHeight: Tok.DesignTokens.lineHeightNormal
                                         lineHeightMode: Text.ProportionalHeight
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+                                    Label {
+                                        text: String(modelData.count)
+                                        color: Tok.DesignTokens.textTertiary
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
                                     }
                                 }
                                 MouseArea {
@@ -1549,147 +1969,94 @@ Rectangle {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
+                                    // v-spec: 悬停展开飞级菜单
+                                    onEntered: {
+                                        flyoutCollapseTimer.stop()
+                                        operatorList.hoveredCategory = modelData.category
+                                        operatorList.hoveredCategoryIndex = index
+                                    }
+                                    onExited: {
+                                        // v-fix9: 二级框 operatorFlyout 向右弹出时会覆盖分类行右侧，
+                                        // 导致 catArea 丢失 hover 而误触发 onExited。此处用几何判断：
+                                        // 鼠标位置若仍落在二级框内，则代表"仍在菜单区"，只停表、不收起。
+                                        // 收起统一交由 flyoutHoverArea.onExited / 算子行 onExited（真正离开菜单区）负责。
+                                        var _p = operatorList.mapToItem(root, mouse.x, mouse.y)
+                                        var _inFly = (operatorFlyout && operatorFlyout.visible
+                                            && _p.x >= operatorFlyout.x && _p.x <= operatorFlyout.x + operatorFlyout.width
+                                            && _p.y >= operatorFlyout.y && _p.y <= operatorFlyout.y + operatorFlyout.height)
+                                        if (editViewBridge) editViewBridge.logDiag(
+                                            "[RecDiag] catArea EXITED cat=<<" + modelData.category
+                                            + ">> mouseRoot=(" + Math.round(_p.x) + "," + Math.round(_p.y) + ")"
+                                            + " fly=(" + Math.round(operatorFlyout.x) + "," + Math.round(operatorFlyout.y)
+                                            + " " + Math.round(operatorFlyout.width) + "x" + Math.round(operatorFlyout.height) + ")"
+                                            + " inFly=" + (_inFly ? "yes" : "no"))
+                                        if (_inFly) { flyoutCollapseTimer.stop(); return }
+                                        flyoutCollapseTimer.start()
+                                    }
                                     onClicked: {
-                                        operatorList.collapsed[modelData.category] = !!modelData.expanded
-                                        operatorList.collapsed = operatorList.collapsed
-                                        operatorList.model = operatorList.buildModel()
+                                        flyoutCollapseTimer.stop()
+                                        operatorList.hoveredCategory = modelData.category
+                                        operatorList.hoveredCategoryIndex = index
                                     }
-                                }
-                            }
-
-                            // 子分组行
-                            Rectangle {
-                                anchors.fill: parent
-                                visible: modelData.kind === "subGroup"
-                                color: sgArea.containsMouse ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgPanel
-
-                                Row {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Tok.DesignTokens.space4 + 2
-                                    anchors.rightMargin: Tok.DesignTokens.space1
-                                    spacing: Tok.DesignTokens.space1
-
-                                    Label {
-                                        text: modelData.expanded ? "\u25BE" : "\u25B8"
-                                        color: Tok.DesignTokens.accentSuccess
-                                        font.pixelSize: Tok.DesignTokens.fontSizeSm
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: 12
-                                    }
-                                    Label {
-                                        // v3.0.1：子分组行文字优化——Sm 12→Base 13
-                                        // 在分类(14)和算子(14)之间，13px 中间字号形成层次
-                                        text: modelData.subGroup || ""
-                                        color: Tok.DesignTokens.textSecondary
-                                        font.pixelSize: Tok.DesignTokens.fontSizeBase
-                                        font.family: Tok.DesignTokens.fontFamilyCJK
-                                        font.letterSpacing: 0.3
-                                        lineHeight: Tok.DesignTokens.lineHeightNormal
-                                        lineHeightMode: Text.ProportionalHeight
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                }
-                                MouseArea {
-                                    id: sgArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        operatorList.collapsed[modelData.category + "::" + modelData.subGroup] = !!modelData.expanded
-                                        operatorList.collapsed = operatorList.collapsed
-                                        operatorList.model = operatorList.buildModel()
-                                    }
-                                }
-                            }
-
-                            // 算子行
-                            Rectangle {
-                                anchors.fill: parent
-                                visible: modelData.kind === "operator"
-                                // v3.0.1：用 bgPanel 替代 "transparent"，
-                                // 避免不同 Qt 版本下 transparent 解析为白色导致白底白字
-                                color: opArea.containsMouse ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgPanel
-                                radius: Tok.DesignTokens.radiusSm
-
-                                Row {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: modelData.subGroup ? Tok.DesignTokens.space8 : 20
-                                    anchors.rightMargin: Tok.DesignTokens.space2
-                                    spacing: Tok.DesignTokens.space2
-
-                                    Rectangle {
-                                        // v5.0：分类色块 16×16→12×12
-                                        width: 12; height: 12; radius: 3
-                                        color: Tok.DesignTokens.categoryColor(modelData.category)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-                                    Label {
-                                        // v5.0：算子行文字字号 Lg 14→Base 13
-                                        text: (modelData.meta && modelData.meta.cnName)
-                                            ? modelData.meta.cnName : modelData.category
-                                        color: Tok.DesignTokens.textPrimary
-                                        font.pixelSize: Tok.DesignTokens.fontSizeBase  // v5.0：Lg→Base
-                                        font.bold: true
-                                        font.family: Tok.DesignTokens.fontFamilyCJK
-                                        font.hintingPreference: Font.PreferDefaultHinting
-                                        font.letterSpacing: 0.2
-                                        lineHeight: Tok.DesignTokens.lineHeightRelax
-                                        lineHeightMode: Text.ProportionalHeight
-                                        elide: Text.ElideRight
-                                        wrapMode: Text.NoWrap
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        // v5.0：色块变小后留更多文字空间
-                                        width: parent.width - 56
-                                        Accessible.role: Accessible.StaticText
-                                        Accessible.name: (modelData.meta && modelData.meta.cnName)
-                                            ? modelData.meta.cnName : modelData.category
-                                    }
-                                    // 收藏星标
-                                    Label {
-                                        text: editViewBridge.isFavorite(
-                                            modelData.meta ? modelData.meta.type : "") ? "\u2605" : "\u2606"
-                                        color: editViewBridge.isFavorite(
-                                            modelData.meta ? modelData.meta.type : "")
-                                            ? Tok.DesignTokens.accentWarning : Tok.DesignTokens.textDisabled
-                                        font.pixelSize: Tok.DesignTokens.fontSizeSm  // v5.0：Lg→Sm
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (modelData.meta) {
-                                                    editViewBridge.toggleFavorite(modelData.meta.type)
-                                                    if (root.activeFilter === "favorites") {
-                                                        operatorList.model = null
-                                                        operatorList.model = operatorList.buildModel()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                MouseArea {
-                                    id: opArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    Accessible.role: Accessible.ListItem
-                                    Accessible.name: modelData.meta ? modelData.meta.cnName : "算子"
-                                    Accessible.description: (modelData.meta ? modelData.meta.cnName : "算子") + " - " + modelData.category + " 类算子，双击添加到画布"
-                                    onDoubleClicked: {
-                                        var nodeId = editViewBridge.addOperator(
-                                            modelData.meta.type,
-                                            canvasFrame.width / 2 - Tok.DesignTokens.nodeCardWidth / 2,
-                                            canvasFrame.height / 2 - Tok.DesignTokens.nodeCardHeight / 2)
-                                        if (nodeId) {
-                                            editViewBridge.selectNode(nodeId)
-                                            root.openEditorForNode(nodeId)
-                                        }
-                                    }
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: modelData.category + " - " + modelData.count + " 个算子"
+                                    Accessible.description: modelData.category + " 分类，悬停展开算子列表"
                                 }
                             }
                         }
                         ScrollBar.vertical: ScrollBar {}
+                    }
+
+                    // v2.7.0 O1a：算子库面板底部入口按钮
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Tok.DesignTokens.space2
+                        spacing: Tok.DesignTokens.space2
+
+                        // 导入算子按钮（primary）
+                        Button {
+                            Layout.fillWidth: true
+                            text: "导入算子"
+                            implicitHeight: Tok.DesignTokens.controlHeight
+                            palette.buttonText: "white"
+                            background: Rectangle {
+                                color: parent.hovered ? Tok.DesignTokens.accentPrimaryHover
+                                                      : Tok.DesignTokens.accentPrimary
+                                border.color: Tok.DesignTokens.accentPrimary
+                                radius: Tok.DesignTokens.radiusMd
+                            }
+                            onClicked: {
+                                if (operatorImportDialogLoader.item) {
+                                    operatorImportDialogLoader.item.open()
+                                }
+                            }
+                        }
+
+                        // 已导入算子按钮
+                        Button {
+                            Layout.fillWidth: true
+                            text: {
+                                var count = 0
+                                if (editViewBridge && editViewBridge.operatorLibraryBridge) {
+                                    count = editViewBridge.operatorLibraryBridge.importedCount()
+                                }
+                                return "已导入 (" + count + ")"
+                            }
+                            implicitHeight: Tok.DesignTokens.controlHeight
+                            palette.buttonText: Tok.DesignTokens.textSecondary
+                            background: Rectangle {
+                                color: parent.hovered ? Tok.DesignTokens.bgHover
+                                                      : Tok.DesignTokens.bgSurface
+                                border.color: parent.hovered ? Tok.DesignTokens.accentPrimary
+                                                             : Tok.DesignTokens.borderDefault
+                                radius: Tok.DesignTokens.radiusMd
+                            }
+                            onClicked: {
+                                if (importedOperatorsPanelLoader.item) {
+                                    importedOperatorsPanelLoader.item.open()
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1917,42 +2284,18 @@ Rectangle {
                     onPaint: {
                         var ctx = getContext("2d")
                         ctx.clearRect(0, 0, width, height)
-                        var nodes = editViewBridge.currentNodes
                         var conns = editViewBridge.connections
                         var z = root.canvasZoom
-                        var ox = root.canvasOffsetX
-                        var oy = root.canvasOffsetY
-                        var nodeW = Tok.DesignTokens.nodeCardWidth
-                        var nodeH = Tok.DesignTokens.nodeCardHeight
-                        var livePos = connectionsCanvas.livePositions
 
-                        // v2.5.0 修复：获取节点世界坐标（优先用 livePositions 中的实时坐标）
-                        function getNodePos(node) {
-                            var live = livePos[node.id]
-                            if (live !== undefined) {
-                                return {x: live.x, y: live.y}
-                            }
-                            return {x: node.x, y: node.y}
-                        }
+                        // spec: editor-output-connection-optimization Task5
+                        // 分层处理 + 交叉避让：绘制前一次性计算所有连线几何（O(n)）
+                        var maps = root.buildConnectionMaps()
 
                         for (var ci = 0; ci < conns.length; ci++) {
-                            var conn = conns[ci]
-                            var fromNode = null, toNode = null
-                            for (var ni = 0; ni < nodes.length; ni++) {
-                                if (nodes[ni].id === conn.fromId) fromNode = nodes[ni]
-                                if (nodes[ni].id === conn.toId) toNode = nodes[ni]
-                            }
-                            if (!fromNode || !toNode) continue
-                            // v2.5.0 修复：用 livePositions 中的实时坐标计算端点
-                            var fromPos = getNodePos(fromNode)
-                            var toPos = getNodePos(toNode)
-                            // P1-B01：屏幕坐标 = world * zoom + offset
-                            var fx = (fromPos.x + nodeW) * z + ox
-                            var fy = (fromPos.y + nodeH / 2) * z + oy
-                            var tx = toPos.x * z + ox
-                            var ty = (toPos.y + nodeH / 2) * z + oy
-                            var cx1 = fx + Math.abs(tx - fx) * 0.4
-                            var cx2 = tx - Math.abs(tx - fx) * 0.4
+                            var g = root.connectionCurve(ci, maps)
+                            if (!g) continue
+                            var fx = g.fx, fy = g.fy, tx = g.tx, ty = g.ty
+                            var cx1 = g.cx1, cy1 = g.cy1, cx2 = g.cx2, cy2 = g.cy2
 
                             // v2.5.0 功能 2 增强：选中态优先于悬停态
                             var isSelected = (ci === root.selectedConnectionIndex)
@@ -1967,7 +2310,7 @@ Rectangle {
 
                             ctx.beginPath()
                             ctx.moveTo(fx, fy)
-                            ctx.bezierCurveTo(cx1, fy, cx2, ty, tx, ty)
+                            ctx.bezierCurveTo(cx1, cy1, cx2, cy2, tx, ty)
                             ctx.stroke()
 
                             // 重置阴影，避免箭头也带发光导致锯齿
@@ -1983,6 +2326,16 @@ Rectangle {
                             ctx.lineTo(ax - 6 * Math.cos(angle + 0.5), ay - 6 * Math.sin(angle + 0.5))
                             ctx.closePath()
                             ctx.fill()
+
+                            // spec: editor-output-connection-optimization Task5
+                            // 连线标签：在中点绘制下游端口名（toPort），浅色小字低透明度
+                            ctx.globalAlpha = 0.55
+                            ctx.fillStyle = Tok.DesignTokens.textSecondary
+                            ctx.font = "bold " + Math.max(9, Math.round(10 * z)) + "px sans-serif"
+                            ctx.textAlign = "center"
+                            ctx.textBaseline = "middle"
+                            ctx.fillText(g.toPort, g.ux, g.uy)
+                            ctx.globalAlpha = 1.0
                         }
                     }
                     Connections {
@@ -2153,6 +2506,7 @@ Rectangle {
 
                 // 节点卡片层
                 Repeater {
+                    id: nodeRepeater   // v2.7.0 Phase 3.1：分组折叠时通过 itemAt() 访问 delegate
                     model: editViewBridge.currentNodes
                     delegate: Rectangle {
                         id: nodeCard
@@ -2313,12 +2667,14 @@ Rectangle {
 
                         // 节点交互
                         MouseArea {
+                            id: nodeArea
                             anchors.fill: parent
                             drag.target: nodeCard
                             // P1-B01：移除 minimumX/maximumX 限制，节点可拖到画布外（用户可平移画布找回）
                             drag.threshold: 1
                             cursorShape: Qt.OpenHandCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            hoverEnabled: true  // v2.8.0：用于控制“?”帮助按钮的显示
 
                             onPressed: function(mouse) {
                                 if (mouse.button !== Qt.LeftButton) return
@@ -2401,6 +2757,49 @@ Rectangle {
                                 }
                             }
                         }
+
+                        // v2.8.0：算子帮助“?”按钮（节点选中或 hover 时显示，点击打开 OperatorHelpDialog）
+                        Rectangle {
+                            id: helpBtn
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.topMargin: 4 * root.canvasZoom
+                            anchors.rightMargin: 4 * root.canvasZoom
+                            width: 16 * root.canvasZoom
+                            height: 16 * root.canvasZoom
+                            radius: width / 2
+                            // 高于端口(z:10)与节点交互 MouseArea，确保可点击且不触发拖拽
+                            z: 11
+                            visible: isSelected || nodeArea.containsMouse || helpBtnArea.containsMouse
+                            color: helpBtnArea.containsMouse
+                                   ? Tok.DesignTokens.textTertiary   // hover 态：亮灰
+                                   : "#6E6E6E"                        // 默认：灰
+                            border.color: Tok.DesignTokens.bgCanvas
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "?"
+                                color: "#FFFFFF"
+                                font.pixelSize: Math.max(8, 10 * root.canvasZoom)
+                                font.bold: true
+                                font.family: Tok.DesignTokens.fontFamily
+                            }
+
+                            // 独立 MouseArea：消费点击/按下，阻止事件冒泡到节点拖拽 MouseArea
+                            MouseArea {
+                                id: helpBtnArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onPressed: function(mouse) { mouse.accepted = true }
+                                onPositionChanged: function(mouse) { mouse.accepted = true }
+                                onClicked: function(mouse) {
+                                    mouse.accepted = true
+                                    root.openOperatorHelp(nodeData.type)
+                                }
+                            }
+                        }
                         Accessible.role: Accessible.Button
                         Accessible.name: {
                             var meta = editViewBridge.getOperatorMeta(nodeData.type)
@@ -2411,6 +2810,326 @@ Rectangle {
                             var meta = editViewBridge.getOperatorMeta(nodeData.type)
                             var name = (meta && meta.cnName) || nodeData.type
                             return "算子节点: " + name + "，双击编辑参数，右键打开菜单"
+                        }
+                    }
+                }
+
+                // ============================================================
+                // v2.7.0 Phase 3.1：分组容器可视化叠加层
+                // z: 0.5 — 位于节点（z:0）和连线 Canvas（z:1）之间
+                // 不改变现有节点 Repeater 逻辑，仅通过叠加层绘制分组包围盒
+                // 数据源：editViewBridge.subChainGroups / branchGroups / parallelGroups
+                // 折叠状态：root.groupCollapsed 字典，点击标题栏切换
+                // ============================================================
+
+                // ---- 子链分组容器（蓝色虚线）----
+                Repeater {
+                    id: subChainGroupLayer
+                    model: editViewBridge.subChainGroups
+                    delegate: Item {
+                        id: subChainGroupContainer
+                        property var groupData: modelData
+                        property string groupId: groupData.loopToolId
+                        property bool collapsed: root.groupCollapsed[groupId] === true
+                        // 计算子节点屏幕坐标包围盒（已应用 canvasZoom/Offset 变换）
+                        property var bbox: root.computeNodeBBox(groupData.childToolIds)
+                        x: bbox.minX - Tok.DesignTokens.groupPadding
+                        y: bbox.minY - Tok.DesignTokens.groupPadding - Tok.DesignTokens.groupHeaderHeight
+                        width: (bbox.maxX - bbox.minX) + Tok.DesignTokens.groupPadding * 2
+                        height: (bbox.maxY - bbox.minY) + Tok.DesignTokens.groupPadding * 2 + Tok.DesignTokens.groupHeaderHeight
+                        z: 0.5
+                        visible: bbox.valid
+
+                        // 虚线边框（Canvas 绘制，支持 setLineDash）
+                        Canvas {
+                            anchors.fill: parent
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.reset()
+                                ctx.strokeStyle = Tok.DesignTokens.subChainGroupColor
+                                ctx.lineWidth = 1.5
+                                ctx.setLineDash([6, 4])
+                                ctx.strokeRect(0.5, 0.5, width - 1, height - 1)
+                            }
+                            // 画布变换变化时重绘虚线边框
+                            Connections {
+                                target: root
+                                function onCanvasZoomChanged() { requestPaint() }
+                                function onCanvasOffsetXChanged() { requestPaint() }
+                                function onCanvasOffsetYChanged() { requestPaint() }
+                            }
+                            Connections {
+                                target: editViewBridge
+                                function onCurrentNodesChanged() { requestPaint() }
+                            }
+                        }
+
+                        // 标题栏（蓝色背景 + 白字）
+                        Rectangle {
+                            id: subChainHeader
+                            x: 0
+                            y: 0
+                            width: parent.width
+                            height: Tok.DesignTokens.groupHeaderHeight
+                            color: Tok.DesignTokens.subChainGroupColor
+                            radius: 4
+                            // 底部直角，与容器边框自然衔接
+                            Rectangle {
+                                x: 0
+                                y: parent.height - 4
+                                width: parent.width
+                                height: 4
+                                color: parent.color
+                            }
+                            Label {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                // 折叠三角箭头 ▶/▼ + 标题
+                                text: (subChainGroupContainer.collapsed ? "\u25B6" : "\u25BC")
+                                      + " 子链: " + groupData.loopToolName
+                                      + " (" + groupData.childToolCount + "个算子)"
+                                color: "#FFFFFF"
+                                font.pixelSize: 11
+                                font.bold: true
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            // 点击标题栏切换折叠状态
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.toggleGroupCollapse(
+                                    subChainGroupContainer.groupId,
+                                    groupData.childToolIds)
+                            }
+                        }
+                    }
+                }
+
+                // ---- 分支分组容器（true 绿 + false 红 两个子区域）----
+                Repeater {
+                    id: branchGroupLayer
+                    model: editViewBridge.branchGroups
+                    delegate: Item {
+                        id: branchGroupContainer
+                        property var groupData: modelData
+                        property string groupId: groupData.branchToolId
+                        property bool collapsed: root.groupCollapsed[groupId] === true
+                        property var trueBBox: root.computeNodeBBox(groupData.trueBranchToolIds)
+                        property var falseBBox: root.computeNodeBBox(groupData.falseBranchToolIds)
+                        // 容器自身不绘制（width/height=0），仅作为逻辑分组承载两个子区域
+                        x: 0
+                        y: 0
+                        width: 0
+                        height: 0
+                        z: 0.5
+                        visible: trueBBox.valid || falseBBox.valid
+
+                        // 真分支区域（绿色虚线，标题栏显示分支信息）
+                        Item {
+                            id: trueBranchArea
+                            x: branchGroupContainer.trueBBox.minX - Tok.DesignTokens.groupPadding
+                            y: branchGroupContainer.trueBBox.minY - Tok.DesignTokens.groupPadding - Tok.DesignTokens.groupHeaderHeight
+                            width: (branchGroupContainer.trueBBox.maxX - branchGroupContainer.trueBBox.minX) + Tok.DesignTokens.groupPadding * 2
+                            height: (branchGroupContainer.trueBBox.maxY - branchGroupContainer.trueBBox.minY) + Tok.DesignTokens.groupPadding * 2 + Tok.DesignTokens.groupHeaderHeight
+                            visible: branchGroupContainer.trueBBox.valid && !branchGroupContainer.collapsed
+
+                            Canvas {
+                                anchors.fill: parent
+                                onPaint: {
+                                    var ctx = getContext("2d")
+                                    ctx.reset()
+                                    ctx.strokeStyle = Tok.DesignTokens.trueBranchColor
+                                    ctx.lineWidth = 1.5
+                                    ctx.setLineDash([6, 4])
+                                    ctx.strokeRect(0.5, 0.5, width - 1, height - 1)
+                                }
+                                Connections {
+                                    target: root
+                                    function onCanvasZoomChanged() { requestPaint() }
+                                    function onCanvasOffsetXChanged() { requestPaint() }
+                                    function onCanvasOffsetYChanged() { requestPaint() }
+                                }
+                                Connections {
+                                    target: editViewBridge
+                                    function onCurrentNodesChanged() { requestPaint() }
+                                }
+                            }
+
+                            Rectangle {
+                                x: 0
+                                y: 0
+                                width: parent.width
+                                height: Tok.DesignTokens.groupHeaderHeight
+                                color: Tok.DesignTokens.trueBranchColor
+                                radius: 4
+                                Rectangle {
+                                    x: 0
+                                    y: parent.height - 4
+                                    width: parent.width
+                                    height: 4
+                                    color: parent.color
+                                }
+                                Label {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    // 显示分支名 + 条件运算符 + 真分支节点数
+                                    text: "分支: " + groupData.branchToolName
+                                          + " [" + groupData.conditionOp + "] \u2192 真 ("
+                                          + groupData.trueBranchToolIds.length + ")"
+                                    color: "#FFFFFF"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                // 点击真分支标题栏切换整个分支组的折叠状态
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.toggleGroupCollapse(
+                                        branchGroupContainer.groupId,
+                                        groupData.trueBranchToolIds.concat(groupData.falseBranchToolIds))
+                                }
+                            }
+                        }
+
+                        // 假分支区域（红色虚线）
+                        Item {
+                            id: falseBranchArea
+                            x: branchGroupContainer.falseBBox.minX - Tok.DesignTokens.groupPadding
+                            y: branchGroupContainer.falseBBox.minY - Tok.DesignTokens.groupPadding - Tok.DesignTokens.groupHeaderHeight
+                            width: (branchGroupContainer.falseBBox.maxX - branchGroupContainer.falseBBox.minX) + Tok.DesignTokens.groupPadding * 2
+                            height: (branchGroupContainer.falseBBox.maxY - branchGroupContainer.falseBBox.minY) + Tok.DesignTokens.groupPadding * 2 + Tok.DesignTokens.groupHeaderHeight
+                            visible: branchGroupContainer.falseBBox.valid && !branchGroupContainer.collapsed
+
+                            Canvas {
+                                anchors.fill: parent
+                                onPaint: {
+                                    var ctx = getContext("2d")
+                                    ctx.reset()
+                                    ctx.strokeStyle = Tok.DesignTokens.falseBranchColor
+                                    ctx.lineWidth = 1.5
+                                    ctx.setLineDash([6, 4])
+                                    ctx.strokeRect(0.5, 0.5, width - 1, height - 1)
+                                }
+                                Connections {
+                                    target: root
+                                    function onCanvasZoomChanged() { requestPaint() }
+                                    function onCanvasOffsetXChanged() { requestPaint() }
+                                    function onCanvasOffsetYChanged() { requestPaint() }
+                                }
+                                Connections {
+                                    target: editViewBridge
+                                    function onCurrentNodesChanged() { requestPaint() }
+                                }
+                            }
+
+                            Rectangle {
+                                x: 0
+                                y: 0
+                                width: parent.width
+                                height: Tok.DesignTokens.groupHeaderHeight
+                                color: Tok.DesignTokens.falseBranchColor
+                                radius: 4
+                                Rectangle {
+                                    x: 0
+                                    y: parent.height - 4
+                                    width: parent.width
+                                    height: 4
+                                    color: parent.color
+                                }
+                                Label {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    text: "分支: " + groupData.branchToolName
+                                          + " \u2192 假 ("
+                                          + groupData.falseBranchToolIds.length + ")"
+                                    color: "#FFFFFF"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                // 假分支标题栏不单独切换折叠（折叠由真分支标题栏统一控制）
+                            }
+                        }
+                    }
+                }
+
+                // ---- 并行分组容器（黄色虚线）----
+                Repeater {
+                    id: parallelGroupLayer
+                    model: editViewBridge.parallelGroups
+                    delegate: Item {
+                        id: parallelGroupContainer
+                        property var groupData: modelData
+                        property string groupId: groupData.branchId
+                        property bool collapsed: root.groupCollapsed[groupId] === true
+                        property var bbox: root.computeNodeBBox(groupData.branchToolIds)
+                        x: bbox.minX - Tok.DesignTokens.groupPadding
+                        y: bbox.minY - Tok.DesignTokens.groupPadding - Tok.DesignTokens.groupHeaderHeight
+                        width: (bbox.maxX - bbox.minX) + Tok.DesignTokens.groupPadding * 2
+                        height: (bbox.maxY - bbox.minY) + Tok.DesignTokens.groupPadding * 2 + Tok.DesignTokens.groupHeaderHeight
+                        z: 0.5
+                        visible: bbox.valid
+
+                        Canvas {
+                            anchors.fill: parent
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.reset()
+                                ctx.strokeStyle = Tok.DesignTokens.parallelGroupColor
+                                ctx.lineWidth = 1.5
+                                ctx.setLineDash([6, 4])
+                                ctx.strokeRect(0.5, 0.5, width - 1, height - 1)
+                            }
+                            Connections {
+                                target: root
+                                function onCanvasZoomChanged() { requestPaint() }
+                                function onCanvasOffsetXChanged() { requestPaint() }
+                                function onCanvasOffsetYChanged() { requestPaint() }
+                            }
+                            Connections {
+                                target: editViewBridge
+                                function onCurrentNodesChanged() { requestPaint() }
+                            }
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 0
+                            width: parent.width
+                            height: Tok.DesignTokens.groupHeaderHeight
+                            color: Tok.DesignTokens.parallelGroupColor
+                            radius: 4
+                            Rectangle {
+                                x: 0
+                                y: parent.height - 4
+                                width: parent.width
+                                height: 4
+                                color: parent.color
+                            }
+                            Label {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                text: (parallelGroupContainer.collapsed ? "\u25B6" : "\u25BC")
+                                      + " 并行: " + groupData.branchId
+                                      + " (" + groupData.branchToolIds.length + "个算子)"
+                                // 黄色背景配深色文字（对比度更高）
+                                color: "#1A1A1A"
+                                font.pixelSize: 11
+                                font.bold: true
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.toggleGroupCollapse(
+                                    parallelGroupContainer.groupId,
+                                    groupData.branchToolIds)
+                            }
                         }
                     }
                 }
@@ -2771,6 +3490,18 @@ Rectangle {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.rightInfoVisible = true
                     }
+                }
+
+                // ============ spec: editor-output-connection-optimization Task10：智能算子推荐展示区 ============
+                // 常驻画布右上角（锚定 canvasFrame），非 Popup；topMargin 避开右上角展开按钮行
+                RecommendationPanel {
+                    id: recommendationPanel
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.rightMargin: Tok.DesignTokens.space2
+                    anchors.topMargin: 44
+                    bridge: editViewBridge
+                    selectedNodeId: root.currentSelectedNodeId
                 }
 
                 // 响应式：窄屏时显示展开右侧面板按钮（v3.2.0 增加 pin 状态指示）
@@ -3214,6 +3945,20 @@ Rectangle {
         }
     }
 
+    // ============ spec: editor-output-connection-optimization Task5：连接管理面板 ============
+    ConnectionManagerPanel {
+        id: connectionManagerPanel
+        bridge: editViewBridge
+        onDeleted: function() { root.showToast("info", "已删除连接") }
+    }
+
+    // ============ spec: editor-output-connection-optimization Task7：输入/输出项冲突指定面板 ============
+    ConflictPanel {
+        id: conflictPanel
+        bridge: editViewBridge
+        onApplied: function(count) { root.showToast("success", "已消除 " + count + " 处冲突") }
+    }
+
     // ============ v4.0: 快捷键面板 ============
     Shortcut {
         sequences: ["?", "Ctrl+/"]
@@ -3222,5 +3967,229 @@ Rectangle {
 
     ShortcutsPanel {
         id: shortcutsPanel
+    }
+
+    // ============ v-spec: 算子库飞级子菜单（悬停分类向右弹出）============
+    // 作为 root 的直接子项，声明在 splitView 之后，确保绘制在画布之上
+    Rectangle {
+        id: operatorFlyout
+        visible: operatorList && operatorList.hoveredCategory !== ""
+                 && operatorList.flyoutRows.length > 0
+        width: 210
+        height: operatorList.flyoutHeight()
+        // 相对 root 定位：位于算子列表右侧 + 悬停分类行处（考虑列表滚动偏移）
+        // v-spec-fix: 向左重叠 6px，消除与分类行之间的间隙，避免鼠标移动途中触发收起
+        x: operatorList.mapToItem(root, 0, 0).x + operatorList.width - 6
+        y: {
+            var base = operatorList.mapToItem(root, 0, 0).y
+            var raw = base + (operatorList.hoveredCategoryIndex
+                              * Tok.DesignTokens.categoryRowHeight
+                              - operatorList.contentY)
+            return Math.max(base, Math.min(raw, root.height - height - 8))
+        }
+        color: Tok.DesignTokens.bgSurface
+        border.color: Tok.DesignTokens.borderDefault
+        border.width: 1
+        radius: Tok.DesignTokens.radiusMd
+        z: 9999  // 声明在 splitView 之后 + 高 z，确保绘制在画布之上
+
+        // v-spec-fix: 覆盖整个飞级菜单的保持区域 —— 鼠标在子菜单任意位置都阻止收起，
+        // 解决"移出分类行后子菜单在到达前关闭"的问题
+        // v-fix: 原实现声明在 ColumnLayout 之前，被其完全覆盖收不到 hover（日志证实
+        // flyoutHoverArea ENTERED 从未触发），导致移入子菜单时无人停表、面板被误关。
+        // 现将保持区域移到最后（最上层）并设 acceptedButtons: Qt.NoButton：
+        // 只接收 hover 事件以维持展开，不消费鼠标按钮，避免挡住算子行的双击添加。
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 3
+            spacing: 0
+
+            // 分类标题
+            Rectangle {
+                Layout.fillWidth: true
+                height: 26
+                color: Tok.DesignTokens.bgHeader
+                radius: Tok.DesignTokens.radiusSm
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Tok.DesignTokens.space2
+                    anchors.rightMargin: Tok.DesignTokens.space2
+                    spacing: Tok.DesignTokens.space1
+                    Rectangle {
+                        width: 10; height: 10; radius: 5
+                        color: Tok.DesignTokens.categoryColor(operatorList.hoveredCategory)
+                    }
+                    Label {
+                        text: operatorList.hoveredCategory
+                        color: Tok.DesignTokens.textPrimary
+                        font.bold: true
+                        font.pixelSize: Tok.DesignTokens.fontSizeBase
+                        font.family: Tok.DesignTokens.fontFamilyCJK
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+                    Label {
+                        text: "双击添加"
+                        color: Tok.DesignTokens.textTertiary
+                        font.pixelSize: Tok.DesignTokens.fontSizeXxs
+                        font.family: Tok.DesignTokens.fontFamilyCJK
+                    }
+                }
+            }
+
+            // 算子/子分组列表
+            ListView {
+                id: flyoutList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 0
+                model: operatorList.flyoutRows
+
+                delegate: Rectangle {
+                    width: flyoutList.width
+                    height: modelData.kind === "operator"
+                        ? Tok.DesignTokens.operatorRowHeight
+                        : Tok.DesignTokens.subGroupRowHeight
+                    // v-fix3: 显式给算子行铺设深色背景（bgSurface），避免白色文字落在透明/浅色
+                    // 底上不可见。原实现行背景透明，若面板/画布底色偏浅，白字即"算子名不显示"。
+                    color: Tok.DesignTokens.bgSurface
+                    // [RecDiag] 诊断：打印每个 delegate 行实际拿到的数据（经 C++ 落盘）
+                    Component.onCompleted: {
+                        if (editViewBridge) editViewBridge.logDiag(
+                            "[RecDiag] delegate kind=" + modelData.kind
+                            + " name=<" + (modelData.name||"") + "> type=<" + (modelData.type||"") + ">"
+                            + " listH=" + flyoutList.height
+                            + " rowW=" + width + " rowH=" + height
+                            + " showBg=" + color
+                            + " subGroup=" + (modelData.subGroup||""))
+                    }
+
+                    // 整行鼠标处理：双击添加算子；悬停停表（防止二级框收起）
+                    // v-fix9: 恢复 hoverEnabled + onEntered/onExited 停表。
+                    // 此前 v-fix7 移除本行 hover 后，若 flyoutHoverArea 的 hover 失效，
+                    // 则"鼠标进入二级框"将无人停表 → 二级框误收（回归）。此处作为兜底停表路径。
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onEntered: {
+                            if (editViewBridge) editViewBridge.logDiag(
+                                "[RecDiag] opRow ENTERED kind=" + modelData.kind
+                                + " name=<" + (modelData.name||"") + ">")
+                            flyoutCollapseTimer.stop()
+                        }
+                        onExited: {
+                            if (editViewBridge) editViewBridge.logDiag(
+                                "[RecDiag] opRow EXITED kind=" + modelData.kind
+                                + " name=<" + (modelData.name||"") + ">")
+                            flyoutCollapseTimer.start()
+                        }
+                        onDoubleClicked: {
+                            if (modelData.kind === "operator") {
+                                var nodeId = editViewBridge.addOperator(
+                                    modelData.type,
+                                    canvasFrame.width / 2 - Tok.DesignTokens.nodeCardWidth / 2,
+                                    canvasFrame.height / 2 - Tok.DesignTokens.nodeCardHeight / 2)
+                                if (nodeId) {
+                                    editViewBridge.selectNode(nodeId)
+                                    root.openEditorForNode(nodeId)
+                                }
+                                operatorList.hoveredCategory = ""
+                            }
+                        }
+                    }
+
+                    // 子分组头
+                    RowLayout {
+                        visible: modelData.kind === "subGroup"
+                        anchors.fill: parent
+                        anchors.leftMargin: Tok.DesignTokens.space2
+                        spacing: 4
+                        Rectangle {
+                            width: 3; height: 12; radius: 1
+                            color: Tok.DesignTokens.accentSuccess
+                        }
+                        Label {
+                            text: modelData.subGroup
+                            color: Tok.DesignTokens.textSecondary
+                            font.bold: true
+                            font.pixelSize: Tok.DesignTokens.fontSizeSm
+                            font.family: Tok.DesignTokens.fontFamilyCJK
+                        }
+                    }
+
+                    // 算子行
+                    RowLayout {
+                        visible: modelData.kind === "operator"
+                        anchors.fill: parent
+                        anchors.leftMargin: modelData.subGroup
+                            ? Tok.DesignTokens.space6 : Tok.DesignTokens.space2
+                        anchors.rightMargin: Tok.DesignTokens.space2
+                        spacing: Tok.DesignTokens.space2
+                        Rectangle {
+                            width: 10; height: 10; radius: 3
+                            color: Tok.DesignTokens.categoryColor(operatorList.hoveredCategory)
+                        }
+                        Label {
+                            // v-spec-fix: 仅在算子行求值，避免子分组行（无 name 字段）触发
+                            // "Unable to assign [undefined] to QString" 绑定错误，
+                            // 该错误会干扰 delegate 渲染并波及算子名称显示
+                            text: modelData.kind === "operator" ? (modelData.name || "") : ""
+                            color: Tok.DesignTokens.textPrimary
+                            font.pixelSize: Tok.DesignTokens.fontSizeBase
+                            font.bold: true
+                            font.family: Tok.DesignTokens.fontFamilyCJK
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        // 收藏星标（单击切换收藏，双击不触发添加）
+                        Label {
+                            text: (modelData.kind === "operator" && modelData.type)
+                                ? (editViewBridge.isFavorite(modelData.type)
+                                    ? "\u2605" : "\u2606")
+                                : ""
+                            color: (modelData.kind === "operator" && modelData.type
+                                    && editViewBridge.isFavorite(modelData.type))
+                                ? Tok.DesignTokens.accentWarning : Tok.DesignTokens.textDisabled
+                            font.pixelSize: Tok.DesignTokens.fontSizeSm
+                            visible: modelData.kind === "operator"
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                enabled: modelData.kind === "operator"
+                                onDoubleClicked: mouse.accepted = true
+                                onClicked: {
+                                    if (modelData.type) {
+                                        editViewBridge.toggleFavorite(modelData.type)
+                                        operatorList.updateFlyout()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // v-fix: 最上层保持区域 —— 覆盖整个子菜单。
+        // v-fix2: 保留 acceptedButtons: Qt.NoButton（不拦截点击，避免吞掉算子行双击/星标点击）。
+        //   保持 hover 的主要机制是算子行的 onEntered/onExited 停表（行级 MouseArea 无 NoButton，
+        //   hover 有效）；本层 NoButton 虽不接收 hover，但作为透明覆盖无害，故保留。
+        MouseArea {
+            id: flyoutHoverArea
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+            // [RecDiag] hover 诊断（经 C++ 落盘）
+            onEntered: {
+                if (editViewBridge) editViewBridge.logDiag("[RecDiag] flyoutHoverArea ENTERED"
+                    + " pos=" + Math.round(operatorFlyout.x) + "," + Math.round(operatorFlyout.y)
+                    + " size=" + Math.round(operatorFlyout.width) + "x" + Math.round(operatorFlyout.height)
+                    + " list=" + operatorFlyout.width + "x" + flyoutList.height)
+                flyoutCollapseTimer.stop()
+            }
+            onExited: { if (editViewBridge) editViewBridge.logDiag("[RecDiag] flyoutHoverArea EXITED"); flyoutCollapseTimer.start() }
+        }
     }
 }

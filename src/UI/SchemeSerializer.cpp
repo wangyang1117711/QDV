@@ -77,6 +77,15 @@ QString SchemeSerializer::serializeToJson(const QVariantList& nodes,
             paramsObj.insert(it.key(), QJsonValue::fromVariant(it.value()));
         }
         node["params"] = paramsObj;
+        // v5.4：写入输出开关配置（{outputName: {enabled: bool}, ...}）
+        const QVariantMap outputConfig = m.value("outputConfig").toMap();
+        if (!outputConfig.isEmpty()) {
+            QJsonObject ocObj;
+            for (auto it = outputConfig.constBegin(); it != outputConfig.constEnd(); ++it) {
+                ocObj.insert(it.key(), QJsonValue::fromVariant(it.value()));
+            }
+            node["outputConfig"] = ocObj;
+        }
         nodesArr.append(node);
     }
     root["nodes"] = nodesArr;
@@ -342,6 +351,19 @@ QString SchemeSerializer::serializeToXml(const QVariantList& nodes,
             }
             w.writeEndElement(); // params
         }
+        // v5.4：写入输出开关配置
+        const QVariantMap outputConfig = m.value("outputConfig").toMap();
+        if (!outputConfig.isEmpty()) {
+            w.writeStartElement("outputConfig");
+            for (auto it = outputConfig.constBegin(); it != outputConfig.constEnd(); ++it) {
+                const QVariantMap ocItem = it.value().toMap();
+                w.writeStartElement("output");
+                w.writeAttribute("name", it.key());
+                w.writeAttribute("enabled", ocItem.value("enabled", true).toBool() ? "true" : "false");
+                w.writeEndElement(); // output
+            }
+            w.writeEndElement(); // outputConfig
+        }
         w.writeEndElement(); // node
     }
     w.writeEndElement(); // nodes
@@ -403,6 +425,9 @@ QString SchemeSerializer::xmlToJson(const QString& xmlText, QString* errMsg) {
     QJsonObject currentVar;
     QJsonObject currentConn;
     QVariantMap currentParams;
+    // v5.4：outputConfig 解析状态
+    QJsonObject currentOutputConfig;
+    bool inOutputConfig = false;
 
     while (!r.atEnd()) {
         const QXmlStreamReader::TokenType tt = r.readNext();
@@ -422,6 +447,17 @@ QString SchemeSerializer::xmlToJson(const QString& xmlText, QString* errMsg) {
             } else if (currentElement == "param") {
                 currentParam = QJsonObject();
                 currentParam["name"] = attrs.value("name").toString();
+            } else if (currentElement == "outputConfig") {
+                // v5.4：开始解析输出开关配置
+                inOutputConfig = true;
+                currentOutputConfig = QJsonObject();
+            } else if (currentElement == "output" && inOutputConfig) {
+                // v5.4：读取单个输出项的 name 和 enabled 属性
+                const QString outName = attrs.value("name").toString();
+                const bool enabled = attrs.value("enabled").toString() == QStringLiteral("true");
+                QJsonObject item;
+                item["enabled"] = enabled;
+                currentOutputConfig[outName] = item;
             } else if (currentElement == "connection") {
                 currentConn = QJsonObject();
                 currentConn["fromId"]   = attrs.value("fromId").toString();
@@ -463,6 +499,13 @@ QString SchemeSerializer::xmlToJson(const QString& xmlText, QString* errMsg) {
             } else if (name == "connection") {
                 connArr.append(currentConn);
                 currentConn = QJsonObject();
+            } else if (name == "outputConfig") {
+                // v5.4：结束 outputConfig 解析，写入当前节点
+                inOutputConfig = false;
+                if (!currentOutputConfig.isEmpty()) {
+                    currentNode["outputConfig"] = currentOutputConfig;
+                }
+                currentOutputConfig = QJsonObject();
             } else if (name == "variable") {
                 varsArr.append(currentVar);
                 currentVar = QJsonObject();

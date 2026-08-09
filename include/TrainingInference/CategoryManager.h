@@ -61,6 +61,12 @@ public:
     ImportResult importFromJSON(const QString& filePath);
     ImportResult importFromCSV(const QString& filePath);
     bool exportToJSON(const QString& filePath);
+    // 导出类别树为 QJsonObject（用于项目保存，复用 exportToJSON 逻辑）
+    QJsonObject exportToJsonObject() const;
+    // 从 QJsonObject 导入类别（用于项目加载，复用 importFromJSON 逻辑）
+    ImportResult importFromJsonObject(const QJsonObject& root);
+    // 清空所有类别（用于项目加载前清空）
+    void clearCategories();
     bool exportToCSV(const QString& filePath);
 
     int loadPresetCategories(const QString& jsonFilePath);

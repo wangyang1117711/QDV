@@ -76,10 +76,18 @@ void AgentOperatorRouter::initRoutingTable() {
     };
 
     // 9. 3D 视觉（Developer）
-    m_routingTable["3D视觉"] = {
-        {"Reconstruct3D",      "Developer", 1},
-        {"BinocularDisparity", "Developer", 2},
-        {"SurfaceMatching",    "Developer", 3},
+    // P0-1 修复：Reconstruct3D/BinocularDisparity/SurfaceMatching 三个幻影算子已从
+    // operators.json 与 ToolFactory 中清除（无 *Tool.cpp 实现，createTool 返回 nullptr）。
+    // 整个「3D视觉」路由分类暂时移除，待真正实现 3D 算子后再加回。
+    // m_routingTable["3D视觉"] = { ... };
+
+    // 9a. 标定与坐标（Developer）- P0-5：HandEyeCalib/RobotPose 从「3D视觉」迁移至此
+    m_routingTable["标定与坐标"] = {
+        {"HandEyeCalib",    "Developer", 1},
+        {"RobotPose",       "Developer", 2},
+        {"CameraCalib",     "Developer", 3},   // P0-5 新增
+        {"UnitConvert",     "Developer", 4},   // P0-3 新增
+        {"PositionCorrect", "Developer", 5},   // P0-2 新增
     };
 
     // 10. 深度学习（Reviewer）

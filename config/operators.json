@@ -5,6 +5,14 @@
             "category": "图像采集",
             "cnName": "读图",
             "description": "从本地路径加载图像到方案（支持 png/jpg/bmp/tiff 等）",
+            "coreMeaning": "将本地图像文件加载到内存，作为后续视觉处理的输入源",
+            "scenario": "离线分析已有图像、调试算法流程、无相机环境下的开发测试",
+            "caveats": [
+                "支持的图像格式：png/jpg/jpeg/bmp/tiff/tif/webp",
+                "最大文件大小 100MB",
+                "中文路径需确保系统编码支持",
+                "colorMode 与 channelMode 同时设置时，channelMode 优先级更高"
+            ],
             "iconPath": "qrc:/icons/readimage.svg",
             "params": [
                 {
@@ -102,6 +110,14 @@
             "category": "图像采集",
             "cnName": "采集图像",
             "description": "从相机采集单帧图像（grab_image）",
+            "coreMeaning": "从已打开的相机设备实时采集单帧图像，用于在线检测",
+            "scenario": "在线视觉检测流水线、实时质量监控、需要触发同步采集的场景",
+            "caveats": [
+                "必须先调用 OpenFramegrabber 打开相机",
+                "timeout 过小可能导致采集失败",
+                "触发模式下需保证外部触发信号已就绪",
+                "采集前需确认相机未被子进程独占"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -146,6 +162,15 @@
             "category": "图像采集",
             "cnName": "打开相机",
             "description": "打开图像采集设备（open_framegrabber）",
+            "coreMeaning": "初始化并打开图像采集设备，建立相机连接句柄供后续采集使用",
+            "scenario": "视觉系统初始化阶段、多相机切换、需要配置曝光/增益等相机参数的场景",
+            "caveats": [
+                "不同接口需对应驱动已安装（GigE/USB3/GenTL）",
+                "deviceIndex 需与系统枚举顺序一致",
+                "GigE 相机需确保 IP 在同一网段且不冲突",
+                "重复打开同一设备会返回已存在句柄",
+                "修改像素格式需相机硬件支持"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -352,6 +377,14 @@
             "category": "预处理",
             "cnName": "FFT变换",
             "description": "正/逆快速傅里叶变换（fft_generic）",
+            "coreMeaning": "在频域对图像进行分析与处理，分离周期性噪声或提取频率特征",
+            "scenario": "周期性条纹噪声去除、纹理分析、频域滤波、频谱可视化",
+            "caveats": [
+                "输入需为单通道灰度图",
+                "逆变换后需取实部并裁剪到有效灰度范围",
+                "图像尺寸建议为 2 的幂次以提升性能",
+                "频谱中心化后低频位于中央"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -390,6 +423,14 @@
             "category": "预处理",
             "cnName": "高斯滤波",
             "description": "使用高斯核对图像进行平滑滤波，抑制高斯噪声（gauss_filter）",
+            "coreMeaning": "使用高斯卷积核对图像平滑，抑制高斯噪声并保留主要边缘",
+            "scenario": "边缘检测前的预处理、下采样前抗混叠、降噪平滑",
+            "caveats": [
+                "kernelSize 越大平滑越强但细节丢失越多",
+                "sigma 为 0 时由 kernelSize 自动计算",
+                "对椒盐噪声效果有限，建议改用 MedianImage",
+                "彩色图需逐通道处理或先转换颜色空间"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -435,6 +476,14 @@
             "category": "预处理",
             "cnName": "均值滤波",
             "description": "使用均值核对图像进行平滑滤波（mean_image）",
+            "coreMeaning": "使用均值卷积核平滑图像，快速降低随机噪声",
+            "scenario": "实时性要求较高的降噪场景、预处理阶段快速平滑",
+            "caveats": [
+                "kernelWidth/kernelHeight 越大越模糊",
+                "对边缘有模糊扩散作用",
+                "属线性滤波，对脉冲噪声抑制效果差",
+                "核尺寸建议为奇数"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -480,6 +529,13 @@
             "category": "预处理",
             "cnName": "锐化增强",
             "description": "图像锐化增强（emphasize），突出边缘和细节",
+            "coreMeaning": "增强图像边缘与细节，提升后续检测的特征对比度",
+            "scenario": "低对比度图像增强、细节特征提取前预处理、视觉外观改善",
+            "caveats": [
+                "factor 过大会放大噪声",
+                "对已含较多噪声的图像应先降噪",
+                "锐化不产生新信息，仅增强已有高频成分"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -512,6 +568,14 @@
             "category": "预处理",
             "cnName": "灰度缩放",
             "description": "灰度图像线性缩放（scale_image），调整灰度范围",
+            "coreMeaning": "对图像灰度进行线性变换 new = mult*old + add，调整灰度动态范围",
+            "scenario": "低对比度图像对比度拉伸、灰度归一化、亮度偏移校正",
+            "caveats": [
+                "结果会自动裁剪到 [0,255] 范围",
+                "mult 为负值可实现反相",
+                "对彩色图逐通道应用",
+                "浮点结果需注意后续算子的输入类型"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -557,6 +621,14 @@
             "category": "预处理",
             "cnName": "图像算术",
             "description": "图像加减乘除 / 位运算 / 取反",
+            "coreMeaning": "对两幅图像或图像与标量执行加减乘除/位运算/取反，实现图像融合或掩膜运算",
+            "scenario": "背景差分、掩膜应用、图像叠加、HDR 合成",
+            "caveats": [
+                "两图运算需尺寸与通道数一致",
+                "除法需注意除零保护",
+                "位运算仅适用于整数类型",
+                "结果超出范围会自动饱和裁剪"
+            ],
             "iconPath": "qrc:/icons/arithmetic.svg",
             "params": [
                 {
@@ -632,6 +704,14 @@
             "category": "预处理",
             "cnName": "图像预处理",
             "description": "去噪 + 形态学操作（开/闭/腐蚀/膨胀）",
+            "coreMeaning": "组合去噪与形态学操作，一站式完成常用图像预处理",
+            "scenario": "检测流程前的统一预处理、快速降噪+形态学清理、减少算子节点数量",
+            "caveats": [
+                "denoise 与 morphology 可组合使用",
+                "kernelSize 同时影响去噪与形态学效果",
+                "形态学操作会改变区域形状",
+                "复杂场景需拆分单独算子处理"
+            ],
             "iconPath": "qrc:/icons/preprocess.svg",
             "params": [
                 {
@@ -701,6 +781,14 @@
             "category": "预处理",
             "cnName": "边缘检测",
             "description": "Canny 边缘检测（双阈值 + Sobel 核大小）",
+            "coreMeaning": "使用 Canny 算法提取图像中的显著边缘轮廓",
+            "scenario": "物体轮廓提取、测量定位前的特征提取、缺陷边界识别",
+            "caveats": [
+                "需在灰度图上执行",
+                "lowThreshold 建议为 highThreshold 的 1/2 或 1/3",
+                "apertureSize 通常为 3 或 5",
+                "噪声大时应先滤波以免产生伪边缘"
+            ],
             "iconPath": "qrc:/icons/edge.svg",
             "params": [
                 {
@@ -758,6 +846,14 @@
             "category": "预处理",
             "cnName": "颜色检测",
             "description": "HSV 颜色空间阈值分割（适合检测特定颜色目标）",
+            "coreMeaning": "在 HSV 颜色空间按阈值分割出特定颜色区域",
+            "scenario": "彩色目标定位、标签色识别、色块分割、按颜色分类",
+            "caveats": [
+                "输入应为 BGR 彩色图",
+                "H 通道范围 0-179（OpenCV 约定）",
+                "光照变化会影响 S/V，建议配合光源控制",
+                "红色跨越 0/179 边界时需分两段检测"
+            ],
             "iconPath": "qrc:/icons/color.svg",
             "params": [
                 {
@@ -855,6 +951,14 @@
             "category": "预处理",
             "cnName": "中值滤波",
             "description": "使用中值滤波器平滑图像，有效抑制椒盐噪声（median_image）",
+            "coreMeaning": "使用中值滤波去除椒盐噪声等脉冲噪声，同时较好保留边缘",
+            "scenario": "存在椒盐噪声的图像降噪、边缘保持平滑",
+            "caveats": [
+                "kernelSize 越大计算量越大",
+                "对高斯噪声效果不如均值/高斯滤波",
+                "核尺寸必须为正奇数",
+                "彩色图按通道分别处理"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -887,6 +991,14 @@
             "category": "几何变换",
             "cnName": "仿射变换",
             "description": "对图像进行仿射变换（affine_trans_image），支持平移/旋转/缩放/斜切",
+            "coreMeaning": "对图像执行平移/旋转/缩放/斜切的仿射变换，实现几何校正",
+            "scenario": "图像对齐、旋转校正、尺寸归一化、配准前预处理",
+            "caveats": [
+                "matrix 为 2x3 仿射矩阵",
+                "变换会改变像素位置，需选择插值方式",
+                "旋转中心默认为图像中心或矩阵指定原点",
+                "变换后图像范围可能超出原图，需设置输出尺寸"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -918,6 +1030,14 @@
             "category": "几何变换",
             "cnName": "极坐标变换",
             "description": "图像极坐标变换（polar_trans_image），将环形区域展开为矩形",
+            "coreMeaning": "将图像中环形或扇形区域展开为矩形，便于在笛卡尔坐标下分析",
+            "scenario": "圆形目标表面检测、轮胎/瓶口/轴承环形缺陷检测、环形排列文字展开",
+            "caveats": [
+                "centerX/centerY 为极坐标原点",
+                "展开后图像宽度对应原角度范围",
+                "需指定内外半径",
+                "非环形结构使用会失真"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -962,6 +1082,14 @@
             "category": "几何变换",
             "cnName": "图像变换",
             "description": "resize / rotate / flip / affine / perspective",
+            "coreMeaning": "统一的图像几何变换入口，支持缩放/旋转/翻转/仿射/透视等多种类型",
+            "scenario": "多种变换需求的统一节点、动态切换变换类型、批处理流程",
+            "caveats": [
+                "transformType 决定使用哪些参数",
+                "透视变换需 4 点对应",
+                "resize 时建议保持宽高比以免畸变",
+                "翻转 flipCode：0=垂直，1=水平，-1=双向"
+            ],
             "iconPath": "qrc:/icons/transform.svg",
             "params": [
                 {
@@ -1083,6 +1211,14 @@
             "category": "几何变换",
             "cnName": "图像合并",
             "description": "水平/垂直拼接 / 覆盖 / Alpha 混合（与上一帧缓存图合并）",
+            "coreMeaning": "将当前图像与上一帧缓存图合并，支持拼接/覆盖/Alpha 混合",
+            "scenario": "多图拼接全景、ROI 叠加、双图融合对比、水印叠加",
+            "caveats": [
+                "依赖上游缓存的上一帧图像",
+                "拼接方向需两图对应边尺寸匹配",
+                "Alpha 混合 alpha 范围 0-1",
+                "覆盖合并需指定位置坐标"
+            ],
             "iconPath": "qrc:/icons/merge.svg",
             "params": [
                 {
@@ -1137,6 +1273,14 @@
             "category": "形态学",
             "cnName": "闭运算",
             "description": "先膨胀后腐蚀（closing），填充区域内部小孔洞和缝隙",
+            "coreMeaning": "先膨胀后腐蚀，填充区域内部小孔洞与细小缝隙",
+            "scenario": "斑块内部孔洞填充、断裂区域连接、二值化后区域完善",
+            "caveats": [
+                "结构元素尺寸需与目标孔洞尺寸匹配",
+                "过大尺寸会模糊边界",
+                "shape 可选矩形/椭圆/十字",
+                "对细长缝隙效果有限"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1202,6 +1346,14 @@
             "category": "形态学",
             "cnName": "底帽变换",
             "description": "闭运算结果减去原图（bottom_hat），检测暗区域中的亮细节",
+            "coreMeaning": "闭运算结果减去原图，提取暗背景中的亮细节",
+            "scenario": "暗背景中亮缺陷检测、字符提取、光照不均匀校正",
+            "caveats": [
+                "结果为暗背景中的亮细节",
+                "结构元素尺寸需大于目标细节",
+                "对均匀光照效果更佳",
+                "可与 TopHat 配合使用"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1246,6 +1398,14 @@
             "category": "形态学",
             "cnName": "腐蚀",
             "description": "形态学腐蚀操作（erosion），收缩亮区域，消除细小噪点",
+            "coreMeaning": "形态学腐蚀，收缩亮区域并消除细小噪点",
+            "scenario": "二值图去毛刺、小噪点去除、区域细化、分离粘连目标",
+            "caveats": [
+                "iterations 越大腐蚀越强",
+                "会同时缩小目标尺寸",
+                "shape 选择影响腐蚀方向性",
+                "对暗区域无效"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1324,6 +1484,14 @@
             "category": "形态学",
             "cnName": "开运算",
             "description": "先腐蚀后膨胀（opening），消除细小亮噪点和狭窄连接",
+            "coreMeaning": "先腐蚀后膨胀，消除细小亮噪点与狭窄连接",
+            "scenario": "二值化后去噪、去除细小伪目标、平滑区域边界",
+            "caveats": [
+                "结构元素需大于噪声且小于目标",
+                "会断开窄连接处",
+                "对目标整体尺寸影响较小",
+                "shape 影响处理方向"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1389,6 +1557,14 @@
             "category": "形态学",
             "cnName": "顶帽变换",
             "description": "原图减去开运算结果（top_hat），检测亮区域中的暗细节",
+            "coreMeaning": "原图减去开运算结果，提取亮区域中的暗细节",
+            "scenario": "亮背景中暗缺陷检测、光照不均匀背景校正、小目标增强",
+            "caveats": [
+                "结果为亮背景中的暗细节",
+                "结构元素需大于目标细节",
+                "对同质背景效果最好",
+                "常用于阴影/划痕检测"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1433,6 +1609,14 @@
             "category": "形态学",
             "cnName": "膨胀",
             "description": "形态学膨胀操作（dilation），扩展亮区域，填充孔洞",
+            "coreMeaning": "形态学膨胀，扩展亮区域并填充内部孔洞",
+            "scenario": "断裂区域连接、区域加粗、孔洞填充、目标强化",
+            "caveats": [
+                "iterations 越大膨胀越强",
+                "会增大目标尺寸",
+                "可能合并相近目标",
+                "对暗区域无效"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1511,6 +1695,14 @@
             "category": "图像分割",
             "cnName": "动态阈值",
             "description": "动态阈值分割（dyn_threshold），根据局部均值自适应性分割前景",
+            "coreMeaning": "基于局部均值自适应计算阈值，分割光照不均匀图像的前景",
+            "scenario": "光照不均匀场景分割、反光表面检测、全局阈值失效的场合",
+            "caveats": [
+                "需配合平滑滤波计算局部均值",
+                "offset 控制相对偏移量",
+                "mode 决定分割亮区/暗区/两者",
+                "局部窗口需大于目标尺寸"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1565,6 +1757,14 @@
             "category": "图像分割",
             "cnName": "分水岭分割",
             "description": "基于标记的分水岭分割（watershed），将图像分割为不同区域",
+            "coreMeaning": "基于标记的分水岭算法分割粘连目标",
+            "scenario": "粘连细胞/颗粒分离、重叠物体分割、复杂边界划分",
+            "caveats": [
+                "需提供标记点（marker）",
+                "过分割是常见问题，需配合预处理",
+                "minDist 影响种子点密度",
+                "对噪声敏感，建议先平滑"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1609,6 +1809,14 @@
             "category": "图像分割",
             "cnName": "区域生长",
             "description": "基于种子点的区域生长分割（regiongrowing），合并相似灰度像素",
+            "coreMeaning": "从种子点出发合并灰度相似像素，形成连通区域",
+            "scenario": "医学图像分割、目标区域提取、颜色/灰度一致区域分割",
+            "caveats": [
+                "种子点选取直接影响结果",
+                "tolerance 过大会导致过分割",
+                "对噪声敏感需先平滑",
+                "计算量随区域增大而增加"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1666,6 +1874,14 @@
             "category": "图像分割",
             "cnName": "阈值分割",
             "description": "灰度阈值化（BINARY / BINARY_INV / TRUNC / TOZERO / TOZERO_INV）",
+            "coreMeaning": "按固定灰度阈值将图像二值化，分割前景与背景",
+            "scenario": "高对比度目标分割、掩膜生成、简单背景下的目标提取",
+            "caveats": [
+                "仅适用于光照均匀场景",
+                "method 决定二值化方式",
+                "阈值需根据实际图像调整",
+                "可配合 Histogram 选择阈值"
+            ],
             "iconPath": "qrc:/icons/threshold.svg",
             "params": [
                 {
@@ -1735,6 +1951,14 @@
             "category": "Blob分析",
             "cnName": "斑块检测",
             "description": "SimpleBlobDetector 斑块检测（按面积/圆度过滤）",
+            "coreMeaning": "使用 SimpleBlobDetector 检测斑块并按面积/圆度等特征过滤",
+            "scenario": "圆点定位、颗粒计数、目标中心提取、标准件检测",
+            "caveats": [
+                "参数组合复杂需调试",
+                "对密集目标分离能力有限",
+                "minArea/maxArea 需匹配目标实际尺寸",
+                "圆度过滤仅对圆形目标有效"
+            ],
             "iconPath": "qrc:/icons/blob.svg",
             "params": [
                 {
@@ -1805,6 +2029,14 @@
             "category": "Blob分析",
             "cnName": "连通域分析",
             "description": "将二值图像分割为连通域（connection），为每个区域分配唯一 ID",
+            "coreMeaning": "将二值图像分割为独立连通域，为每个区域分配唯一标识",
+            "scenario": "多目标分离、区域计数、按连通域统计特征、目标筛选前处理",
+            "caveats": [
+                "connectivity 选 4 或 8 连通",
+                "输入需为二值图",
+                "噪声会导致伪连通域，建议先形态学清理",
+                "区域数量过多时性能下降"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1842,6 +2074,14 @@
             "category": "Blob分析",
             "cnName": "轮廓分析",
             "description": "查找并按面积过滤轮廓（OTSU 自适应阈值二值化）",
+            "coreMeaning": "查找图像轮廓并按面积过滤，提取目标外形轮廓",
+            "scenario": "物体外形提取、尺寸测量、形状识别、缺陷轮廓分析",
+            "caveats": [
+                "使用 OTSU 自动阈值二值化",
+                "minArea/maxArea 控制轮廓过滤",
+                "对复杂背景需先预处理",
+                "轮廓层级（内/外）需按需配置"
+            ],
             "iconPath": "qrc:/icons/contour.svg",
             "params": [
                 {
@@ -1899,6 +2139,14 @@
             "category": "Blob分析",
             "cnName": "形状选择",
             "description": "按形状特征选择区域（select_shape），如面积/长宽比/矩形度等",
+            "coreMeaning": "按面积/长宽比/矩形度等形状特征筛选区域",
+            "scenario": "多区域筛选、按形状分类、去除伪目标、特征匹配前过滤",
+            "caveats": [
+                "featureType 决定筛选维度",
+                "minValue/maxValue 为筛选范围",
+                "需在 Connection 后使用",
+                "特征值计算依赖区域完整性"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -1985,6 +2233,14 @@
             "category": "特征提取",
             "cnName": "Harris角点",
             "description": "Harris 角点检测（points_harris），提取图像中的角点特征",
+            "coreMeaning": "检测图像中的 Harris 角点特征，用于特征匹配与位姿估计",
+            "scenario": "相机标定角点提取、特征点匹配、运动跟踪、图像配准",
+            "caveats": [
+                "需灰度图输入",
+                "k 值通常取 0.04-0.06",
+                "threshold 过高会漏检角点",
+                "对纹理单一区域检测效果差"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2055,6 +2311,14 @@
             "category": "特征提取",
             "cnName": "线圆检测",
             "description": "Hough 变换检测直线 / 直线段 / 圆",
+            "coreMeaning": "基于 Hough 变换检测直线/线段/圆等几何形状",
+            "scenario": "几何尺寸测量、定位标记检测、圆形目标识别、边缘直线提取",
+            "caveats": [
+                "参数较多需仔细调试",
+                "Hough 变换计算量较大",
+                "minDist/minRadius 等参数需匹配目标",
+                "对噪声敏感，建议先边缘检测"
+            ],
             "iconPath": "qrc:/icons/linecircle.svg",
             "params": [
                 {
@@ -2237,6 +2501,14 @@
             "category": "特征提取",
             "cnName": "亚像素边缘",
             "description": "亚像素精度边缘检测（edges_sub_pix），提取精确边缘轮廓",
+            "coreMeaning": "以亚像素精度提取边缘轮廓，满足高精度测量需求",
+            "scenario": "高精度尺寸测量、精密对位、亚像素级缺陷检测、计量级应用",
+            "caveats": [
+                "精度可达 0.1 像素以下",
+                "alpha 控制平滑程度",
+                "对噪声敏感需配合预处理",
+                "计算量大于普通边缘检测"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2294,6 +2566,14 @@
             "category": "匹配定位",
             "cnName": "NCC匹配",
             "description": "归一化互相关匹配（find_ncc_model），基于灰度相关性定位",
+            "coreMeaning": "基于归一化互相关进行模板匹配定位，对线性光照变化鲁棒",
+            "scenario": "灰度特征明显的目标定位、无明显遮挡场景、快速匹配需求",
+            "caveats": [
+                "对旋转/缩放不具不变性",
+                "对非线性光照变化敏感",
+                "模板需有足够灰度对比",
+                "threshold 过高会漏检"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2338,6 +2618,14 @@
             "category": "匹配定位",
             "cnName": "形状匹配",
             "description": "基于形状模板的匹配定位（find_shape_model），旋转/缩放不变性",
+            "coreMeaning": "基于形状模板匹配，具备旋转/缩放不变性",
+            "scenario": "旋转目标定位、多尺度匹配、复杂背景下定位、工业定位",
+            "caveats": [
+                "模板需提取形状特征",
+                "angleExtent/scale 范围越大越慢",
+                "对部分遮挡有一定鲁棒性",
+                "numMatches 控制返回数量"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2447,6 +2735,14 @@
             "category": "匹配定位",
             "cnName": "模板匹配",
             "description": "模板匹配定位（6 种 OpenCV 方法）",
+            "coreMeaning": "使用 OpenCV 6 种方法在图像中滑动匹配模板",
+            "scenario": "简单模板定位、目标粗定位、NCC 等多种方法对比",
+            "caveats": [
+                "不具旋转/缩放不变性",
+                "模板需与目标尺寸一致",
+                "method 选择影响匹配准则",
+                "大图大模板计算量大"
+            ],
             "iconPath": "qrc:/icons/template.svg",
             "params": [
                 {
@@ -2518,6 +2814,14 @@
             "category": "几何测量",
             "cnName": "几何测量",
             "description": "几何量测量（距离/面积/周长/角度/圆半径）",
+            "coreMeaning": "测量距离/面积/周长/角度/圆半径等几何量",
+            "scenario": "尺寸检测、角度测量、形状验证、几何量综合检测",
+            "caveats": [
+                "pixelScale 影响测量单位换算",
+                "需先完成标定获取像素当量",
+                "measureType 决定测量方式",
+                "测量精度依赖边缘提取质量"
+            ],
             "iconPath": "qrc:/icons/measure.svg",
             "params": [
                 {
@@ -2600,6 +2904,14 @@
             "category": "几何测量",
             "cnName": "点到点距离",
             "description": "计算两点之间的欧氏距离（distance_pp）",
+            "coreMeaning": "计算两点之间的欧氏距离",
+            "scenario": "尺寸测量、定位偏差计算、两点几何量检测、距离验证",
+            "caveats": [
+                "坐标单位为像素，需标定转换",
+                "仅计算 2D 距离",
+                "输入坐标顺序需正确",
+                "结果可输出到变量供后续使用"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2670,6 +2982,14 @@
             "category": "几何测量",
             "cnName": "线到线角度",
             "description": "计算两条直线之间的角度（angle_ll）",
+            "coreMeaning": "计算两条直线之间的夹角",
+            "scenario": "平行度/垂直度检测、角度偏差测量、装配角度验证、几何关系检验",
+            "caveats": [
+                "输入为两直线的两端点",
+                "角度范围 0-180 度",
+                "直线方向影响角度计算",
+                "需保证直线提取准确"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -2789,206 +3109,17 @@
             ]
         },
         {
-            "category": "3D视觉",
-            "cnName": "3D重建",
-            "description": "从视差图/点云重建三维表面（reconstruct_3d）",
-            "iconPath": "",
-            "params": [
-                {
-                    "cnName": "视差图路径",
-                    "defaultValue": "",
-                    "help": "视差图像路径（格式 png/tiff）",
-                    "maxValue": null,
-                    "minValue": null,
-                    "name": "disparityPath",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": null,
-                    "type": 4,
-                    "unit": ""
-                },
-                {
-                    "cnName": "焦距（像素）",
-                    "defaultValue": 1000,
-                    "help": "相机焦距（像素单位）",
-                    "maxValue": 100000,
-                    "minValue": 1,
-                    "name": "focalLength",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 10,
-                    "type": 1,
-                    "unit": "px"
-                },
-                {
-                    "cnName": "基线距离",
-                    "defaultValue": 100,
-                    "help": "左右相机基线距离",
-                    "maxValue": 10000,
-                    "minValue": 1,
-                    "name": "baseline",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 1,
-                    "type": 1,
-                    "unit": "mm"
-                }
-            ],
-            "type": "Reconstruct3D",
-            "outputs": [
-                {
-                    "name": "pointCloud",
-                    "cnName": "3D点云",
-                    "typeName": "Point3D[]",
-                    "desc": "三维重建点云",
-                    "color": "#90A4AE"
-                }
-            ]
-        },
-        {
-            "category": "3D视觉",
-            "cnName": "双目视差",
-            "description": "计算双目图像的视差图（binocular_disparity），用于深度估计",
-            "iconPath": "",
-            "params": [
-                {
-                    "cnName": "左图路径",
-                    "defaultValue": "",
-                    "help": "左相机图像路径",
-                    "maxValue": null,
-                    "minValue": null,
-                    "name": "leftImage",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": null,
-                    "type": 4,
-                    "unit": ""
-                },
-                {
-                    "cnName": "右图路径",
-                    "defaultValue": "",
-                    "help": "右相机图像路径",
-                    "maxValue": null,
-                    "minValue": null,
-                    "name": "rightImage",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": null,
-                    "type": 4,
-                    "unit": ""
-                },
-                {
-                    "cnName": "最小视差",
-                    "defaultValue": 0,
-                    "help": "最小视差搜索值",
-                    "maxValue": 256,
-                    "minValue": 0,
-                    "name": "minDisparity",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 16,
-                    "type": 0,
-                    "unit": "px"
-                },
-                {
-                    "cnName": "视差范围",
-                    "defaultValue": 128,
-                    "help": "视差搜索范围（必须为 16 的倍数）",
-                    "maxValue": 512,
-                    "minValue": 16,
-                    "name": "numDisparities",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 16,
-                    "type": 0,
-                    "unit": "px"
-                },
-                {
-                    "cnName": "块大小",
-                    "defaultValue": 9,
-                    "help": "匹配块大小（奇数）",
-                    "maxValue": 25,
-                    "minValue": 3,
-                    "name": "blockSize",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 2,
-                    "type": 0,
-                    "unit": "px"
-                }
-            ],
-            "type": "BinocularDisparity",
-            "outputs": [
-                {
-                    "name": "depthMap",
-                    "cnName": "视差图",
-                    "typeName": "Mat",
-                    "desc": "双目视差图",
-                    "color": "#90A4AE"
-                }
-            ]
-        },
-        {
-            "category": "3D视觉",
-            "cnName": "表面匹配",
-            "description": "三维表面模型匹配定位（surface_matching），用于 3D 目标检测",
-            "iconPath": "",
-            "params": [
-                {
-                    "cnName": "模型路径",
-                    "defaultValue": "",
-                    "help": "3D CAD 模型路径（ply/obj/stl）",
-                    "maxValue": null,
-                    "minValue": null,
-                    "name": "modelPath",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": null,
-                    "type": 4,
-                    "unit": ""
-                },
-                {
-                    "cnName": "采样密度",
-                    "defaultValue": 0.03,
-                    "help": "模型采样距离（相对包围盒比例）",
-                    "maxValue": 0.2,
-                    "minValue": 0.005,
-                    "name": "relSamplingDist",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 0.005,
-                    "type": 1,
-                    "unit": ""
-                },
-                {
-                    "cnName": "匹配阈值",
-                    "defaultValue": 0.5,
-                    "help": "匹配分数（0~1）",
-                    "maxValue": 1,
-                    "minValue": 0,
-                    "name": "threshold",
-                    "optionKeys": [],
-                    "options": [],
-                    "step": 0.05,
-                    "type": 1,
-                    "unit": ""
-                }
-            ],
-            "type": "SurfaceMatching",
-            "outputs": [
-                {
-                    "name": "matches",
-                    "cnName": "曲面匹配结果",
-                    "typeName": "Match[]",
-                    "desc": "3D曲面匹配结果",
-                    "color": "#90A4AE"
-                }
-            ]
-        },
-        {
             "category": "深度学习",
             "cnName": "AI 分类",
             "description": "使用训练好的模型对图像进行分类（PyTorch/ONNX/TensorRT）",
+            "coreMeaning": "使用训练好的深度学习模型对图像进行分类，输出类别与置信度",
+            "scenario": "缺陷分类、产品分类、表面等级评定、视觉质检分类",
+            "caveats": [
+                "模型需与分类标签列表对应",
+                "inputWidth/inputHeight 需匹配模型输入",
+                "confidenceThreshold 过高会漏判",
+                "模型推理需对应运行时（PyTorch/ONNX/TensorRT）"
+            ],
             "iconPath": "qrc:/icons/ai.svg",
             "params": [
                 {
@@ -3067,16 +3198,167 @@
                     "options": [],
                     "step": null,
                     "type": 6,
-                    "unit": ""
+                    "unit": "",
+                    "promptLibrarySource": "categoryLabels"
                 }
             ],
             "type": "AiClassify",
             "outputs": [
                 {
                     "name": "classId",
-                    "cnName": "分类结果",
+                    "cnName": "分类ID",
                     "typeName": "int",
-                    "desc": "分类标签ID",
+                    "desc": "分类标签的数值ID",
+                    "color": "#81C784",
+                    "defaultEnabled": true,
+                    "multiTargetOnly": false
+                },
+                {
+                    "name": "className",
+                    "cnName": "分类类别",
+                    "typeName": "string",
+                    "desc": "分类类别名称（单目标为字符串，多目标为数组）",
+                    "color": "#64B5F6",
+                    "defaultEnabled": true,
+                    "multiTargetOnly": false
+                },
+                {
+                    "name": "confidence",
+                    "cnName": "分类置信度",
+                    "typeName": "double",
+                    "desc": "分类置信度（单目标为数值，多目标为数组）",
+                    "color": "#FFD54F",
+                    "defaultEnabled": true,
+                    "multiTargetOnly": false
+                },
+                {
+                    "name": "classArray",
+                    "cnName": "类别数组",
+                    "typeName": "string[]",
+                    "desc": "多目标场景下按检测顺序输出的类别名数组",
+                    "color": "#BA68C8",
+                    "defaultEnabled": false,
+                    "multiTargetOnly": true
+                },
+                {
+                    "name": "confidenceArray",
+                    "cnName": "置信度数组",
+                    "typeName": "double[]",
+                    "desc": "多目标场景下按检测顺序输出的置信度数组",
+                    "color": "#4DB6AC",
+                    "defaultEnabled": false,
+                    "multiTargetOnly": true
+                }
+            ]
+        },
+        {
+            "category": "深度学习",
+            "cnName": "YOLO检测",
+            "description": "YOLOv5/v8 目标检测算子，支持多类别检测和边界框绘制",
+            "coreMeaning": "使用 YOLOv5/v8 模型进行实时目标检测，输出边界框与类别",
+            "scenario": "多目标检测、实时质检、流水线目标识别、复杂场景目标定位",
+            "caveats": [
+                "模型需导出为对应格式（ONNX/Engine）",
+                "iouThreshold 控制 NMS 去重",
+                "inputWidth/inputHeight 影响检测精度与速度",
+                "categoryLabels 需与模型训练类别一致"
+            ],
+            "iconPath": "qrc:/icons/ai.svg",
+            "params": [
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "推荐 .onnx 格式 YOLO 模型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "置信度阈值",
+                    "defaultValue": 0.25,
+                    "help": "分数 ≥ 阈值 视为有效检测",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "confidenceThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "NMS IoU阈值",
+                    "defaultValue": 0.45,
+                    "help": "非极大值抑制 IoU 阈值",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "iouThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入宽",
+                    "defaultValue": 640,
+                    "help": "YOLO 模型输入尺寸",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "输入高",
+                    "defaultValue": 640,
+                    "help": "YOLO 模型输入尺寸",
+                    "maxValue": 4096,
+                    "minValue": 32,
+                    "name": "inputHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 32,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "类别标签",
+                    "defaultValue": "",
+                    "help": "每行一个类别名（顺序对应模型输出索引）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "categoryLabels",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": "",
+                    "promptLibrarySource": "categoryLabels"
+                }
+            ],
+            "type": "YoloDetect",
+            "outputs": [
+                {
+                    "name": "detections",
+                    "cnName": "检测结果",
+                    "typeName": "Detection[]",
+                    "desc": "检测框数组（含 class_id/confidence/bbox）",
+                    "color": "#81C784"
+                },
+                {
+                    "name": "numDetections",
+                    "cnName": "检测数量",
+                    "typeName": "int",
+                    "desc": "检测到的目标数量",
                     "color": "#81C784"
                 }
             ]
@@ -3085,6 +3367,14 @@
             "category": "深度学习",
             "cnName": "深度学习分割",
             "description": "使用深度学习模型进行语义分割/实例分割（UNet/MaskRCNN 等）",
+            "coreMeaning": "使用深度学习模型执行语义/实例分割，输出像素级掩膜",
+            "scenario": "复杂缺陷分割、像素级目标提取、医学图像分割、多类目标分割",
+            "caveats": [
+                "模型需为分割模型（UNet/MaskRCNN）",
+                "输入尺寸需匹配模型要求",
+                "confidenceThreshold 控制掩膜置信度",
+                "推理速度较慢，需考虑硬件加速"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3155,6 +3445,14 @@
             "category": "深度学习",
             "cnName": "深度学习检测",
             "description": "使用深度学习模型进行目标检测（YOLO/SSD/FasterRCNN 等）",
+            "coreMeaning": "使用深度学习模型进行通用目标检测，支持 YOLO/SSD/FasterRCNN 等",
+            "scenario": "通用目标检测、多框架模型部署、定制化检测需求",
+            "caveats": [
+                "nmsThreshold 用于去重",
+                "不同模型框架需对应运行时",
+                "inputWidth/inputHeight 需匹配模型",
+                "置信度阈值需根据场景调整"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3235,9 +3533,141 @@
             ]
         },
         {
+            "category": "深度学习",
+            "cnName": "均一化",
+            "description": "为深度学习预处理提供多种数值标准化模式（MinMax/ZScore/LayerNorm/InstanceNorm/BatchNorm/ImageNet）",
+            "coreMeaning": "为深度学习推理提供多种数值标准化模式，对齐模型训练时的预处理",
+            "scenario": "深度学习推理前预处理、不同模型归一化方式适配、跨模型流程统一",
+            "caveats": [
+                "mode 必须与模型训练时一致",
+                "ImageNet 模式使用固定均值方差",
+                "perChannel 控制是否逐通道",
+                "epsilon 用于避免除零"
+            ],
+            "iconPath": "qrc:/icons/ai.svg",
+            "params": [
+                {
+                    "cnName": "均一化模式",
+                    "defaultValue": "minMax",
+                    "help": "选择标准化模式：minMax=最小最大归一化；zScore=Z-Score标准化；layerNorm=层均一化；instanceNorm=实例均一化；batchNorm=批均一化；imageNet=ImageNet预训练标准化",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mode",
+                    "optionKeys": [
+                        "minMax",
+                        "zScore",
+                        "layerNorm",
+                        "instanceNorm",
+                        "batchNorm",
+                        "imageNet"
+                    ],
+                    "options": [
+                        "最小最大归一化",
+                        "Z-Score 标准化",
+                        "层均一化",
+                        "实例均一化",
+                        "批均一化",
+                        "ImageNet 预训练标准化"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "目标区间",
+                    "defaultValue": "0_1",
+                    "help": "仅 minMax 模式有效：0_1 映射到 [0,1]；minus1_1 映射到 [-1,1]",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "targetRange",
+                    "optionKeys": [
+                        "0_1",
+                        "minus1_1"
+                    ],
+                    "options": [
+                        "[0, 1]",
+                        "[-1, 1]"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "逐通道计算",
+                    "defaultValue": true,
+                    "help": "是否对每个通道独立计算统计量（minMax/layerNorm 生效）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "perChannel",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "自定义均值",
+                    "defaultValue": "",
+                    "help": "逗号分隔的均值列表，如 0.485,0.456,0.406。留空时 zScore 自动计算、imageNet 使用 ImageNet 默认值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mean",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                },
+                {
+                    "cnName": "自定义标准差",
+                    "defaultValue": "",
+                    "help": "逗号分隔的标准差列表，如 0.229,0.224,0.225。留空时 zScore 自动计算、imageNet 使用 ImageNet 默认值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "std",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Epsilon",
+                    "defaultValue": 1e-05,
+                    "help": "防止除零的小常数，必须 > 0",
+                    "maxValue": 1.0,
+                    "minValue": 1e-12,
+                    "name": "epsilon",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 1e-06,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "Normalization",
+            "outputs": [
+                {
+                    "name": "normalizedImage",
+                    "cnName": "均一化图像",
+                    "typeName": "Mat",
+                    "desc": "标准化后的 float32 图像（overlayImage 为映射到 [0,255] 的显示图）",
+                    "color": "#81C784"
+                }
+            ]
+        },
+        {
             "category": "分支",
             "cnName": "分支控制",
             "description": "条件分支控制（根据上游工具结果决定流向）",
+            "coreMeaning": "根据上游结果条件决定流程走向，实现 if/switch 分支逻辑",
+            "scenario": "良品/不良品分流、多工况处理、异常处理分支、基于检测结果的路由",
+            "caveats": [
+                "conditionOp 决定比较方式",
+                "logicInputs 支持多条件组合",
+                "switch 模式需配置 branchCases",
+                "分支未命中需配置默认路径"
+            ],
             "iconPath": "qrc:/icons/branch.svg",
             "params": [
                 {
@@ -3253,7 +3683,12 @@
                         "==",
                         "!=",
                         ">=",
-                        "<="
+                        "<=",
+                        "AND",
+                        "OR",
+                        "NOT",
+                        "XOR",
+                        "switch"
                     ],
                     "options": [
                         "大于",
@@ -3261,7 +3696,12 @@
                         "等于",
                         "不等于",
                         "大于等于",
-                        "小于等于"
+                        "小于等于",
+                        "逻辑与(AND)",
+                        "逻辑或(OR)",
+                        "逻辑非(NOT)",
+                        "逻辑异或(XOR)",
+                        "多分支选择(switch)"
                     ],
                     "step": null,
                     "type": 2,
@@ -3305,6 +3745,45 @@
                     "step": null,
                     "type": 6,
                     "unit": ""
+                },
+                {
+                    "cnName": "逻辑运算输入",
+                    "defaultValue": "",
+                    "help": "AND/OR/NOT/XOR模式下的输入，格式: nodeId1:expectedBool1,nodeId2:expectedBool2",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "logicInputs",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "switch输入值",
+                    "defaultValue": "0",
+                    "help": "switch模式下匹配分支序号的输入值（支持${var}变量引用）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "switchValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "分支用例列表",
+                    "defaultValue": "",
+                    "help": "switch模式下的分支映射，格式: case1:toolId1,toolId2;case2:toolId3",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "branchCases",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
                 }
             ],
             "type": "BranchControl",
@@ -3322,6 +3801,14 @@
             "category": "预处理",
             "cnName": "直方图",
             "description": "计算并可视化灰度/彩色/均衡化直方图（histogram）",
+            "coreMeaning": "计算并可视化图像灰度/彩色/均衡化直方图",
+            "scenario": "阈值选择参考、图像质量分析、对比度评估、均衡化效果验证",
+            "caveats": [
+                "bins 数量影响统计粒度",
+                "rangeMin/rangeMax 限定统计范围",
+                "彩色图按通道分别统计",
+                "直方图图像为输出，不修改原图"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3331,8 +3818,16 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "mode",
-                    "optionKeys": ["gray", "color", "equalize"],
-                    "options": ["灰度", "彩色", "均衡化"],
+                    "optionKeys": [
+                        "gray",
+                        "color",
+                        "equalize"
+                    ],
+                    "options": [
+                        "灰度",
+                        "彩色",
+                        "均衡化"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3393,6 +3888,14 @@
             "category": "预处理",
             "cnName": "RGB通道提取",
             "description": "从 BGR 图像中提取指定通道（R/G/B），单通道转 BGR 后返回",
+            "coreMeaning": "从 BGR 彩色图像中提取指定 R/G/B 单通道",
+            "scenario": "单通道分析、通道差异比较、颜色分量处理、特定通道特征提取",
+            "caveats": [
+                "OpenCV 默认为 BGR 顺序",
+                "输出为单通道转 BGR 以便显示",
+                "channel 取值 0/1/2 对应 B/G/R",
+                "输入需为彩色图"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3402,8 +3905,16 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "channel",
-                    "optionKeys": ["r", "g", "b"],
-                    "options": ["红 R", "绿 G", "蓝 B"],
+                    "optionKeys": [
+                        "r",
+                        "g",
+                        "b"
+                    ],
+                    "options": [
+                        "红 R",
+                        "绿 G",
+                        "蓝 B"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3425,6 +3936,14 @@
             "category": "预处理",
             "cnName": "通道分离",
             "description": "支持 RGB/HSV/Lab/YUV 四种颜色空间的通道分离，提取指定通道的单通道图像",
+            "coreMeaning": "支持 RGB/HSV/Lab/YUV 四种颜色空间的通道分离提取",
+            "scenario": "多颜色空间分析、特定颜色特征提取、色彩分量处理、肤色/色相检测",
+            "caveats": [
+                "colorSpace 决定转换方式",
+                "channelIndex 从 0 开始",
+                "输出为单通道图像",
+                "不同颜色空间通道含义不同"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3434,8 +3953,18 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "colorSpace",
-                    "optionKeys": ["RGB", "HSV", "LAB", "YUV"],
-                    "options": ["RGB", "HSV", "Lab", "YUV"],
+                    "optionKeys": [
+                        "RGB",
+                        "HSV",
+                        "LAB",
+                        "YUV"
+                    ],
+                    "options": [
+                        "RGB",
+                        "HSV",
+                        "Lab",
+                        "YUV"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3470,6 +3999,14 @@
             "category": "Blob分析",
             "cnName": "面积中心点",
             "description": "计算前景区域面积与重心（area_center），支持 region/largest/moments 三种模式",
+            "coreMeaning": "计算前景区域的面积与重心坐标，支持多种计算模式",
+            "scenario": "目标定位、重心提取、区域面积统计、质心跟踪",
+            "caveats": [
+                "threshold 用于二值化",
+                "mode 选 region/largest/moments",
+                "largest 模式仅返回最大区域",
+                "moments 模式使用图像矩计算"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3492,8 +4029,16 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "mode",
-                    "optionKeys": ["region", "largest", "moments"],
-                    "options": ["整体区域", "最大连通域", "图像矩"],
+                    "optionKeys": [
+                        "region",
+                        "largest",
+                        "moments"
+                    ],
+                    "options": [
+                        "整体区域",
+                        "最大连通域",
+                        "图像矩"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3522,6 +4067,14 @@
             "category": "特征提取",
             "cnName": "二维码识别",
             "description": "使用 cv::QRCodeDetector 检测并解码二维码",
+            "coreMeaning": "检测并解码图像中的二维码，输出文本内容",
+            "scenario": "物料追溯、产品标识识别、二维码定位与读取、防错验证",
+            "caveats": [
+                "图像需清晰且二维码占比足够",
+                "倾斜角度过大影响识别",
+                "模糊/反光会降低识别率",
+                "支持标准 QR 码，非标码可能无法解码"
+            ],
             "iconPath": "",
             "params": [],
             "subGroup": "条码识别",
@@ -3547,6 +4100,14 @@
             "category": "特征提取",
             "cnName": "一维码识别",
             "description": "纯 OpenCV 实现线剖面解码，尝试 EAN-13 解码",
+            "coreMeaning": "通过线剖面解码识别 EAN-13 等一维条码",
+            "scenario": "商品条码识别、物流追踪、包装标识读取、库存管理",
+            "caveats": [
+                "当前实现以 EAN-13 为主",
+                "条码需清晰且方向正确",
+                "噪声/模糊影响解码成功率",
+                "其他格式需扩展实现"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3556,8 +4117,14 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "format",
-                    "optionKeys": ["auto", "ean13"],
-                    "options": ["自动", "EAN-13"],
+                    "optionKeys": [
+                        "auto",
+                        "ean13"
+                    ],
+                    "options": [
+                        "自动",
+                        "EAN-13"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3579,6 +4146,14 @@
             "category": "特征提取",
             "cnName": "OCR字符识别",
             "description": "基于 cv::dnn CRNN 模型 + CTC 解码；未配置模型时优雅降级",
+            "coreMeaning": "基于 CRNN+CTC 模型识别图像中的文字字符",
+            "scenario": "产品序列号识别、字符验证、标签读取、印刷字符检测",
+            "caveats": [
+                "需配置 modelPath 与 charsetPath",
+                "未配置模型时优雅降级",
+                "imgHeight 需匹配模型输入",
+                "confThreshold 过高会漏识别"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3647,9 +4222,17 @@
             ]
         },
         {
-            "category": "3D视觉",
+            "category": "标定与坐标",
             "cnName": "手眼标定",
             "description": "基于棋盘格角点与机械臂位姿文件，支持 eye_in_hand / eye_to_hand 双模式",
+            "coreMeaning": "标定相机与机械臂的坐标变换关系，支持眼在手内/眼在手外两种模式",
+            "scenario": "机器人视觉抓取、自动化装配定位、视觉引导机器人系统搭建",
+            "caveats": [
+                "需采集多组棋盘格图像与对应机械臂位姿",
+                "boardW/boardH 需与实际标定板一致",
+                "minPairs 需足够保证标定精度",
+                "位姿文件格式需与 RobotPose 输出对应"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3659,8 +4242,14 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "mode",
-                    "optionKeys": ["eye_in_hand", "eye_to_hand"],
-                    "options": ["眼在手上", "眼在手外"],
+                    "optionKeys": [
+                        "eye_in_hand",
+                        "eye_to_hand"
+                    ],
+                    "options": [
+                        "眼在手上",
+                        "眼在手外"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3783,9 +4372,17 @@
             ]
         },
         {
-            "category": "3D视觉",
+            "category": "标定与坐标",
             "cnName": "机器人位姿",
             "description": "从 TCP/串口/文件读取机械臂当前位姿，写入全局 PoseBuffer 供手眼标定配对使用",
+            "coreMeaning": "从 TCP/串口/文件读取机械臂当前位姿，供手眼标定配对使用",
+            "scenario": "手眼标定位姿采集、机器人位姿监控、在线定位数据获取",
+            "caveats": [
+                "sourceType 需与实际通讯方式匹配",
+                "TCP 通讯需确保网络连通",
+                "串口需正确配置波特率",
+                "位姿数据需包含 XYZRPY 六维"
+            ],
             "iconPath": "",
             "params": [
                 {
@@ -3795,8 +4392,16 @@
                     "maxValue": null,
                     "minValue": null,
                     "name": "sourceType",
-                    "optionKeys": ["tcp", "serial", "file"],
-                    "options": ["TCP", "串口", "文件"],
+                    "optionKeys": [
+                        "tcp",
+                        "serial",
+                        "file"
+                    ],
+                    "options": [
+                        "TCP",
+                        "串口",
+                        "文件"
+                    ],
                     "step": null,
                     "type": 2,
                     "unit": ""
@@ -3876,6 +4481,1922 @@
                     "typeName": "Json",
                     "desc": "包含 frameId/x/y/z/rx/ry/rz/timestampMs 的位姿数据",
                     "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "标定与坐标",
+            "cnName": "位置修正",
+            "description": "根据参考点与当前点位计算仿射变换矩阵，输出修正后的位姿",
+            "coreMeaning": "根据参考点与当前点位计算仿射变换矩阵，输出修正后的位姿",
+            "scenario": "装配定位修正、抓取位置补偿、视觉引导定位、偏差校正",
+            "caveats": [
+                "参考点与当前点需一一对应",
+                "poseAngle 影响旋转修正",
+                "scaleX/scaleY 用于尺寸修正",
+                "修正矩阵可输出供机器人使用"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "位姿X",
+                    "defaultValue": 0,
+                    "help": "当前位姿X坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "poseX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "位姿Y",
+                    "defaultValue": 0,
+                    "help": "当前位姿Y坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "poseY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "位姿角度",
+                    "defaultValue": 0,
+                    "help": "当前位姿角度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "poseAngle",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": "度"
+                },
+                {
+                    "cnName": "位姿X缩放",
+                    "defaultValue": 1,
+                    "help": "X方向缩放系数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "poseScaleX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "位姿Y缩放",
+                    "defaultValue": 1,
+                    "help": "Y方向缩放系数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "poseScaleY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "参考点X",
+                    "defaultValue": 0,
+                    "help": "参考点X坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "refX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "参考点Y",
+                    "defaultValue": 0,
+                    "help": "参考点Y坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "refY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "PositionCorrect",
+            "outputs": [
+                {
+                    "name": "affineMatrix",
+                    "cnName": "仿射矩阵",
+                    "typeName": "Double[]",
+                    "desc": "仿射变换矩阵",
+                    "color": "#42A5F5"
+                },
+                {
+                    "name": "pose",
+                    "cnName": "修正位姿",
+                    "typeName": "Pose",
+                    "desc": "修正后的位姿",
+                    "color": "#66BB6A"
+                }
+            ]
+        },
+        {
+            "category": "标定与坐标",
+            "cnName": "单位换算",
+            "description": "根据标定文件在距离/面积维度上进行毫米与像素单位换算",
+            "coreMeaning": "根据标定文件在像素与毫米等单位间进行距离/面积换算",
+            "scenario": "测量结果单位转换、实际尺寸输出、跨系统数据对接、公制结果展示",
+            "caveats": [
+                "calibFile 需为有效标定文件",
+                "inputType 区分距离/面积",
+                "pixelScale 为备用像素当量",
+                "面积换算需平方像素当量"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "标定文件",
+                    "defaultValue": "",
+                    "help": "标定文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "calibFile",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入值",
+                    "defaultValue": 0,
+                    "help": "待换算的输入值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "inputValue",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入类型",
+                    "defaultValue": "distance",
+                    "help": "输入值类型：距离或面积",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "inputType",
+                    "optionKeys": [
+                        "distance",
+                        "area"
+                    ],
+                    "options": [
+                        "距离",
+                        "面积"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输出单位",
+                    "defaultValue": "mm",
+                    "help": "目标输出单位",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "outputUnit",
+                    "optionKeys": [
+                        "mm",
+                        "px"
+                    ],
+                    "options": [
+                        "毫米",
+                        "像素"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "像素比例",
+                    "defaultValue": 1,
+                    "help": "像素到物理单位的比例系数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "pixelScale",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": "mm/px"
+                }
+            ],
+            "type": "UnitConvert",
+            "outputs": [
+                {
+                    "name": "outputValue",
+                    "cnName": "输出值",
+                    "typeName": "float",
+                    "desc": "换算后的输出值",
+                    "color": "#42A5F5"
+                },
+                {
+                    "name": "unit",
+                    "cnName": "单位",
+                    "typeName": "string",
+                    "desc": "输出值的单位",
+                    "color": "#FFCA28"
+                }
+            ]
+        },
+        {
+            "category": "测量与分析",
+            "cnName": "卡尺测量",
+            "description": "在ROI区域内沿搜索方向检测边缘并测量距离",
+            "coreMeaning": "在 ROI 区域内沿搜索方向检测边缘并测量距离",
+            "scenario": "高精度尺寸测量、宽度/间距检测、边缘定位、卡尺式测量",
+            "caveats": [
+                "ROI 需精确覆盖测量区域",
+                "searchWidth/searchLength 影响测量范围",
+                "polarity 决定检测亮暗边",
+                "smoothSigma 用于边缘平滑"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "ROI左上X",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域左上角X坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI左上Y",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域左上角Y坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI宽度",
+                    "defaultValue": 100,
+                    "help": "感兴趣区域宽度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiW",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI高度",
+                    "defaultValue": 100,
+                    "help": "感兴趣区域高度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiH",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "搜索宽度",
+                    "defaultValue": 20,
+                    "help": "卡尺搜索宽度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "searchWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "搜索长度",
+                    "defaultValue": 100,
+                    "help": "卡尺搜索长度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "searchLength",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "边缘阈值",
+                    "defaultValue": 30,
+                    "help": "边缘检测阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "edgeThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "极性",
+                    "defaultValue": "any",
+                    "help": "边缘极性选择",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "polarity",
+                    "optionKeys": [
+                        "any",
+                        "dark_to_bright",
+                        "bright_to_dark"
+                    ],
+                    "options": [
+                        "任意",
+                        "暗到亮",
+                        "亮到暗"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "平滑系数",
+                    "defaultValue": 1,
+                    "help": "高斯平滑系数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "smoothSigma",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "Caliper",
+            "outputs": [
+                {
+                    "name": "distance",
+                    "cnName": "距离",
+                    "typeName": "float",
+                    "desc": "两边缘之间的距离",
+                    "color": "#FF8A65"
+                },
+                {
+                    "name": "edgePos1",
+                    "cnName": "边缘点1",
+                    "typeName": "Point",
+                    "desc": "第一个边缘点位置",
+                    "color": "#26C6DA"
+                },
+                {
+                    "name": "edgePos2",
+                    "cnName": "边缘点2",
+                    "typeName": "Point",
+                    "desc": "第二个边缘点位置",
+                    "color": "#26C6DA"
+                }
+            ]
+        },
+        {
+            "category": "标定与坐标",
+            "cnName": "相机标定",
+            "description": "使用标定板图像进行相机内参标定，输出标定文件与重投影误差",
+            "coreMeaning": "使用标定板图像标定相机内参，输出标定文件与重投影误差",
+            "scenario": "镜头畸变校正、测量精度提升、3D 视觉系统搭建、多相机系统标定",
+            "caveats": [
+                "标定板规格需与 boardW/boardH 一致",
+                "需采集多角度标定图像",
+                "reprojError 过大需重新标定",
+                "maxImages 限制标定图数量"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "标定板列数",
+                    "defaultValue": 9,
+                    "help": "标定板内角点列数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "boardW",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "标定板行数",
+                    "defaultValue": 6,
+                    "help": "标定板内角点行数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "boardH",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "方格尺寸",
+                    "defaultValue": 25,
+                    "help": "标定板单个方格的物理尺寸",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "squareSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": "mm"
+                },
+                {
+                    "cnName": "图像路径",
+                    "defaultValue": "",
+                    "help": "标定图像路径列表（分号分隔）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "imagePaths",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输出文件",
+                    "defaultValue": "",
+                    "help": "标定结果输出文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "outputFile",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大图像数",
+                    "defaultValue": 20,
+                    "help": "参与标定的最大图像数量",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxImages",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "CameraCalib",
+            "outputs": [
+                {
+                    "name": "calibFile",
+                    "cnName": "标定文件",
+                    "typeName": "string",
+                    "desc": "标定结果文件路径",
+                    "color": "#AB47BC"
+                },
+                {
+                    "name": "reprojError",
+                    "cnName": "重投影误差",
+                    "typeName": "float",
+                    "desc": "标定重投影误差",
+                    "color": "#FF8A65"
+                },
+                {
+                    "name": "fx",
+                    "cnName": "焦距fx",
+                    "typeName": "float",
+                    "desc": "X方向焦距",
+                    "color": "#42A5F5"
+                },
+                {
+                    "name": "fy",
+                    "cnName": "焦距fy",
+                    "typeName": "float",
+                    "desc": "Y方向焦距",
+                    "color": "#42A5F5"
+                }
+            ]
+        },
+        {
+            "category": "匹配定位",
+            "cnName": "轮廓匹配",
+            "description": "基于模板轮廓在图像中匹配目标，返回匹配结果列表",
+            "coreMeaning": "基于模板轮廓在图像中匹配目标并返回匹配结果列表",
+            "scenario": "复杂形状目标定位、轮廓相似度匹配、多目标定位、缺陷形状筛选",
+            "caveats": [
+                "templatePath 需为有效轮廓模板",
+                "threshold 控制匹配严格度",
+                "maxMatches 限制返回数量",
+                "minArea 过滤小目标"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板路径",
+                    "defaultValue": "",
+                    "help": "轮廓模板文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "templatePath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.8,
+                    "help": "匹配分数阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大匹配数",
+                    "defaultValue": 10,
+                    "help": "返回的最大匹配数量",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxMatches",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配方法",
+                    "defaultValue": "I1",
+                    "help": "轮廓匹配方法",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "matchMethod",
+                    "optionKeys": [
+                        "I1",
+                        "I2",
+                        "I3"
+                    ],
+                    "options": [
+                        "I1",
+                        "I2",
+                        "I3"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小面积",
+                    "defaultValue": 100,
+                    "help": "匹配目标的最小面积",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "minArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "ContourMatch",
+            "outputs": [
+                {
+                    "name": "matches",
+                    "cnName": "匹配结果",
+                    "typeName": "Match[]",
+                    "desc": "匹配结果列表",
+                    "color": "#66BB6A"
+                },
+                {
+                    "name": "matchCount",
+                    "cnName": "匹配数量",
+                    "typeName": "int",
+                    "desc": "匹配到的目标数量",
+                    "color": "#FFCA28"
+                },
+                {
+                    "name": "bestScore",
+                    "cnName": "最佳分数",
+                    "typeName": "float",
+                    "desc": "最高匹配分数",
+                    "color": "#42A5F5"
+                }
+            ]
+        },
+        {
+            "category": "颜色与分割",
+            "cnName": "颜色比对",
+            "description": "基于颜色直方图比对模板与目标区域的颜色相似度",
+            "coreMeaning": "基于颜色直方图比对模板与目标区域的颜色相似度",
+            "scenario": "颜色一致性验证、色差检测、配色比对、颜色分类",
+            "caveats": [
+                "colorSpace 影响比对维度",
+                "histMethod 决定直方图比较方式",
+                "ROI 需准确选取",
+                "光照变化会影响比对结果"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板路径",
+                    "defaultValue": "",
+                    "help": "颜色模板文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "templatePath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "颜色空间",
+                    "defaultValue": "HSV",
+                    "help": "颜色空间选择",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "colorSpace",
+                    "optionKeys": [
+                        "HSV",
+                        "RGB",
+                        "Lab"
+                    ],
+                    "options": [
+                        "HSV",
+                        "RGB",
+                        "Lab"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "直方图方法",
+                    "defaultValue": "Correl",
+                    "help": "直方图比对方法",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "histMethod",
+                    "optionKeys": [
+                        "Correl",
+                        "ChiSqr",
+                        "Intersect",
+                        "Bhattacharyya"
+                    ],
+                    "options": [
+                        "相关",
+                        "卡方",
+                        "相交",
+                        "巴氏"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "匹配阈值",
+                    "defaultValue": 0.8,
+                    "help": "颜色匹配阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "threshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "直方图箱数",
+                    "defaultValue": 32,
+                    "help": "直方图分箱数量",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "bins",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI左上X",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域左上角X坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiX",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI左上Y",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域左上角Y坐标",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiY",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI宽度",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域宽度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiW",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI高度",
+                    "defaultValue": 0,
+                    "help": "感兴趣区域高度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiH",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "ColorMatch",
+            "outputs": [
+                {
+                    "name": "score",
+                    "cnName": "相似度分数",
+                    "typeName": "float",
+                    "desc": "颜色相似度分数",
+                    "color": "#42A5F5"
+                },
+                {
+                    "name": "isMatch",
+                    "cnName": "是否匹配",
+                    "typeName": "bool",
+                    "desc": "是否达到匹配阈值",
+                    "color": "#66BB6A"
+                },
+                {
+                    "name": "distance",
+                    "cnName": "颜色距离",
+                    "typeName": "float",
+                    "desc": "颜色距离值",
+                    "color": "#FF8A65"
+                }
+            ]
+        },
+        {
+            "category": "分析与识别",
+            "cnName": "端到端OCR",
+            "description": "端到端文字检测与识别，输出文本区域及完整文本",
+            "coreMeaning": "端到端完成文字检测与识别，输出文本区域及完整文本",
+            "scenario": "复杂场景文字识别、多文本区域提取、自然场景 OCR、文档数字化",
+            "caveats": [
+                "需配置检测与识别两个模型",
+                "inputWidth/inputHeight 影响检测精度",
+                "language 需与模型匹配",
+                "maxTextRegions 限制处理数量"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "检测模型路径",
+                    "defaultValue": "",
+                    "help": "文字检测模型文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "detectionModelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "识别模型路径",
+                    "defaultValue": "",
+                    "help": "文字识别模型文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "recognitionModelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "置信度阈值",
+                    "defaultValue": 0.5,
+                    "help": "文字检测置信度阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "confThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "NMS阈值",
+                    "defaultValue": 0.4,
+                    "help": "非极大值抑制阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "nmsThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入宽度",
+                    "defaultValue": 320,
+                    "help": "模型输入图像宽度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "inputWidth",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输入高度",
+                    "defaultValue": 320,
+                    "help": "模型输入图像高度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "inputHeight",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "语言",
+                    "defaultValue": "chi_sim",
+                    "help": "识别语言",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "language",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大文本区域数",
+                    "defaultValue": 20,
+                    "help": "最大检测文本区域数量",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxTextRegions",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "DLOCR",
+            "outputs": [
+                {
+                    "name": "textCount",
+                    "cnName": "文本数量",
+                    "typeName": "int",
+                    "desc": "检测到的文本区域数量",
+                    "color": "#FFCA28"
+                },
+                {
+                    "name": "texts",
+                    "cnName": "文本区域",
+                    "typeName": "TextRegion[]",
+                    "desc": "文本区域列表",
+                    "color": "#26C6DA"
+                },
+                {
+                    "name": "fullText",
+                    "cnName": "完整文本",
+                    "typeName": "string",
+                    "desc": "拼接后的完整文本",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "采集与控制",
+            "cnName": "光源控制",
+            "description": "控制光源亮度、模式及触发时序，支持IO/串口/TCP设备",
+            "coreMeaning": "控制光源亮度/模式/触发时序，支持 IO/串口/TCP 设备",
+            "scenario": "频闪同步采集、多光谱光源切换、光源亮度调节、触发同步控制",
+            "caveats": [
+                "deviceType 需与实际设备匹配",
+                "strobePeriodMs/strobeDutyCycle 用于频闪",
+                "triggerDelay 需与相机曝光同步",
+                "设备通讯异常需有容错处理"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "通道",
+                    "defaultValue": 0,
+                    "help": "光源通道号",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "channel",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "亮度",
+                    "defaultValue": 255,
+                    "help": "光源亮度值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "intensity",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "模式",
+                    "defaultValue": "continuous",
+                    "help": "光源工作模式",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mode",
+                    "optionKeys": [
+                        "continuous",
+                        "strobe",
+                        "off"
+                    ],
+                    "options": [
+                        "持续",
+                        "频闪",
+                        "关闭"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "频闪周期",
+                    "defaultValue": 100,
+                    "help": "频闪模式下的周期",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "strobePeriodMs",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "占空比",
+                    "defaultValue": 0.5,
+                    "help": "频闪模式下的占空比",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "strobeDutyCycle",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "触发延迟",
+                    "defaultValue": 0,
+                    "help": "触发信号延迟",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "triggerDelay",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "设备类型",
+                    "defaultValue": "io",
+                    "help": "光源控制器设备类型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "deviceType",
+                    "optionKeys": [
+                        "io",
+                        "serial",
+                        "tcp"
+                    ],
+                    "options": [
+                        "IO",
+                        "串口",
+                        "TCP"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "设备端口",
+                    "defaultValue": "",
+                    "help": "设备端口名或地址",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "devicePort",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                }
+            ],
+            "type": "LightControl",
+            "outputs": [
+                {
+                    "name": "success",
+                    "cnName": "是否成功",
+                    "typeName": "bool",
+                    "desc": "控制指令是否成功执行",
+                    "color": "#66BB6A"
+                },
+                {
+                    "name": "command",
+                    "cnName": "指令",
+                    "typeName": "string",
+                    "desc": "下发的控制指令",
+                    "color": "#FFCA28"
+                }
+            ]
+        },
+        {
+            "category": "流程控制",
+            "cnName": "循环遍历",
+            "description": "按网格/列表/检测模式生成ROI列表进行循环遍历",
+            "coreMeaning": "按网格/列表/检测模式生成 ROI 列表进行循环遍历",
+            "scenario": "大图分区检测、多 ROI 批量处理、阵列目标遍历、循环计数",
+            "caveats": [
+                "mode 决定遍历方式",
+                "gridOverlap 控制网格重叠",
+                "maxIterations 防止死循环",
+                "while 模式需配置退出条件"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "遍历模式",
+                    "defaultValue": "grid",
+                    "help": "ROI遍历模式",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "mode",
+                    "optionKeys": [
+                        "grid",
+                        "list",
+                        "detection",
+                        "count",
+                        "while"
+                    ],
+                    "options": [
+                        "网格",
+                        "列表",
+                        "检测",
+                        "计数",
+                        "条件"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "网格列数",
+                    "defaultValue": 3,
+                    "help": "网格模式下的列数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "gridCols",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "网格行数",
+                    "defaultValue": 3,
+                    "help": "网格模式下的行数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "gridRows",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "网格重叠",
+                    "defaultValue": 0,
+                    "help": "网格重叠像素数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "gridOverlap",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "ROI列表",
+                    "defaultValue": "",
+                    "help": "列表模式下的ROI配置",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "roiList",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "起始索引",
+                    "defaultValue": 0,
+                    "help": "遍历起始索引",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "startIndex",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大迭代数",
+                    "defaultValue": 100,
+                    "help": "最大循环迭代次数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxIterations",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "计数循环次数",
+                    "defaultValue": 1,
+                    "help": "count模式下的循环次数",
+                    "maxValue": null,
+                    "minValue": 1,
+                    "name": "count",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "条件表达式",
+                    "defaultValue": "",
+                    "help": "while模式下的条件表达式（为真则继续循环）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "whileCondition",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "while最大迭代数",
+                    "defaultValue": 1000,
+                    "help": "while模式下的最大迭代次数（防死循环）",
+                    "maxValue": null,
+                    "minValue": 1,
+                    "name": "maxWhileIterations",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "Loop",
+            "outputs": [
+                {
+                    "name": "roiList",
+                    "cnName": "ROI列表",
+                    "typeName": "ROI[]",
+                    "desc": "生成的ROI列表",
+                    "color": "#26C6DA"
+                },
+                {
+                    "name": "count",
+                    "cnName": "数量",
+                    "typeName": "int",
+                    "desc": "ROI数量",
+                    "color": "#FFCA28"
+                }
+            ]
+        },
+        {
+            "category": "流程控制",
+            "cnName": "Python脚本",
+            "description": "执行自定义Python脚本，支持受限模块导入与超时控制",
+            "coreMeaning": "执行自定义 Python 脚本，支持受限模块导入与超时控制",
+            "scenario": "复杂逻辑定制、算法扩展、数据后处理、流程编排补充",
+            "caveats": [
+                "allowedModules 限制可导入模块",
+                "timeout 防止脚本卡死",
+                "pythonHome 指定 Python 环境",
+                "脚本错误会影响整个流程"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "脚本内容",
+                    "defaultValue": "",
+                    "help": "Python脚本代码",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "script",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "超时时间",
+                    "defaultValue": 5000,
+                    "help": "脚本执行超时时间",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "timeout",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": "ms"
+                },
+                {
+                    "cnName": "允许模块",
+                    "defaultValue": "math,json,re",
+                    "help": "允许导入的Python模块列表（逗号分隔）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "allowedModules",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "Python路径",
+                    "defaultValue": "D:/Program Files/Python314",
+                    "help": "Python解释器安装路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "pythonHome",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                }
+            ],
+            "type": "Script",
+            "outputs": [
+                {
+                    "name": "output",
+                    "cnName": "输出结果",
+                    "typeName": "Any",
+                    "desc": "脚本输出结果",
+                    "color": "#69F0AE"
+                },
+                {
+                    "name": "success",
+                    "cnName": "是否成功",
+                    "typeName": "bool",
+                    "desc": "脚本是否执行成功",
+                    "color": "#66BB6A"
+                }
+            ]
+        },
+        {
+            "category": "流程控制",
+            "cnName": "变量运算",
+            "description": "对变量进行算术、拼接、格式化等运算并输出结果",
+            "coreMeaning": "对变量进行算术/拼接/格式化等运算并输出结果",
+            "scenario": "测量结果后处理、变量传递与转换、格式化输出、流程参数计算",
+            "caveats": [
+                "operation 决定运算类型",
+                "operand1/operand2 为运算对象",
+                "format 用于格式化输出",
+                "variableType 影响数据类型"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "运算类型",
+                    "defaultValue": "add",
+                    "help": "变量运算类型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "operation",
+                    "optionKeys": [
+                        "add",
+                        "sub",
+                        "mul",
+                        "div",
+                        "mod",
+                        "concat",
+                        "format",
+                        "get",
+                        "set",
+                        "define",
+                        "delete"
+                    ],
+                    "options": [
+                        "加",
+                        "减",
+                        "乘",
+                        "除",
+                        "取模",
+                        "拼接",
+                        "格式化",
+                        "读取",
+                        "写入",
+                        "定义",
+                        "删除"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "操作数1",
+                    "defaultValue": "0",
+                    "help": "第一个操作数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "operand1",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "操作数2",
+                    "defaultValue": "0",
+                    "help": "第二个操作数",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "operand2",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "格式化字符串",
+                    "defaultValue": "%.2f",
+                    "help": "格式化模式下的格式字符串",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "format",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "输出变量名",
+                    "defaultValue": "result",
+                    "help": "结果输出的变量名",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "outputVar",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 5,
+                    "unit": ""
+                },
+                {
+                    "cnName": "全局变量名",
+                    "defaultValue": "",
+                    "help": "get/set/define/delete操作的目标变量名",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "variableName",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "变量类型",
+                    "defaultValue": "int",
+                    "help": "define模式下创建的变量类型",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "variableType",
+                    "optionKeys": [
+                        "int",
+                        "double",
+                        "string",
+                        "bool",
+                        "roi",
+                        "region",
+                        "points"
+                    ],
+                    "options": [
+                        "整数",
+                        "浮点",
+                        "字符串",
+                        "布尔",
+                        "ROI",
+                        "区域",
+                        "点集"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                }
+            ],
+            "type": "Variable",
+            "outputs": [
+                {
+                    "name": "result",
+                    "cnName": "运算结果",
+                    "typeName": "Any",
+                    "desc": "变量运算结果",
+                    "color": "#69F0AE"
+                }
+            ]
+        },
+        {
+            "category": "流程控制",
+            "cnName": "流程合并",
+            "description": "同步多个并行执行的流程分支，等待所有前置分支完成后触发后续节点",
+            "coreMeaning": "同步多个并行流程分支，等待所有前置分支完成后触发后续节点",
+            "scenario": "并行流程同步、多分支结果汇总、流水线节拍控制、多任务协同",
+            "caveats": [
+                "waitBranches 需列出所有等待分支",
+                "timeoutMs 防止永久等待",
+                "分支异常需有处理机制",
+                "所有分支完成才会触发后续"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "等待分支列表",
+                    "defaultValue": "",
+                    "help": "等待的分支ID列表（逗号分隔，如branch1,branch2,branch3）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "waitBranches",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 6,
+                    "unit": ""
+                },
+                {
+                    "cnName": "超时时间",
+                    "defaultValue": 5000,
+                    "help": "等待所有分支完成的超时时间",
+                    "maxValue": 600000,
+                    "minValue": 100,
+                    "name": "timeoutMs",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 100,
+                    "type": 0,
+                    "unit": "ms"
+                }
+            ],
+            "type": "FlowJoin",
+            "outputs": [
+                {
+                    "name": "result",
+                    "cnName": "合并结果",
+                    "typeName": "Any",
+                    "desc": "透传最后一个完成分支的结果",
+                    "color": "#42A5F5"
+                }
+            ]
+        },
+        {
+            "category": "检测与缺陷",
+            "cnName": "表面缺陷检测",
+            "description": "基于模板差分与形态学处理检测表面缺陷区域",
+            "coreMeaning": "基于模板差分与形态学处理检测表面缺陷区域",
+            "scenario": "产品表面外观检测、划痕/凹陷/污渍识别、印刷质量检测、外观全检",
+            "caveats": [
+                "templatePath 需为标准模板图像",
+                "sensitivity 越高检出越多但误报增加",
+                "minDefectArea/maxDefectArea 过滤缺陷",
+                "需保证被测件位置一致"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板路径",
+                    "defaultValue": "",
+                    "help": "无缺陷模板图像路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "templatePath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "灵敏度",
+                    "defaultValue": 3,
+                    "help": "缺陷检测灵敏度",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "sensitivity",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小缺陷面积",
+                    "defaultValue": 50,
+                    "help": "最小缺陷区域面积",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "minDefectArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大缺陷面积",
+                    "defaultValue": 10000,
+                    "help": "最大缺陷区域面积",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxDefectArea",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "形态学核大小",
+                    "defaultValue": 3,
+                    "help": "形态学操作核大小",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "morphKernelSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                },
+                {
+                    "cnName": "模糊核大小",
+                    "defaultValue": 3,
+                    "help": "高斯模糊核大小",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "blurSize",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 0,
+                    "unit": ""
+                }
+            ],
+            "type": "SurfaceDefect",
+            "outputs": [
+                {
+                    "name": "defectCount",
+                    "cnName": "缺陷数量",
+                    "typeName": "int",
+                    "desc": "检测到的缺陷数量",
+                    "color": "#EF5350"
+                },
+                {
+                    "name": "hasDefect",
+                    "cnName": "是否有缺陷",
+                    "typeName": "bool",
+                    "desc": "是否存在缺陷",
+                    "color": "#EF5350"
+                },
+                {
+                    "name": "defects",
+                    "cnName": "缺陷列表",
+                    "typeName": "Defect[]",
+                    "desc": "缺陷区域列表",
+                    "color": "#FF8A65"
+                }
+            ]
+        },
+        {
+            "category": "检测与缺陷",
+            "cnName": "轮廓比对",
+            "description": "将目标轮廓与模板轮廓进行比对，输出偏差与匹配分数",
+            "coreMeaning": "将目标轮廓与模板轮廓比对，输出偏差与匹配分数",
+            "scenario": "形状偏差检测、轮廓公差验证、外观尺寸比对、成形件检测",
+            "caveats": [
+                "templatePath 需为标准轮廓模板",
+                "maxDeviation 控制允许偏差",
+                "matchMethod 决定匹配算法",
+                "minScore 过低会误判"
+            ],
+            "iconPath": "",
+            "params": [
+                {
+                    "cnName": "模板路径",
+                    "defaultValue": "",
+                    "help": "标准轮廓模板文件路径",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "templatePath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最大偏差",
+                    "defaultValue": 5,
+                    "help": "允许的最大轮廓偏差",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "maxDeviation",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": "px"
+                },
+                {
+                    "cnName": "匹配方法",
+                    "defaultValue": "I1",
+                    "help": "轮廓比对方法",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "matchMethod",
+                    "optionKeys": [
+                        "I1",
+                        "I2",
+                        "I3"
+                    ],
+                    "options": [
+                        "I1",
+                        "I2",
+                        "I3"
+                    ],
+                    "step": null,
+                    "type": 3,
+                    "unit": ""
+                },
+                {
+                    "cnName": "最小分数",
+                    "defaultValue": 0.8,
+                    "help": "最小匹配分数阈值",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "minScore",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 1,
+                    "unit": ""
+                }
+            ],
+            "type": "ContourCompare",
+            "outputs": [
+                {
+                    "name": "deviation",
+                    "cnName": "偏差",
+                    "typeName": "float",
+                    "desc": "轮廓偏差值",
+                    "color": "#FF8A65"
+                },
+                {
+                    "name": "score",
+                    "cnName": "匹配分数",
+                    "typeName": "float",
+                    "desc": "轮廓匹配分数",
+                    "color": "#42A5F5"
+                },
+                {
+                    "name": "isMatch",
+                    "cnName": "是否匹配",
+                    "typeName": "bool",
+                    "desc": "是否达到匹配标准",
+                    "color": "#66BB6A"
+                }
+            ]
+        },
+        {
+            "category": "深度学习",
+            "cnName": "零样本检测",
+            "description": "开放词汇零样本检测（AnomalyCLIP/GroundingDINO/MobileSAM/PatchCore/LocateAnything）",
+            "coreMeaning": "封装 ZeroShotKit zsu::Kit 为算子，进入方案编排链，可与 Loop/Caliper 串联",
+            "scenario": "开放词汇缺陷检测、少样本目标定位、与 Loop 多 ROI 遍历串联、生产链路零样本检测",
+            "caveats": [
+                "LocateAnything 模型类型尚未实现，运行时返回明确错误",
+                "textPrompts 支持多提示词组合（如 scratch . dent . rust）",
+                "boxThreshold 控制检测框置信度过滤",
+                "detectionMode 当前作为元数据记录，实际推理走 zsu::Kit::infer",
+                "可与 Loop 算子串联实现多 ROI 遍历，与 Caliper 串联实现精确测量"
+            ],
+            "iconPath": "qrc:/icons/ai.svg",
+            "params": [
+                {
+                    "cnName": "模型类型",
+                    "defaultValue": "AnomalyCLIP",
+                    "help": "AnomalyCLIP=零样本异常 / GroundingDINO=开集检测 / MobileSAM=轻量分割 / PatchCore=正常样本异常 / LocateAnything=未实现",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelType",
+                    "optionKeys": [
+                        "AnomalyCLIP",
+                        "GroundingDINO",
+                        "MobileSAM",
+                        "PatchCore",
+                        "LocateAnything"
+                    ],
+                    "options": [
+                        "AnomalyCLIP 异常检测",
+                        "GroundingDINO 开集检测",
+                        "MobileSAM 轻量分割",
+                        "PatchCore 正常样本异常",
+                        "LocateAnything (未实现)"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "提示词",
+                    "defaultValue": "",
+                    "help": "多提示词用 . 分隔（如 scratch . dent . rust），从共享提示词库选择",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "textPrompts",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": "",
+                    "promptLibrarySource": "textPrompts"
+                },
+                {
+                    "cnName": "检测框阈值",
+                    "defaultValue": 0.25,
+                    "help": "检测框置信度 ≥ 阈值视为有效",
+                    "maxValue": 1,
+                    "minValue": 0,
+                    "name": "boxThreshold",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": 0.05,
+                    "type": 1,
+                    "unit": ""
+                },
+                {
+                    "cnName": "检测模式",
+                    "defaultValue": "detection",
+                    "help": "detection=检测 / rec=识别 / point=点定位（当前作为元数据记录）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "detectionMode",
+                    "optionKeys": [
+                        "detection",
+                        "rec",
+                        "point"
+                    ],
+                    "options": [
+                        "检测",
+                        "识别",
+                        "点定位"
+                    ],
+                    "step": null,
+                    "type": 2,
+                    "unit": ""
+                },
+                {
+                    "cnName": "模型路径",
+                    "defaultValue": "",
+                    "help": "模型目录路径（零样本模型文件所在目录）",
+                    "maxValue": null,
+                    "minValue": null,
+                    "name": "modelPath",
+                    "optionKeys": [],
+                    "options": [],
+                    "step": null,
+                    "type": 4,
+                    "unit": ""
+                }
+            ],
+            "type": "ZeroShotDetect",
+            "outputs": [
+                {
+                    "name": "detections",
+                    "cnName": "检测结果",
+                    "typeName": "Points",
+                    "desc": "检测框数组（每项含 cx/cy/w/h/confidence/classId/className，像素坐标）",
+                    "color": "#81C784"
+                },
+                {
+                    "name": "numDetections",
+                    "cnName": "检测数量",
+                    "typeName": "int",
+                    "desc": "检测到的目标数量",
+                    "color": "#81C784"
                 }
             ]
         }

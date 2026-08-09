@@ -32,6 +32,14 @@ bool GeometryMeasureTool::configure(const QJsonObject& params) {
         }
     }
 
+    // P0-3 扩展：输出单位选择
+    if (params.contains("outputUnit")) {
+        const QString u = params["outputUnit"].toString().toLower();
+        if (u == "px" || u == "mm") {
+            m_outputUnit = u;
+        }
+    }
+
     return true;
 }
 
@@ -102,6 +110,9 @@ bool GeometryMeasureTool::execute(const cv::Mat& input, ToolResult& result) {
 
     result.data["measureType"] = m_measureType;
     result.data["contour_count"] = static_cast<int>(contours.size());
+    // P0-3 扩展：输出单位与主输出值（便于下游 UnitConvert/Variable 消费）
+    result.data["outputUnit"] = m_outputUnit;
+    result.ports["outputUnit"] = m_outputUnit;
     result.score = value;
     result.ok = (value >= m_minThreshold && value <= m_maxThreshold);
     result.elapsedMs = 0;
@@ -193,6 +204,7 @@ QJsonObject GeometryMeasureTool::serialize() const {
     obj["minThreshold"] = m_minThreshold;
     obj["maxThreshold"] = m_maxThreshold;
     obj["pixelScale"] = m_pixelScale;
+    obj["outputUnit"] = m_outputUnit;
     return obj;
 }
 
@@ -202,5 +214,6 @@ bool GeometryMeasureTool::deserialize(const QJsonObject& data) {
     m_minThreshold = data["minThreshold"].toDouble(0.0);
     m_maxThreshold = data["maxThreshold"].toDouble(1000.0);
     m_pixelScale = data["pixelScale"].toDouble(1.0);
+    if (data.contains("outputUnit")) m_outputUnit = data["outputUnit"].toString();
     return true;
 }

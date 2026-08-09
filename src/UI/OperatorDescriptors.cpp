@@ -18,6 +18,28 @@ namespace QDV {
 namespace UI {
 
 // ========================================================================
+// 输出项元数据默认值归一化（模块内聚优化：输出项配置增强）
+// ------------------------------------------------------------------------
+// 为每个输出项补齐 group/alias/priority 字段，缺失时回退默认值，保证：
+//   - 旧算子（未声明新字段）与旧方案（无新字段）向后兼容
+//   - QML 端可统一按 group 分组、用 alias 显示、按 priority 消歧
+// 默认值：group = typeName，alias = cnName，priority = 100
+// ========================================================================
+static QVariantMap normalizeOutputMeta(const QVariantMap& o) {
+    QVariantMap out = o;
+    if (out.value("group").toString().isEmpty()) {
+        out["group"] = out.value("typeName").toString();
+    }
+    if (out.value("alias").toString().isEmpty()) {
+        out["alias"] = out.value("cnName").toString();
+    }
+    if (!out.contains("priority")) {
+        out["priority"] = 100;
+    }
+    return out;
+}
+
+// ========================================================================
 // ParamSpec 序列化（QVariantMap 形式便于 QML 端 JS 访问）
 // ========================================================================
 
@@ -34,6 +56,10 @@ QVariantMap ParamSpec::toMap() const {
     m["optionKeys"]   = optionKeys;
     m["help"]         = help;
     m["unit"]         = unit;
+    // v2.0 阶段二 Task 6：提示词库源标记（非空时 UI 渲染目标类型多选下拉）
+    if (!promptLibrarySource.isEmpty()) {
+        m["promptLibrarySource"] = promptLibrarySource;
+    }
     return m;
 }
 
@@ -50,6 +76,8 @@ ParamSpec ParamSpec::fromMap(const QVariantMap& m) {
     p.optionKeys   = m.value("optionKeys").toStringList();
     p.help         = m.value("help").toString();
     p.unit         = m.value("unit").toString();
+    // v2.0 阶段二 Task 6：提示词库源标记（向后兼容：旧 JSON 无此字段时为空）
+    p.promptLibrarySource = m.value("promptLibrarySource").toString();
     return p;
 }
 
@@ -70,10 +98,10 @@ QVariantMap OperatorMeta::toMap() const {
         paramsList.append(p.toMap());
     }
     m["params"] = paramsList;
-    // v3.0.0：输出参数列表
+    // v3.0.0：输出参数列表（归一化补齐 group/alias/priority）
     QVariantList outputsList;
     for (const QVariantMap& o : outputs) {
-        outputsList.append(o);
+        outputsList.append(normalizeOutputMeta(o));
     }
     m["outputs"] = outputsList;
     return m;
@@ -91,11 +119,11 @@ OperatorMeta OperatorMeta::fromMap(const QVariantMap& m) {
     for (const QVariant& v : paramsList) {
         om.params.append(ParamSpec::fromMap(v.toMap()));
     }
-    // v3.0.0：输出参数列表
+    // v3.0.0：输出参数列表（归一化补齐 group/alias/priority）
     const QVariantList outputsList = m.value("outputs").toList();
     for (const QVariant& v : outputsList) {
         if (v.typeId() == QMetaType::QVariantMap) {
-            om.outputs.append(v.toMap());
+            om.outputs.append(normalizeOutputMeta(v.toMap()));
         }
     }
     return om;
@@ -581,6 +609,68 @@ QList<OperatorMeta> OperatorDescriptors::buildRegistry() {
                           QStringLiteral(""),
                           QVariant(), QVariant(), QVariant(), {}, {},
                           QStringLiteral("每行一个类别名（顺序对应模型输出索引）"), ""});
+        // v2.0 阶段二 Task 6.2：categoryLabels 参数标注从共享提示词库取值
+        // UI 层据此渲染"目标类型多选下拉"（builtin 12 类 + custom + recent）
+        // 多选后每项作为一行填入 categoryLabels（Vector 类型，每行一个类别名）
+        if (!om.params.isEmpty()) {
+            om.params.last().promptLibrarySource = QStringLiteral("categoryLabels");
+        }
+        // AI 分类输出参数（v5.4 升级：支持独立开关与多目标数组）
+        {
+            QVariantMap o;
+            o["name"] = "classId";
+            o["cnName"] = "分类ID";
+            o["typeName"] = "int";
+            o["desc"] = "分类标签的数值ID";
+            o["color"] = "#81C784";
+            o["defaultEnabled"] = true;
+            o["multiTargetOnly"] = false;
+            om.outputs.append(o);
+        }
+        {
+            QVariantMap o;
+            o["name"] = "className";
+            o["cnName"] = "分类类别";
+            o["typeName"] = "string";
+            o["desc"] = "分类类别名称（单目标为字符串，多目标为数组）";
+            o["color"] = "#64B5F6";
+            o["defaultEnabled"] = true;
+            o["multiTargetOnly"] = false;
+            om.outputs.append(o);
+        }
+        {
+            QVariantMap o;
+            o["name"] = "confidence";
+            o["cnName"] = "分类置信度";
+            o["typeName"] = "double";
+            o["desc"] = "分类置信度（单目标为数值，多目标为数组）";
+            o["color"] = "#FFD54F";
+            o["defaultEnabled"] = true;
+            o["multiTargetOnly"] = false;
+            om.outputs.append(o);
+        }
+        {
+            QVariantMap o;
+            o["name"] = "classArray";
+            o["cnName"] = "类别数组";
+            o["typeName"] = "string[]";
+            o["desc"] = "多目标场景下按检测顺序输出的类别名数组";
+            o["color"] = "#BA68C8";
+            o["defaultEnabled"] = false;
+            o["multiTargetOnly"] = true;
+            om.outputs.append(o);
+        }
+        {
+            QVariantMap o;
+            o["name"] = "confidenceArray";
+            o["cnName"] = "置信度数组";
+            o["typeName"] = "double[]";
+            o["desc"] = "多目标场景下按检测顺序输出的置信度数组";
+            o["color"] = "#4DB6AC";
+            o["defaultEnabled"] = false;
+            o["multiTargetOnly"] = true;
+            om.outputs.append(o);
+        }
         reg.append(om);
     }
 

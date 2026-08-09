@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>模型库管理 - 新 UI 布局示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    padding: 20px;
+  }
+  .dialog {
+    width: 880px;
+    margin: 0 auto;
+    background: #252526;
+    border: 1px solid #444;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: #252526;
+    border-bottom: 1px solid #333;
+  }
+  .title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary { background: #0d7377; color: white; font-weight: bold; }
+  .btn-primary:hover { background: #14919b; }
+  .btn-secondary { background: #3a3a3a; color: #e0e0e0; border: 1px solid #555; }
+  .btn-secondary:hover { background: #444; }
+  .btn-danger { background: #6b2c2c; color: #ffd0d0; }
+  .btn-danger:hover { background: #8a3838; }
+  .btn-verify { background: #1e3a5f; color: #b0d4ff; }
+  .btn-verify:hover { background: #2a4f7f; }
+  .btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #1e1e1e;
+    border-bottom: 1px solid #333;
+  }
+  .search-input {
+    flex: 1;
+    background: #2d2d2d;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #e0e0e0;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .search-input::placeholder { color: #777; }
+  .filter-tag {
+    background: #0d7377;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+  }
+
+  .tabs {
+    display: flex;
+    background: #1e1e1e;
+    border-bottom: 2px solid #0d7377;
+  }
+  .tab {
+    padding: 10px 20px;
+    color: #aaa;
+    cursor: pointer;
+    border-right: 1px solid #333;
+    font-size: 13px;
+  }
+  .tab.active {
+    color: #fff;
+    background: #252526;
+    border-bottom: 2px solid #0d7377;
+    margin-bottom: -2px;
+    font-weight: bold;
+  }
+  .tab .badge {
+    display: inline-block;
+    background: #0d7377;
+    color: white;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+
+  .content {
+    display: flex;
+    height: 320px;
+  }
+  .list-pane {
+    flex: 1;
+    background: #1e1e1e;
+    border-right: 1px solid #333;
+    overflow-y: auto;
+  }
+  .list-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .list-item:hover { background: #2d2d2d; }
+  .list-item.selected { background: #0d7377; color: white; }
+  .list-item .meta {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+  }
+  .list-item.selected .meta { color: #c0e8e8; }
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  .status-ok { background: #4caf50; }
+  .status-missing { background: #f44336; }
+  .status-unverified { background: #888; }
+  .status-trash { background: #ff9800; }
+
+  .detail-pane {
+    width: 320px;
+    background: #252526;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .detail-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #444;
+  }
+  .detail-row {
+    display: flex;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .detail-label {
+    width: 80px;
+    color: #888;
+  }
+  .detail-value {
+    flex: 1;
+    color: #e0e0e0;
+    word-break: break-all;
+  }
+  .detail-value.mono { font-family: Consolas, monospace; font-size: 11px; }
+  .integrity-box {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .integrity-pending { background: #2d2d2d; color: #888; border-left: 3px solid #555; }
+  .integrity-ok { background: #1b3a1b; color: #8f8; border-left: 3px solid #4caf50; }
+  .integrity-fail { background: #3a1b1b; color: #f88; border-left: 3px solid #f44336; }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #252526;
+    border-top: 1px solid #333;
+  }
+  .footer-info {
+    font-size: 11px;
+    color: #777;
+  }
+  .footer-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .annotation {
+    max-width: 880px;
+    margin: 20px auto 0;
+    padding: 16px;
+    background: #1a1a1a;
+    border-left: 4px solid #0d7377;
+    color: #aaa;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .annotation strong { color: #0d7377; }
+  .annotation ul { margin-left: 20px; margin-top: 6px; }
+  .annotation li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<div class="dialog">
+  <!-- 标题栏 + 顶部工具按钮 -->
+  <div class="header">
+    <div class="title">模型库管理</div>
+    <div class="toolbar">
+      <button class="btn btn-primary">+ 导入模型</button>
+      <button class="btn btn-verify">验证完整性</button>
+      <button class="btn btn-secondary">扫描目录</button>
+    </div>
+  </div>
+
+  <!-- 搜索栏（新增） -->
+  <div class="search-bar">
+    <input class="search-input" placeholder="搜索模型名称、文件名或描述..." value="model">
+    <span class="filter-tag">已加载 5 项</span>
+  </div>
+
+  <!-- 标签页 -->
+  <div class="tabs">
+    <div class="tab">内置模型 <span class="badge">5</span></div>
+    <div class="tab active">已加载/已注册 <span class="badge">11</span></div>
+    <div class="tab">扫描结果 <span class="badge">0</span></div>
+    <div class="tab">回收站(.trash) <span class="badge">3</span></div>
+  </div>
+
+  <!-- 列表 + 详情 双栏 -->
+  <div class="content">
+    <div class="list-pane">
+      <!-- 选中项 -->
+      <div class="list-item selected">
+        <div>
+          <div><span class="status-dot status-ok"></span>model_20260713_093129</div>
+          <div class="meta">model_20260713_093129.onnx · 42.6 MB · 自定义导入</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-07-13</div>
+      </div>
+      <div class="list-item">
+        <div>
+          <div><span class="status-dot status-ok"></span>resnet50</div>
+          <div class="meta">resnet50.onnx · 2.0 MB · 内置</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-05-28</div>
+      </div>
+      <div class="list-item">
+        <div>
+          <div><span class="status-dot status-missing"></span>yolov5s</div>
+          <div class="meta">yolov5s.onnx · 文件缺失 · 内置</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-05-28</div>
+      </div>
+      <div class="list-item">
+        <div>
+          <div><span class="status-dot status-unverified"></span>trained_model</div>
+          <div class="meta">trained_model.onnx · 42.6 MB · 训练生成</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-06-04</div>
+      </div>
+      <div class="list-item">
+        <div>
+          <div><span class="status-dot status-ok"></span>defect_detector</div>
+          <div class="meta">defect_detector.onnx · 93 KB · 内置</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-05-28</div>
+      </div>
+      <div class="list-item">
+        <div>
+          <div><span class="status-dot status-unverified"></span>model_20260712_114102</div>
+          <div class="meta">model_20260712_114102.onnx · 42.6 MB · 自定义导入</div>
+        </div>
+        <div style="color:#aaa; font-size:11px">2026-07-12</div>
+      </div>
+    </div>
+
+    <!-- 详情面板 -->
+    <div class="detail-pane">
+      <div class="detail-title">model_20260713_093129</div>
+      <div class="detail-row">
+        <div class="detail-label">文件名</div>
+        <div class="detail-value mono">model_20260713_093129.onnx</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">显示名</div>
+        <div class="detail-value">model_20260713_093129</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">路径</div>
+        <div class="detail-value mono">D:/.../models/model_20260713_093129.onnx</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">大小</div>
+        <div class="detail-value">42.6 MB (44,700,680 bytes)</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">类型</div>
+        <div class="detail-value">classification (自动识别)</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">输入尺寸</div>
+        <div class="detail-value">224x224 (自动识别)</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">标签文件</div>
+        <div class="detail-value mono">model_20260713_093129_labels.json</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">注册时间</div>
+        <div class="detail-value">2026-07-13 09:31:29</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">SHA256</div>
+        <div class="detail-value mono" style="font-size:10px">5d01fc45baf920fde4ef00310d81386e898b22723c985b4bfc1600b1d45f16a6</div>
+      </div>
+
+      <!-- 完整性校验结果区 -->
+      <div class="integrity-box integrity-pending">
+        完整性校验：未验证（点击"验证完整性"按钮检查）
+      </div>
+
+      <!-- 单项操作按钮 -->
+      <div style="margin-top:12px; display:flex; gap:6px;">
+        <button class="btn btn-primary" style="flex:1; padding:6px;">加载此模型</button>
+        <button class="btn btn-danger" style="padding:6px 10px;">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作栏 -->
+  <div class="footer">
+    <div class="footer-info">共 11 个已注册模型 · 5 个内置 · 3 个回收站文件</div>
+    <div class="footer-actions">
+      <button class="btn btn-secondary">取消</button>
+      <button class="btn btn-primary" disabled>加载选中模型</button>
+    </div>
+  </div>
+</div>
+
+<div class="annotation">
+  <strong>新 UI 布局说明（相对于旧版 421 行 ModelLibraryDialog.cpp）</strong>
+  <ul>
+    <li><strong>顶部工具栏</strong>：新增"导入模型"和"验证完整性"按钮，与原"扫描目录"并列</li>
+    <li><strong>搜索栏</strong>：新增实时搜索框，跨内置/已加载/扫描结果三个标签页过滤（按名称、文件名、描述匹配）</li>
+    <li><strong>标签页</strong>：新增"回收站(.trash)"标签页，展示被事务性删除的模型文件，便于恢复</li>
+    <li><strong>列表项</strong>：左侧状态点表示文件状态（绿=存在/红=缺失/灰=未验证/橙=回收站）</li>
+    <li><strong>详情面板</strong>：展示完整元数据（含 SHA256、自动识别的类型和输入尺寸、标签文件）</li>
+    <li><strong>完整性校验区</strong>：详情面板底部显示校验状态（未验证/通过/失败），点击单项验证或批量验证</li>
+    <li><strong>删除按钮</strong>：详情面板中新增"删除"按钮，点击后弹出二次确认对话框（含"同时清理关联数据"复选框）</li>
+    <li><strong>底部状态栏</strong>：显示总数统计，与原"取消/加载"按钮并存</li>
+  </ul>
+</div>
+
+</body>
+</html>

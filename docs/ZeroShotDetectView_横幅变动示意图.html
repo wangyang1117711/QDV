@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ZeroShotDetectView 横幅变动示意图（spec v2 阶段三 Task 9）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: #f5f5f5; padding: 20px; }
+  h1 { font-size: 18px; margin-bottom: 8px; color: #333; }
+  .meta { font-size: 12px; color: #888; margin-bottom: 16px; }
+  .frame {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden;
+    max-width: 1200px;
+    margin: 0 auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  /* 横幅（本次新增） */
+  .banner {
+    background: #FFF8E1;
+    color: #5D4037;
+    padding: 8px 12px;
+    font-size: 12px;
+    text-align: center;
+    border-bottom: 1px solid #FFB300;
+  }
+  .banner .tag {
+    display: inline-block;
+    background: #FFB300;
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  /* 工具栏 */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .btn {
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #333;
+  }
+  .progress {
+    flex: 1;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress .bar { width: 0%; height: 100%; background: #42A5F5; }
+  .status { font-size: 12px; color: #666; min-width: 120px; }
+  /* 三栏 splitter */
+  .splitter { display: flex; height: 420px; }
+  .col {
+    padding: 10px;
+    font-size: 12px;
+    color: #555;
+    overflow: auto;
+  }
+  .col-left {
+    width: 360px;
+    background: #fff;
+    border-right: 1px solid #e0e0e0;
+    flex-shrink: 0;
+  }
+  .col-middle {
+    flex: 1;
+    background: #fff;
+    min-width: 400px;
+  }
+  .col-right {
+    width: 280px;
+    background: #fff;
+    border-left: 1px solid #e0e0e0;
+    flex-shrink: 0;
+  }
+  .col h3 { font-size: 13px; color: #333; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+  .col ul { list-style: none; }
+  .col ul li { padding: 3px 0; }
+  .placeholder { color: #aaa; font-style: italic; }
+  .legend {
+    max-width: 1200px;
+    margin: 16px auto 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    color: #555;
+  }
+  .legend strong { color: #333; }
+  .legend .new { color: #E65100; font-weight: bold; }
+</style>
+</head>
+<body>
+  <h1>ZeroShotDetectView 顶部横幅变动示意图</h1>
+  <div class="meta">spec v2 · 阶段三 Task 9 · 定位调整为"模型调试/批量评估"专用 tab · 2026-08-03</div>
+
+  <div class="frame">
+    <!-- 新增横幅 -->
+    <div class="banner">
+      <span class="tag">NEW</span>
+      💡 生产链路请使用 ZeroShotDetect 算子（在方案编辑中拖入），本 tab 用于模型调试/批量评估
+    </div>
+
+    <!-- 保留原有工具栏 -->
+    <div class="toolbar">
+      <button class="btn">加载图像</button>
+      <button class="btn">批量目录</button>
+      <button class="btn">停止</button>
+      <div class="progress"><div class="bar"></div></div>
+      <span class="status">就绪</span>
+    </div>
+
+    <!-- 保留原有三栏 -->
+    <div class="splitter">
+      <div class="col col-left">
+        <h3>ZeroShotPanel 配置</h3>
+        <ul>
+          <li>模型类型: AnomalyCLIP ▼</li>
+          <li>具体模型: (LM Studio/本地) ▼</li>
+          <li>目标类型: 多选下拉 ▼</li>
+          <li>提示词: scratch . dent</li>
+          <li>异常阈值: 0.25</li>
+          <li>检测阈值: 0.30</li>
+          <li>稳定性: 单次</li>
+          <li>量化模型: ☐</li>
+          <li>—— PatchCore 样本 ——</li>
+          <li>[添加] [删除] [清空]</li>
+          <li>样本数: 0</li>
+        </ul>
+      </div>
+      <div class="col col-middle">
+        <h3>ZeroShotResultPanel 结果</h3>
+        <p class="placeholder">（推理结果展示区：状态/分类/置信度/检测框/异常图/掩膜/耗时）</p>
+      </div>
+      <div class="col col-right">
+        <h3>模型注意事项</h3>
+        <p class="placeholder">（右栏 QTextEdit：模型简述/注意事项/输入格式/限制条件/使用建议）</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <strong>变动说明：</strong><br>
+    1. <span class="new">新增</span>顶部琥珀色横幅（QLabel），居中显示定位提示，浅色背景不遮挡内容。<br>
+    2. <strong>保留</strong>所有现有调试能力：工具栏（加载图像/批量目录/停止/进度条/状态）、三栏 QSplitter（配置面板/结果面板/注意事项）、单图推理、批量推理、模型对比、评估报告、PatchCore 样本管理、共享提示词库桥接、模型源监控桥接。<br>
+    3. 横幅样式：背景 <code>#FFF8E1</code>，文字 <code>#5D4037</code>，底部 <code>#FFB300</code> 分隔线，font-size 12px，wordWrap 自适应。<br>
+    4. 文件改动：<code>include/UI/ZeroShotDetectView.h</code> 新增 <code>m_banner</code> 成员；<code>src/UI/ZeroShotDetectView.cpp</code> 的 <code>setupUI()</code> 在 root layout 最顶部添加横幅（在工具栏之前）。
+  </div>
+</body>
+</html>

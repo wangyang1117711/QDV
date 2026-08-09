@@ -20,9 +20,10 @@ public:
                    const QSize& inputSize,
                    const cv::Scalar& mean,
                    double scale,
-                   bool swapRB) override {
+                   bool swapRB,
+                   const cv::Scalar& std = cv::Scalar(1.0, 1.0, 1.0)) override {
         if (!m_engine) return false;
-        return m_engine->loadModel(modelPath, inputSize, mean, scale, swapRB);
+        return m_engine->loadModel(modelPath, inputSize, mean, scale, swapRB, std);
     }
 
     /// 预热；m_engine 为 nullptr 时返回 false
@@ -35,6 +36,28 @@ public:
     bool infer(const cv::Mat& input, QJsonObject& result) override {
         if (!m_engine) return false;
         return m_engine->infer(input, result);
+    }
+
+    /// 目标检测推理
+    bool detect(const cv::Mat& input, double confThreshold, double iouThreshold,
+                QJsonObject& result) override {
+        if (!m_engine) return false;
+        m_engine->setConfThreshold(confThreshold);
+        m_engine->setIoUThreshold(iouThreshold);
+        return m_engine->detect(input, confThreshold, iouThreshold, result);
+    }
+
+    /// 语义分割推理
+    bool segment(const cv::Mat& input, cv::Mat& mask, cv::Mat& overlay,
+                 QJsonObject& result) override {
+        if (!m_engine) return false;
+        return m_engine->segment(input, mask, overlay, result);
+    }
+
+    /// 设置类别标签
+    void setCategoryLabels(const QStringList& labels) override {
+        if (!m_engine) return;
+        m_engine->setCategoryLabels(labels);
     }
 
     /// 最近一次推理的指标；m_engine 为 nullptr 时返回默认值

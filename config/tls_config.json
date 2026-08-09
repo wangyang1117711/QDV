@@ -1,0 +1,9 @@
+{
+    "enabled": false,
+    "caCertificate": "config/certs/ca.crt",
+    "clientCertificate": "",
+    "clientPrivateKey": "",
+    "verifyMode": "VerifyPeer",
+    "protocol": "TlsV1_2OrLater",
+    "minimumProtocolVersion": "TlsV1_2"
+}

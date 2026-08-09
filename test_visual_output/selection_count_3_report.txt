@@ -1,0 +1,6 @@
+=== Visual Verification Report: selection_count_3 ===
+Result: PASSED
+Message: Selection count label matches pattern: '已选: 3 / 6'
+Confidence: 100.0%
+Screenshot captured: 1
+Detected regions: 0

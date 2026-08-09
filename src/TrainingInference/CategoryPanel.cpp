@@ -1,5 +1,6 @@
 #include "TrainingInference/CategoryPanel.h"
 #include "TrainingInference/CategoryManager.h"
+#include "TrainingInference/ImageManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -7,6 +8,8 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QWidget>
+#include <QSet>
+#include <functional>
 
 
 CategoryPanel::CategoryPanel(QWidget* parent) : QWidget(parent) {
@@ -14,6 +17,8 @@ CategoryPanel::CategoryPanel(QWidget* parent) : QWidget(parent) {
     connect(CategoryManager::instance(), &CategoryManager::categoryCreated, this, [this]() { refreshTree(); });
     connect(CategoryManager::instance(), &CategoryManager::categoryUpdated, this, [this]() { refreshTree(); });
     connect(CategoryManager::instance(), &CategoryManager::categoryDeleted, this, [this]() { refreshTree(); });
+    // 图像标注发生变化时实时刷新各类别的已标注数量
+    connect(ImageManager::instance(), &ImageManager::labelChanged, this, [this]() { refreshTree(); });
 }
 
 void CategoryPanel::setupUI() {
@@ -111,12 +116,19 @@ void CategoryPanel::setupUI() {
 }
 
 void CategoryPanel::refreshTree(const QString& filter) {
+    // 关键修复：手动移除并立即销毁所有旧 item widget，避免 QTreeWidget::clear() 的
+    // 延迟删除与后续新建 widget 交错，导致 Qt 内部访问已释放内存触发崩溃。
+    for (int i = m_tree->topLevelItemCount() - 1; i >= 0; --i) {
+        deleteCategoryItemWidgets(m_tree->topLevelItem(i));
+    }
     m_tree->clear();
+
     auto cats = filter.isEmpty() ? CategoryManager::instance()->allCategories()
                                  : CategoryManager::instance()->searchCategories(filter);
 
     auto addItem = [this](QTreeWidgetItem* parent, const CategoryNode& node, auto&& self) -> void {
-        QTreeWidgetItem* item = createCategoryItem(node.name, node.id, parent);
+        int annotatedCount = countAnnotatedImages(node);
+        QTreeWidgetItem* item = createCategoryItem(node.name, node.id, annotatedCount, parent);
         for (const CategoryNode& child : node.children) {
             self(item, child, self);
         }
@@ -129,22 +141,44 @@ void CategoryPanel::refreshTree(const QString& filter) {
     m_tree->expandAll();
 }
 
-QTreeWidgetItem* CategoryPanel::createCategoryItem(const QString& name, const QString& id, QTreeWidgetItem* parent) {
+void CategoryPanel::deleteCategoryItemWidgets(QTreeWidgetItem* item) {
+    if (!item) return;
+
+    // 递归处理子节点
+    for (int i = item->childCount() - 1; i >= 0; --i) {
+        deleteCategoryItemWidgets(item->child(i));
+    }
+
+    // 移除并立即删除该节点关联的自定义 widget
+    QWidget* w = m_tree->itemWidget(item, 0);
+    if (w) {
+        m_tree->removeItemWidget(item, 0);
+        delete w;
+    }
+}
+
+QTreeWidgetItem* CategoryPanel::createCategoryItem(const QString& name, const QString& id, int annotatedCount, QTreeWidgetItem* parent) {
     QTreeWidgetItem* item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(m_tree);
     item->setText(0, name);
     item->setData(0, Qt::UserRole, id);
-    
-    // 创建自定义widget，包含类别名称和"加入类别"按钮
+
+    // 创建自定义widget，包含类别名称、已标注数量与"加入类别"按钮
     QWidget* widget = new QWidget();
     QHBoxLayout* widgetLayout = new QHBoxLayout(widget);
     widgetLayout->setContentsMargins(4, 2, 4, 2);
     widgetLayout->setSpacing(8);
-    
+
     QLabel* nameLabel = new QLabel(name);
     nameLabel->setStyleSheet("color: #e0e0e0; font-size: 13px;");
     nameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     widgetLayout->addWidget(nameLabel);
-    
+
+    // 已标注图像数量徽章
+    QLabel* countLabel = new QLabel(QString("(%1)").arg(annotatedCount));
+    countLabel->setStyleSheet("color: #aaa; font-size: 12px; padding: 0 4px;");
+    countLabel->setToolTip(QString("该类别（含子类别）已标注图像数量: %1").arg(annotatedCount));
+    widgetLayout->addWidget(countLabel);
+
     QPushButton* addBtn = new QPushButton("加入");
     addBtn->setProperty("categoryId", id);
     addBtn->setProperty("categoryName", name);
@@ -290,5 +324,26 @@ void CategoryPanel::onAddToCategoryClicked() {
         QString categoryName = btn->property("categoryName").toString();
         emit addToCategoryRequested(categoryId, categoryName);
     }
+}
+
+int CategoryPanel::countAnnotatedImages(const CategoryNode& node) const {
+    // 收集当前节点及其所有子节点的类别名称
+    QSet<QString> targetNames;
+    std::function<void(const CategoryNode&)> collectNames = [&](const CategoryNode& n) {
+        targetNames.insert(n.name);
+        for (const CategoryNode& child : n.children) {
+            collectNames(child);
+        }
+    };
+    collectNames(node);
+
+    // 统计 ImageManager 中 isAnnotated 且 label 命中上述名称集合的图像数量
+    int count = 0;
+    for (const ImageEntry& entry : ImageManager::instance()->images()) {
+        if (entry.isAnnotated && targetNames.contains(entry.label)) {
+            ++count;
+        }
+    }
+    return count;
 }
 

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "comment": "Q-DetectVision 模型源路径配置 (v2.0 阶段七)\nsources: 模型源路径列表，每项含 path/sourceType/enabled/description\nsourceType 取值:\n  - lmstudio: LM Studio 下载的本地大模型 (默认预设路径 F:\\models\\.lmstudio\\models)\n  - local:    现有模型路径 (ONNX/零样本模型)\n  - trained:  训练 YOLO 产物目录\n多路径并存，统一扫描发现可用模型 (.gguf/.onnx/.pt/.safetensors 等)。\n预设路径在 F 盘 (非 C 盘)，符合 AGENTS.md 存储要求。",
+  "sources": [
+    {
+      "path": "F:\\models\\.lmstudio\\models",
+      "sourceType": "lmstudio",
+      "enabled": true,
+      "description": "预设路径，存放 LM Studio 下载的本地大模型"
+    },
+    {
+      "path": "E:\\anchor\\Trae\\QDV\\models",
+      "sourceType": "local",
+      "enabled": true,
+      "description": "项目源码目录模型（开发调试）"
+    },
+    {
+      "path": "D:\\models",
+      "sourceType": "local",
+      "enabled": true,
+      "description": "现有模型路径（ONNX/零样本模型）"
+    },
+    {
+      "path": "D:\\QDV\\trained",
+      "sourceType": "trained",
+      "enabled": true,
+      "description": "训练 YOLO 产物目录"
+    }
+  ]
+}

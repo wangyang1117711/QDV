@@ -1,0 +1,6 @@
+=== Visual Verification Report: select_all_clicked ===
+Result: PASSED
+Message: SelectAll button text correct: '取消全选'
+Confidence: 100.0%
+Screenshot captured: 1
+Detected regions: 0

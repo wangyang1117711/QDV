@@ -15,8 +15,11 @@
 #include "AiClassifyTool.h"
 #include "DetectObjectsDlTool.h"
 #include "SegmentDlTool.h"
+#include "YoloDetectTool.h"
+#include "ZeroShotDetectTool.h"   // spec v2 阶段三 Task 8：零样本检测算子
 #include "ReadImageTool.h"
 #include "OpenFramegrabberTool.h"
+#include "NormalizationTool.h"
 #include "GrabImageTool.h"
 #include "OperatorSDK/IInferenceEngine.h"
 // 新增：滤波类
@@ -59,6 +62,21 @@
 #include "OcrTool.h"
 #include "HandEyeCalibTool.h"
 #include "RobotPoseTool.h"       // v5.3：机器人位姿算子
+// P0/P1 升级新增算子（2026-07-15）
+#include "PositionCorrectTool.h"   // P0-2 位置修正
+#include "UnitConvertTool.h"       // P0-3 单位换算
+#include "CaliperTool.h"           // P0-4 卡尺测量
+#include "CameraCalibTool.h"       // P0-5 相机标定
+#include "ContourMatchTool.h"      // P0-6b 轮廓匹配
+#include "ColorMatchTool.h"        // P0-6c 颜色比对
+#include "DLOCRTool.h"             // P0-6d 端到端 OCR
+#include "LightControlTool.h"      // P0-6e 光源控制
+#include "LoopTool.h"              // P1-4a 循环遍历
+#include "ScriptTool.h"            // P1-4b Python 脚本
+#include "VariableTool.h"          // P1-4c 变量运算
+#include "SurfaceDefectTool.h"     // P1-5a 表面缺陷检测
+#include "ContourCompareTool.h"    // P1-5b 轮廓比对
+#include "FlowJoinTool.h"          // v2.7.0 流程合并
 
 using namespace QDV;
 
@@ -82,6 +100,8 @@ ToolFactory::ToolFactory() {
     registerTool("AiClassify", []() { return new AiClassifyTool(); });
     registerTool("DetectObjectsDl", []() { return new DetectObjectsDlTool(); });
     registerTool("SegmentDl", []() { return new SegmentDlTool(); });
+    registerTool("YoloDetect", []() { return new YoloDetectTool(); });
+    registerTool("Normalization", []() { return new NormalizationTool(); });
     registerTool("ReadImage", []() { return new ReadImageTool(); });
 
     // 图像采集类（2个）
@@ -133,6 +153,29 @@ ToolFactory::ToolFactory() {
     registerTool("Ocr",           []() { return new OcrTool(); });
     registerTool("HandEyeCalib",  []() { return new HandEyeCalibTool(); });
     registerTool("RobotPose",      []() { return new RobotPoseTool(); });  // v5.3
+
+    // P0/P1 升级新增算子（2026-07-15）
+    // P0 坐标与标定类
+    registerTool("PositionCorrect", []() { return new PositionCorrectTool(); });  // P0-2
+    registerTool("UnitConvert",     []() { return new UnitConvertTool(); });      // P0-3
+    registerTool("Caliper",         []() { return new CaliperTool(); });          // P0-4
+    registerTool("CameraCalib",     []() { return new CameraCalibTool(); });      // P0-5
+    // P0 高级匹配与检测类
+    registerTool("ContourMatch",    []() { return new ContourMatchTool(); });     // P0-6b
+    registerTool("ColorMatch",      []() { return new ColorMatchTool(); });       // P0-6c
+    registerTool("DLOCR",           []() { return new DLOCRTool(); });            // P0-6d
+    registerTool("LightControl",    []() { return new LightControlTool(); });     // P0-6e
+    // P1 流程控制类
+    registerTool("Loop",            []() { return new LoopTool(); });             // P1-4a
+    registerTool("Script",          []() { return new ScriptTool(); });           // P1-4b
+    registerTool("Variable",        []() { return new VariableTool(); });         // P1-4c
+    // P1 缺陷检测类
+    registerTool("SurfaceDefect",   []() { return new SurfaceDefectTool(); });    // P1-5a
+    registerTool("ContourCompare",  []() { return new ContourCompareTool(); });   // P1-5b
+    // v2.7.0 流程控制类
+    registerTool("FlowJoin",        []() { return new FlowJoinTool(); });        // 流程合并
+    // spec v2 阶段三 Task 8：零样本检测算子（封装 zsu::Kit 进方案链）
+    registerTool("ZeroShotDetect",  []() { return new ZeroShotDetectTool(); });
 }
 
 ToolFactory* ToolFactory::instance() {
@@ -161,6 +204,9 @@ QDV::VisionTool* ToolFactory::createTool(const QString& type) {
             } else if (type == "SegmentDl") {
                 SegmentDlTool* segTool = dynamic_cast<SegmentDlTool*>(tool);
                 if (segTool) segTool->setInferenceEngine(m_inferenceEngine);
+            } else if (type == "YoloDetect") {
+                YoloDetectTool* yoloTool = dynamic_cast<YoloDetectTool*>(tool);
+                if (yoloTool) yoloTool->setInferenceEngine(m_inferenceEngine);
             }
         }
         return tool;

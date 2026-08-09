@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ZeroShotPanel 目标类型选择区 - 界面示意图（v2.0 阶段二 Task 7）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: #1e1e1e; color: #dcdcdc; padding: 20px; }
+  h1 { color: #4ec9b0; font-size: 18px; margin-bottom: 4px; }
+  .meta { color: #888; font-size: 12px; margin-bottom: 20px; }
+  .panel { width: 380px; background: #252526; border: 1px solid #3a3a3e; border-radius: 4px; padding: 12px; }
+  .group { border: 1px solid #3a3a3e; border-radius: 4px; margin-bottom: 8px; padding: 10px; }
+  .group-title { font-weight: bold; color: #569cd6; font-size: 13px; margin-bottom: 8px; }
+  .row { display: flex; align-items: center; margin-bottom: 6px; gap: 6px; }
+  .label { width: 70px; font-size: 12px; color: #9cdcfe; text-align: right; }
+  .input { flex: 1; background: #2d2d30; border: 1px solid #3a3a3e; border-radius: 3px; padding: 4px 8px; font-size: 12px; color: #dcdcdc; min-height: 26px; display: flex; align-items: center; }
+  .btn { background: #2d4a2d; color: #4ec9b0; border: 1px solid #3a5a3a; border-radius: 3px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  .btn:hover { background: #3d5a3d; }
+  .btn-blue { background: #264f78; color: #dcdcdc; border-color: #3a6a9a; }
+  .btn-blue:hover { background: #365f88; }
+  .target-type-btn { flex: 1; background: #2d2d30; border: 1px solid #3a3a3e; border-radius: 3px; padding: 4px 10px; font-size: 12px; color: #dcdcdc; text-align: left; cursor: pointer; position: relative; }
+  .target-type-btn:after { content: "▼"; position: absolute; right: 8px; font-size: 10px; color: #888; }
+  .target-type-btn:hover { background: #37373d; }
+  .highlight { border: 2px solid #4ec9b0 !important; box-shadow: 0 0 8px rgba(78,201,176,0.3); }
+  .annotation { margin-left: 420px; position: absolute; top: 80px; width: 350px; }
+  .annotation h2 { color: #4ec9b0; font-size: 14px; margin-bottom: 10px; }
+  .annotation-item { background: #2d2d30; border-left: 3px solid #569cd6; padding: 8px 12px; margin-bottom: 8px; font-size: 12px; line-height: 1.6; }
+  .annotation-item.new { border-left-color: #4ec9b0; }
+  .badge { display: inline-block; background: #4ec9b0; color: #1e1e1e; font-size: 10px; padding: 1px 6px; border-radius: 2px; margin-left: 4px; font-weight: bold; }
+  .menu-preview { background: #2d2d30; border: 1px solid #3a3a3e; border-radius: 3px; width: 280px; padding: 4px 0; margin-top: 4px; display: none; }
+  .menu-preview.show { display: block; }
+  .menu-group-title { font-weight: bold; font-size: 11px; color: #569cd6; padding: 4px 12px; }
+  .menu-item { padding: 4px 12px 4px 28px; font-size: 12px; color: #dcdcdc; cursor: pointer; position: relative; }
+  .menu-item:hover { background: #37373d; }
+  .menu-item.checked:before { content: "✓"; position: absolute; left: 12px; color: #4ec9b0; }
+  .menu-sep { height: 1px; background: #3a3a3e; margin: 4px 0; }
+  .container { position: relative; }
+  .arrow { color: #4ec9b0; font-size: 20px; }
+</style>
+</head>
+<body>
+  <h1>ZeroShotPanel 目标类型选择区 — 界面示意图</h1>
+  <div class="meta">v2.0 阶段二 Task 7 · 共享提示词库集成 · 2026-08-03</div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="group">
+        <div class="group-title">模型配置</div>
+        <div class="row">
+          <div class="label">模型类型:</div>
+          <div class="input">Grounding DINO (开集目标检测)</div>
+          <div class="btn" style="min-width:26px; text-align:center;">ℹ</div>
+        </div>
+        <div class="row">
+          <div class="label">模型路径:</div>
+          <div class="input">resources/models/grounding_sam/</div>
+          <div class="btn btn-blue">浏览...</div>
+        </div>
+        <div class="row">
+          <div class="label">提示词:</div>
+          <div class="input">scratch . dent . rust</div>
+        </div>
+
+        <!-- 新增：目标类型选择区 -->
+        <div class="row">
+          <div class="label">目标类型:</div>
+          <div class="target-type-btn highlight" onclick="toggleMenu()">3 项已选: scratch ...</div>
+          <div class="btn">自定义...</div>
+        </div>
+
+        <!-- 下拉菜单预览（点击展开） -->
+        <div class="menu-preview show" id="menuPreview" style="position:absolute; z-index:10; margin-left:76px; margin-top:0; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+          <div class="menu-group-title">内置（12 类默认缺陷）</div>
+          <div class="menu-item checked">划痕 (表面划伤检测) [scratch]</div>
+          <div class="menu-item">凹坑 (冲压/注塑件凹陷) [dent]</div>
+          <div class="menu-item">污渍 (表面污染检测) [stain]</div>
+          <div class="menu-item">裂纹 (结构性缺陷) [crack]</div>
+          <div class="menu-item">变形 (形状偏差检测) [deformation]</div>
+          <div class="menu-item">变色 (涂层/电镀缺陷) [discoloration]</div>
+          <div class="menu-item">缺件 (装配完整性) [missing part]</div>
+          <div class="menu-item">错位 (装配位置偏差) [misalignment]</div>
+          <div class="menu-item checked">毛刺 (机加工边缘缺陷) [burr]</div>
+          <div class="menu-item">孔洞 (铸造/焊接缺陷) [hole]</div>
+          <div class="menu-item">异物污染 (异物混入检测) [contamination]</div>
+          <div class="menu-item checked">锈点/锈蚀 (金属锈蚀) [rust]</div>
+          <div class="menu-sep"></div>
+          <div class="menu-group-title">自定义</div>
+          <div class="menu-item">油渍 (表面油污检测) [oil stain]</div>
+          <div class="menu-sep"></div>
+          <div class="menu-group-title">最近使用</div>
+          <div class="menu-item">scratch . dent . rust</div>
+          <div class="menu-item">crack . deformation</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">阈值参数</div>
+        <div class="row">
+          <div class="label" style="width:60px;">检测阈值</div>
+          <div style="flex:1; height:6px; background:#3a3a3e; border-radius:3px; position:relative;">
+            <div style="width:30%; height:100%; background:#4ec9b0; border-radius:3px;"></div>
+          </div>
+          <div style="width:36px; text-align:center; font-size:12px;">0.30</div>
+        </div>
+        <div class="row">
+          <div class="input" style="font-size:11px; color:#888;">☑ 使用量化模型 (INT8)</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">操作</div>
+        <div class="row" style="gap:4px;">
+          <div class="btn" style="background:#2d4a2d;">加载模型</div>
+          <div style="color:#888; font-size:11px; padding:0 8px;">已加载: Grounding DINO</div>
+        </div>
+        <div class="row" style="gap:4px; margin-top:4px;">
+          <div class="btn btn-blue">推理当前</div>
+          <div class="btn btn-blue">推理全部</div>
+          <div class="btn" style="color:#f44747; border-color:#5a3a3a;">停止</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 注释说明 -->
+    <div class="annotation">
+      <h2>界面变更说明 <span class="badge">Task 7</span></h2>
+
+      <div class="annotation-item new">
+        <b>① 目标类型多选下拉</b><br>
+        QToolButton + QMenu 实现，点击展开分组菜单：<br>
+        • 内置（12 类默认缺陷）<br>
+        • 自定义（用户添加）<br>
+        • 最近使用（最多 10 条）<br>
+        勾选后自动拼接为提示词串（" . " 分隔）填入提示词框。
+      </div>
+
+      <div class="annotation-item new">
+        <b>② "自定义..."按钮</b><br>
+        弹出对话框输入：类别名 + 提示词 + 中文名 + 场景 + 可选示例图。<br>
+        通过信号 <code>customTargetTypeRequested</code> 通知外部，由 ZeroShotDetectView 调用 <code>PromptLibrary::addCustom</code> 持久化。
+      </div>
+
+      <div class="annotation-item new">
+        <b>③ 提示词输入框（已增强）</b><br>
+        显示目标类型选择的拼接结果（如 <code>scratch . dent . rust</code>），<br>
+        允许手动微调。textPrompts() 同时支持分号 ";" 和 " . " 两种分隔符解析。
+      </div>
+
+      <div class="annotation-item">
+        <b>④ 依赖注入方案</b><br>
+        ZeroShotPanel 不直接依赖 PromptLibrary 类，通过 <code>setTargetTypeEntries(QVariantList)</code> 接收数据，
+        通过信号通知外部保存。由 ZeroShotDetectView 桥接，保持 ZeroShotKit CMake 独立性。
+      </div>
+
+      <div class="annotation-item">
+        <b>向后兼容</b><br>
+        • 无 PromptLibrary 数据时菜单为空，显示占位提示<br>
+        • 旧提示词（分号分隔）仍可正常解析<br>
+        • 不影响现有模型加载/推理/阈值功能
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleMenu() {
+      var m = document.getElementById('menuPreview');
+      m.classList.toggle('show');
+    }
+  </script>
+</body>
+</html>

@@ -21,9 +21,10 @@ bool VisionClassifier::loadModel(const std::string& onnxPath, const std::vector<
     bool loaded = m_engine->loadModel(
         QString::fromStdString(onnxPath),
         QSize(224, 224),
-        cv::Scalar(0.485, 0.456, 0.406),
-        1.0 / 255.0,
-        true
+        cv::Scalar(0.485, 0.456, 0.406),       // ImageNet mean
+        1.0 / 255.0,                            // scale = 1/255
+        true,                                    // swapRB = BGR→RGB
+        cv::Scalar(0.229, 0.224, 0.225)         // ImageNet std
     );
     
     m_modelLoaded = loaded;

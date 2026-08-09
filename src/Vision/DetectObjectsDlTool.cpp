@@ -78,15 +78,6 @@ bool DetectObjectsDlTool::execute(const cv::Mat& input, ToolResult& result) {
         return false;
     }
 
-    // 引擎未注入保护（同 AiClassifyTool，保持 AI 算子行为一致性）
-    if (!m_engine) {
-        Logger::warn("DetectObjectsDlTool: no inference engine injected");
-        result.ok = false;
-        result.data["error"] = "No inference engine injected";
-        result.data["modelLoaded"] = false;
-        return false;
-    }
-
     if (m_modelPath.isEmpty()) {
         Logger::warn("DetectObjectsDlTool: no model configured");
         result.ok = false;
@@ -94,6 +85,100 @@ bool DetectObjectsDlTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["modelLoaded"] = false;
         return false;
     }
+
+    // 优先通过 IInferenceEngine::detect 接口推理
+    if (m_engine) {
+        result.data["modelLoaded"] = true;
+
+        QJsonObject detectResult;
+        bool ok = m_engine->detect(input, m_confidenceThreshold, m_nmsThreshold, detectResult);
+        if (!ok) {
+            Logger::error("DetectObjectsDlTool: detection failed via engine");
+            result.ok = false;
+            result.data["error"] = "Detection failed";
+            return false;
+        }
+
+        // 解析 detections 数组（classId/className/confidence/bbox[x,y,w,h]）
+        QJsonArray detections = detectResult["detections"].toArray();
+        int numDetections = detections.size();
+        double maxConfidence = 0.0;
+        for (const auto& det : detections) {
+            double conf = det.toObject()["confidence"].toDouble();
+            if (conf > maxConfidence) maxConfidence = conf;
+        }
+
+        // 指标
+        InferenceMetricsLite metrics = m_engine->lastMetrics();
+        result.elapsedMs = metrics.totalMs;
+
+        // 准备 overlayImage（用于绘制边界框 + 标签 + 置信度）
+        if (input.channels() == 1) {
+            cv::cvtColor(input, result.overlayImage, cv::COLOR_GRAY2BGR);
+        } else {
+            result.overlayImage = input.clone();
+        }
+
+        // 绘制检测框（绿色）并填充 result.data["detections"]
+        for (const auto& det : detections) {
+            QJsonObject d = det.toObject();
+            int classId = d["classId"].toInt();
+            double conf = d["confidence"].toDouble();
+            QJsonArray bbox = d["bbox"].toArray();
+            int x = static_cast<int>(bbox[0].toDouble());
+            int y = static_cast<int>(bbox[1].toDouble());
+            int w = static_cast<int>(bbox[2].toDouble());
+            int h = static_cast<int>(bbox[3].toDouble());
+
+            // 绿色边界框
+            cv::rectangle(result.overlayImage, cv::Point(x, y),
+                          cv::Point(x + w, y + h), cv::Scalar(0, 255, 0), 2);
+
+            // 标签文本
+            QString className = d["className"].toString();
+            if (className.isEmpty()) {
+                if (classId >= 0 && classId < m_categoryLabels.size()) {
+                    className = m_categoryLabels[classId];
+                } else {
+                    className = QString("class_%1").arg(classId);
+                }
+            }
+            QString label = QString("%1 %2").arg(className).arg(conf, 0, 'f', 2);
+            std::string labelStr = label.toStdString();
+
+            int baseLine = 0;
+            cv::Size labelSize = cv::getTextSize(labelStr,
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+            int top = std::max(y, labelSize.height);
+            cv::rectangle(result.overlayImage,
+                cv::Point(x, top - labelSize.height),
+                cv::Point(x + labelSize.width, top + baseLine),
+                cv::Scalar(0, 255, 0), cv::FILLED);
+            cv::putText(result.overlayImage, labelStr,
+                cv::Point(x, top), cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                cv::Scalar(0, 0, 0), 1);
+        }
+
+        result.data["detections"] = detections;
+        result.data["detectionCount"] = numDetections;
+        result.data["elapsedMs"] = result.elapsedMs;
+        result.data["confidenceThreshold"] = m_confidenceThreshold;
+        result.data["nmsThreshold"] = m_nmsThreshold;
+        result.data["preprocess_ms"] = metrics.preprocessMs;
+        result.data["inference_ms"] = metrics.inferenceMs;
+        result.data["postprocess_ms"] = metrics.postprocessMs;
+        result.data["backend"] = metrics.backend;
+        result.score = maxConfidence;
+        result.ok = true;
+
+        m_results["lastDetectionCount"] = numDetections;
+        m_results["lastMaxConfidence"] = maxConfidence;
+
+        return true;
+    }
+
+    // Fallback: m_engine 未注入时，使用 cv::dnn::Net 直接推理
+    Logger::warn("DetectObjectsDlTool: no inference engine injected, fallback to cv::dnn::Net");
 
     // 懒加载模型（首次执行时加载）
     if (!m_modelLoaded && !loadModel()) {

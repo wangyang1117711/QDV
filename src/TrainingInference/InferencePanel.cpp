@@ -96,6 +96,7 @@ void InferencePanel::setupUI() {
     layout->addWidget(configGroup);
 
     m_runBtn = new QPushButton("开始推理");
+    m_runBtn->setToolTip("选择模型后点击开始推理，支持批量推理");
     m_runBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #7C4DFF;
@@ -114,6 +115,7 @@ void InferencePanel::setupUI() {
 
     m_stopBtn = new QPushButton("停止推理");
     m_stopBtn->setEnabled(false);
+    m_stopBtn->setToolTip("推理进行中时点击可中止推理操作");
     m_stopBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #c62828;
@@ -152,15 +154,23 @@ void InferencePanel::setupUI() {
 }
 
 void InferencePanel::refreshModelList() {
-    QStringList models = ModelManager::instance()->getAvailableModelNames();
-    
+    // 仅保留 OpenCV DNN 可加载的 .onnx 模型
+    QStringList allModels = ModelManager::instance()->getAvailableModelNames();
+    QStringList models;
+    for (const QString& name : allModels) {
+        QString path = ModelManager::instance()->getModelPathByName(name);
+        if (path.endsWith(".onnx", Qt::CaseInsensitive)) {
+            models << name;
+        }
+    }
+
     if (models.isEmpty()) {
         models << "未找到模型";
         m_runBtn->setEnabled(false);
     } else {
         m_runBtn->setEnabled(true);
     }
-    
+
     m_modelCombo->clear();
     m_modelCombo->addItems(models);
     
@@ -183,6 +193,9 @@ void InferencePanel::refreshModelList() {
     
     if (defaultIndex >= 0) {
         m_modelCombo->setCurrentIndex(defaultIndex);
+    } else if (m_modelCombo->count() > 0) {
+        // 没有任何优先匹配项时，默认选中第一个可用模型
+        m_modelCombo->setCurrentIndex(0);
     }
 }
 
@@ -196,7 +209,50 @@ QString InferencePanel::currentModel() const {
 }
 
 QString InferencePanel::currentModelPath() const {
+    // 优先使用模型库显式选中的路径，否则通过模型名称反查
+    if (!m_explicitModelPath.isEmpty()) {
+        return m_explicitModelPath;
+    }
     return ModelManager::instance()->getModelPathByName(currentModel());
+}
+
+void InferencePanel::setCurrentModelPath(const QString& path) {
+    if (path.isEmpty()) {
+        return;
+    }
+    m_explicitModelPath = path;
+
+    // 刷新列表，确保包含默认目录下的模型
+    refreshModelList();
+
+    // 尝试在现有下拉项中找到匹配的模型名称
+    QString baseName = QFileInfo(path).completeBaseName();
+    int targetIndex = -1;
+    for (int i = 0; i < m_modelCombo->count(); ++i) {
+        const QString& name = m_modelCombo->itemText(i);
+        if (name == baseName) {
+            targetIndex = i;
+            break;
+        }
+        if (ModelManager::instance()->getModelPathByName(name) == path) {
+            targetIndex = i;
+            break;
+        }
+    }
+
+    // 如果找不到，则新增一个临时项
+    if (targetIndex < 0) {
+        m_modelCombo->addItem(baseName);
+        targetIndex = m_modelCombo->count() - 1;
+    }
+
+    // 阻塞信号，避免 onModelChanged 在设置过程中清除显式路径
+    const QSignalBlocker blocker(m_modelCombo);
+    m_modelCombo->setCurrentIndex(targetIndex);
+
+    // 手动更新模型信息展示
+    updateModelInfo(m_modelCombo->currentText());
+    emit modelSelected(path);
 }
 
 bool InferencePanel::isBatchMode() const {
@@ -210,6 +266,31 @@ void InferencePanel::setStatus(const QString& text, bool isError) {
     } else {
         m_statusLabel->setStyleSheet("color: #aaa; font-size: 12px; padding: 4px;");
     }
+}
+
+void InferencePanel::setProgress(int value, int total, const QString& status) {
+    // 确保进度条始终可见（忙碌或百分比模式均需显示）
+    m_progressBar->setVisible(true);
+
+    if (total <= 0) {
+        // 总数量未知时显示忙碌动画，保留状态文本
+        m_progressBar->setRange(0, 0);
+        if (!status.isEmpty()) {
+            m_statusLabel->setText(status);
+        }
+        return;
+    }
+
+    m_progressBar->setRange(0, total);
+    m_progressBar->setValue(qBound(0, value, total));
+
+    // 在状态标签中显示百分比与状态文本
+    int percent = total > 0 ? static_cast<int>(value * 100.0 / total) : 0;
+    QString text = QString("已完成 %1% (%2/%3)").arg(percent).arg(value).arg(total);
+    if (!status.isEmpty()) {
+        text = status + " " + text;
+    }
+    m_statusLabel->setText(text);
 }
 
 void InferencePanel::onRunInference() {
@@ -239,18 +320,33 @@ void InferencePanel::onModelChanged(int index) {
     m_modelInfoList->clear();
 
     QString modelName = m_modelCombo->currentText();
+
+    // 用户手动切换模型时，若与显式路径不一致则清除显式路径
+    if (!m_explicitModelPath.isEmpty()) {
+        QString selectedPath = ModelManager::instance()->getModelPathByName(modelName);
+        if (selectedPath != m_explicitModelPath) {
+            m_explicitModelPath.clear();
+        }
+    }
+
     if (modelName.isEmpty() || modelName == "未找到模型") {
         m_modelPathLabel->setText("路径: -");
         return;
     }
-    
+
     updateModelInfo(modelName);
     emit modelSelected(currentModelPath());
 }
 
 void InferencePanel::updateModelInfo(const QString& modelName) {
-    QString modelPath = ModelManager::instance()->getModelPathByName(modelName);
-    
+    m_modelInfoList->clear();
+
+    // 优先使用模型库显式选中的路径，否则通过名称反查
+    QString modelPath = currentModelPath();
+    if (modelPath.isEmpty()) {
+        modelPath = ModelManager::instance()->getModelPathByName(modelName);
+    }
+
     // 更新路径显示
     if (!modelPath.isEmpty()) {
         m_modelPathLabel->setText(QString("路径: %1").arg(modelPath));
@@ -266,8 +362,16 @@ void InferencePanel::updateModelInfo(const QString& modelName) {
         m_modelInfoList->addItem(QString("大小: %1 KB").arg(fi.size() / 1024));
     }
     
-    m_modelInfoList->addItem("类型: 图像分类");
-    m_modelInfoList->addItem("输入: 224x224 RGB");
+    // 根据模型路径自动识别模型类型与输入尺寸
+    QString modelType = ModelManager::instance()->autoDetectModelType(modelPath);
+    QSize inputSize = ModelManager::instance()->autoDetectInputSize(modelPath);
+    if (modelType == "yolo" || inputSize == QSize(640, 640)) {
+        m_modelInfoList->addItem("类型: 目标检测");
+        m_modelInfoList->addItem("输入: 640x640 RGB");
+    } else {
+        m_modelInfoList->addItem("类型: 图像分类");
+        m_modelInfoList->addItem(QString("输入: %1x%2 RGB").arg(inputSize.width()).arg(inputSize.height()));
+    }
 }
 
 void InferencePanel::onBatchToggled(bool checked) {

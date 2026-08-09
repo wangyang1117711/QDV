@@ -46,10 +46,94 @@ Popup {
     property var meta: null
     property var workingValues: ({})  // 编辑过程中的当前值
     property var snapshotValues: ({})  // 打开时的快照（取消用）
+    // v5.4：输出参数开关相关
+    property bool outputSectionCollapsed: true  // 输出设置分组默认折叠
+    property var outputConfig: ({})             // 当前节点的输出开关配置（key=输出名 value={enabled:bool}）
+    // 输出项配置增强（spec：editor-output-connection-optimization）
+    // （已按用户反馈移除关键字搜索框，保留状态过滤与分组）
+    property int outputStatusFilter: 0          // 0=全部 1=仅启用 2=仅禁用
+    property string outputGroupFilter: ""       // 当前分组过滤（空=全部）
+
+    // v-spec: 内联运行状态（0=空闲 1=运行中 2=成功 3=失败）
+    property int runStatus: 0
+    // v-spec: 内联运行状态文本
+    property string runStatusText: ""
+
+    // 输出项状态过滤 + 分组：返回扁平分组列表（含 groupHeader 项）
+    function groupedOutputs() {
+        if (!dlg.meta || !dlg.meta.outputs) return []
+        var result = []
+        var seenGroups = {}
+        var metaOutputs = dlg.meta.outputs
+        for (var gi = 0; gi < metaOutputs.length; ++gi) {
+            var grp = metaOutputs[gi].group || metaOutputs[gi].typeName || "其他"
+            if (!seenGroups[grp]) {
+                seenGroups[grp] = true
+            }
+        }
+        var groups = Object.keys(seenGroups)
+        for (var g = 0; g < groups.length; ++g) {
+            var gname = groups[g]
+            if (dlg.outputGroupFilter !== "" && gname !== dlg.outputGroupFilter) continue
+            // 分组头
+            result.push({isGroupHeader: true, group: gname})
+            for (var oi = 0; oi < metaOutputs.length; ++oi) {
+                var mo = metaOutputs[oi]
+                var og = mo.group || mo.typeName || "其他"
+                if (og !== gname) continue
+                // 状态过滤
+                var enabled = (dlg.outputConfig[mo.name] && dlg.outputConfig[mo.name].enabled === true)
+                    || (!dlg.outputConfig[mo.name] && mo.defaultEnabled !== false)
+                if (dlg.outputStatusFilter === 1 && !enabled) continue
+                if (dlg.outputStatusFilter === 2 && enabled) continue
+                var entry = JSON.parse(JSON.stringify(mo))
+                entry.enabledNow = enabled
+                result.push(entry)
+            }
+        }
+        return result
+    }
+
+    // 唯一的输出分组列表（下拉过滤用）
+    function outputGroups() {
+        if (!dlg.meta || !dlg.meta.outputs) return []
+        var seen = {}
+        var out = []
+        for (var i = 0; i < dlg.meta.outputs.length; ++i) {
+            var grp = dlg.meta.outputs[i].group || dlg.meta.outputs[i].typeName || "其他"
+            if (!seen[grp]) { seen[grp] = true; out.push(grp) }
+        }
+        return out
+    }
+
+    // 批量启用/禁用（走 updateOutputConfig 可撤销路径）
+    function batchSetOutputs(enabledVal) {
+        if (!dlg.meta || !dlg.meta.outputs) return
+        var newConfig = JSON.parse(JSON.stringify(dlg.outputConfig || ({})))
+        for (var i = 0; i < dlg.meta.outputs.length; ++i) {
+            var name = dlg.meta.outputs[i].name
+            if (!newConfig[name]) newConfig[name] = {}
+            newConfig[name].enabled = enabledVal
+        }
+        dlg.outputConfig = newConfig
+        if (dlg.bridge && dlg.nodeId) dlg.bridge.updateOutputConfig(dlg.nodeId, newConfig)
+    }
+
+    // 单输出项切换（深拷贝触发变化信号）
+    function toggleOutput(name, checked) {
+        var newConfig = JSON.parse(JSON.stringify(dlg.outputConfig || ({})))
+        if (!newConfig[name]) newConfig[name] = {}
+        newConfig[name].enabled = checked
+        dlg.outputConfig = newConfig
+        if (dlg.bridge && dlg.nodeId) dlg.bridge.updateOutputConfig(dlg.nodeId, newConfig)
+    }
 
     // 加载节点数据
     function load() {
         if (!bridge || !nodeId) return
+        // v-spec: 打开/切换节点时重置运行状态
+        runStatus = 0
+        runStatusText = ""
         // 在 currentNodes 中找
         var nodes = bridge.currentNodes || []
         var found = null
@@ -66,6 +150,11 @@ Popup {
         meta = bridge.getOperatorMeta(found.type)
         workingValues = JSON.parse(JSON.stringify(found.params || ({})))
         snapshotValues = JSON.parse(JSON.stringify(workingValues))
+
+        // v5.4：加载节点输出开关配置
+        if (bridge && nodeId) {
+            outputConfig = bridge.getOutputConfig(nodeId) || ({})
+        }
     }
 
     onNodeIdChanged: load()
@@ -152,18 +241,302 @@ Popup {
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            ParamForm {
-                id: form
+            ColumnLayout {
                 width: formScroll.width
-                params: dlg.meta ? dlg.meta.params : []
-                currentValues: dlg.workingValues
-                // P1-B4-H1 联动：传入算子类型供 isParamVisible 判断
-                operatorType: dlg.meta ? dlg.meta.type : ""
-                onValuesChanged: function(newValues) {
-                    dlg.workingValues = JSON.parse(JSON.stringify(newValues))
+                spacing: 6
+
+                ParamForm {
+                    id: form
+                    Layout.fillWidth: true
+                    params: dlg.meta ? dlg.meta.params : []
+                    currentValues: dlg.workingValues
+                    // P1-B4-H1 联动：传入算子类型供 isParamVisible 判断
+                    operatorType: dlg.meta ? dlg.meta.type : ""
+                    // v5.4.0：模型库列表（用于 modelPath 参数的下拉选择）
+                    modelList: dlg.bridge ? dlg.bridge.getRegisteredModels() : []
+                    onValuesChanged: function(newValues) {
+                        dlg.workingValues = JSON.parse(JSON.stringify(newValues))
+                    }
+                    onValidationError: function(name, message) {
+                        console.warn("[OperatorEditorDialog] 校验失败:", name, message)
+                    }
                 }
-                onValidationError: function(name, message) {
-                    console.warn("[OperatorEditorDialog] 校验失败:", name, message)
+
+                // ============ v5.4: 输出参数开关区 ============
+                // 放在参数列表下方，随 ScrollView 滚动
+                // 仅当算子元数据包含 outputs 时显示
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 10
+                    Layout.leftMargin: 12
+                    Layout.rightMargin: 12
+                    Layout.bottomMargin: 10
+                    spacing: 6
+                    visible: dlg.meta && dlg.meta.outputs
+                             && dlg.meta.outputs.length > 0
+
+                    // 折叠标题
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 28
+                        color: Tok.DesignTokens.bgSurface
+                        radius: Tok.DesignTokens.radiusSm
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            Label {
+                                text: "输出参数设置"
+                                color: Tok.DesignTokens.accentSuccess
+                                font.bold: true
+                                font.pixelSize: Tok.DesignTokens.fontSizeSm
+                                font.family: Tok.DesignTokens.fontFamilyCJK
+                            }
+                            Item { Layout.fillWidth: true }
+                            Label {
+                                text: dlg.outputSectionCollapsed ? "▶" : "▼"
+                                color: Tok.DesignTokens.textSecondary
+                                font.pixelSize: Tok.DesignTokens.fontSizeXs
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: dlg.outputSectionCollapsed = !dlg.outputSectionCollapsed
+                            }
+                        }
+                    }
+
+                    // 输出开关列表（折叠时隐藏）
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: !dlg.outputSectionCollapsed
+                        spacing: 6
+
+                        // ---- 输出项配置增强：分组 / 状态过滤 / 批量 ----
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            // 分组下拉
+                            ComboBox {
+                                id: outputGroupCombo
+                                Layout.preferredWidth: 90
+                                height: 26
+                                model: dlg.outputGroups()
+                                font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                font.family: Tok.DesignTokens.fontFamilyCJK
+                                currentIndex: 0
+                                onActivated: {
+                                    if (index === 0) dlg.outputGroupFilter = ""
+                                    else dlg.outputGroupFilter = model[index]
+                                }
+                                Component.onCompleted: {
+                                    // 预置"全部分组"项
+                                    var arr = ["全部分组"]
+                                    var gs = dlg.outputGroups()
+                                    for (var i = 0; i < gs.length; ++i) arr.push(gs[i])
+                                    model = arr
+                                    currentIndex = 0
+                                }
+                            }
+                        }
+
+                        // 状态过滤 + 批量操作
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            RowLayout {
+                                spacing: 2
+                                Repeater {
+                                    model: ["全部", "仅启用", "仅禁用"]
+                                    delegate: Button {
+                                        text: modelData
+                                        height: 24
+                                        flat: true
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                        checked: dlg.outputStatusFilter === index
+                                        highlighted: dlg.outputStatusFilter === index
+                                        onClicked: dlg.outputStatusFilter = index
+                                    }
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                            Button {
+                                text: "全选"
+                                height: 24
+                                flat: true
+                                font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                font.family: Tok.DesignTokens.fontFamilyCJK
+                                onClicked: dlg.batchSetOutputs(true)
+                            }
+                            Button {
+                                text: "全不选"
+                                height: 24
+                                flat: true
+                                font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                font.family: Tok.DesignTokens.fontFamilyCJK
+                                onClicked: dlg.batchSetOutputs(false)
+                            }
+                        }
+
+                        // ---- 分组 + 过滤后的输出项列表 ----
+                        // 注意：委托内联渲染（不使用根级 Component + Loader），
+                        // 否则加载后无法访问 Repeater 委托作用域的 modelData，导致名称不显示。
+                        Repeater {
+                            model: dlg.groupedOutputs()
+
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                // 分组头：独立渲染
+                                readonly property bool isHeader: modelData.isGroupHeader === true
+                                height: isHeader ? 26 : 30
+                                color: "transparent"
+
+                                // ---- 分组头行 ----
+                                RowLayout {
+                                    visible: isHeader
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 4
+                                    spacing: 6
+                                    Rectangle {
+                                        width: 3; height: 14
+                                        color: Tok.DesignTokens.accentPrimary
+                                        radius: 1
+                                    }
+                                    Label {
+                                        text: modelData.group
+                                        color: Tok.DesignTokens.textSecondary
+                                        font.bold: true
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                        Layout.fillWidth: true
+                                    }
+                                    Label {
+                                        text: "快速"
+                                        color: Tok.DesignTokens.accentPrimary
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                // 按分组批量启用：仅切该分组下输出项为 true
+                                                if (!dlg.meta || !dlg.meta.outputs) return
+                                                var newConfig = JSON.parse(JSON.stringify(dlg.outputConfig || ({})))
+                                                for (var i = 0; i < dlg.meta.outputs.length; ++i) {
+                                                    var mo = dlg.meta.outputs[i]
+                                                    var og = mo.group || mo.typeName || "其他"
+                                                    if (og === modelData.group) {
+                                                        if (!newConfig[mo.name]) newConfig[mo.name] = {}
+                                                        newConfig[mo.name].enabled = true
+                                                    }
+                                                }
+                                                dlg.outputConfig = newConfig
+                                                if (dlg.bridge && dlg.nodeId) dlg.bridge.updateOutputConfig(dlg.nodeId, newConfig)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // ---- 输出项行 ----
+                                RowLayout {
+                                    visible: !isHeader
+                                    anchors.fill: parent
+                                    spacing: 8
+                                    CheckBox {
+                                        text: (modelData.alias || modelData.cnName || modelData.name)
+                                        // 优先取 outputConfig 中的 enabled，未配置时回退到 defaultEnabled
+                                        checked: modelData.enabledNow
+                                        onCheckedChanged: dlg.toggleOutput(modelData.name, checked)
+                                        // multiTargetOnly 输出在单目标场景下给出提示
+                                        ToolTip.visible: hovered && modelData.multiTargetOnly === true
+                                        ToolTip.text: "仅多目标分类场景下启用有效"
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                    }
+                                    Rectangle {
+                                        width: 10; height: 10; radius: 2
+                                        color: modelData.color || Tok.DesignTokens.accentSuccess
+                                    }
+                                    Label {
+                                        text: "(" + (modelData.typeName || "") + ")"
+                                        color: Tok.DesignTokens.textSecondary
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                    }
+                                    Label {
+                                        text: modelData.desc || ""
+                                        color: Tok.DesignTokens.textPlaceholder
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============ v-spec: 内联运行状态条 ============
+        // 移除模态弹窗，将运行状态直接集成到编辑器窗口底部，实时展示且不阻断操作
+        Rectangle {
+            Layout.fillWidth: true
+            height: 30
+            visible: dlg.runStatus !== 0
+            // 运行中：柔和背景；成功/失败：语义强调色
+            color: dlg.runStatus === 1 ? Tok.DesignTokens.bgSurface
+                 : dlg.runStatus === 2 ? Tok.DesignTokens.accentSuccess
+                 : Tok.DesignTokens.accentError
+            // 运行中左侧强调描边
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 3
+                visible: dlg.runStatus === 1
+                color: Tok.DesignTokens.accentPrimary
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Tok.DesignTokens.space2
+                anchors.rightMargin: Tok.DesignTokens.space2
+                spacing: Tok.DesignTokens.space2
+
+                // 运行中：进度指示器
+                BusyIndicator {
+                    id: runBusy
+                    visible: dlg.runStatus === 1
+                    running: dlg.runStatus === 1
+                    implicitWidth: 14
+                    implicitHeight: 14
+                }
+                // 成功/失败：状态图标
+                Label {
+                    visible: dlg.runStatus !== 1
+                    text: dlg.runStatus === 2 ? "\u2713" : "\u2715"
+                    color: "#FFFFFF"
+                    font.pixelSize: Tok.DesignTokens.fontSizeSm
+                    font.bold: true
+                }
+                // 状态文本
+                Label {
+                    text: dlg.runStatusText
+                    color: "#FFFFFF"
+                    font.pixelSize: Tok.DesignTokens.fontSizeSm
+                    font.family: Tok.DesignTokens.fontFamilyCJK
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    wrapMode: Text.NoWrap
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }
@@ -221,10 +594,11 @@ Popup {
                         }
                         // v5.3.8：统一通过 C++ 解析运行输入源
                         var runInput = dlg.bridge.resolveRunInput(dlg.nodeId)
+                        // v-spec: 内联运行状态
+                        dlg.runStatus = 1
+                        dlg.runStatusText = "运行中..."
                         if (!runInput.required) {
                             // 数据源型算子（打开相机/采集图像等）无需输入图像，直接运行
-                            runResultDialog.resultText = "运行中..."
-                            runResultDialog.open()
                             dlg.bridge.runSingleOperatorAsync(dlg.nodeId, "")
                             return
                         }
@@ -232,8 +606,6 @@ Popup {
                         var autoPath = runInput.path
                         if (autoPath && autoPath !== "") {
                             // v5.3.4：改为异步执行，避免阻塞 UI
-                            runResultDialog.resultText = "运行中..."
-                            runResultDialog.open()
                             dlg.bridge.runSingleOperatorAsync(dlg.nodeId, "")
                         } else {
                             // 无 ReadImage 上游 → 弹 FileDialog
@@ -271,66 +643,27 @@ Popup {
             if (path.startsWith("file:///")) path = path.substring(8)
             else if (path.startsWith("file://")) path = path.substring(7)
             // v5.3.4：改为异步执行，避免阻塞 UI
-            runResultDialog.resultText = "运行中..."
-            runResultDialog.open()
+            dlg.runStatus = 1
+            dlg.runStatusText = "运行中..."
             dlg.bridge.runSingleOperatorAsync(dlg.nodeId, path)
         }
     }
 
-    // v2.5.0 功能 5c：运行结果摘要（v5.3 改为 Popup 避免 QRhi 跨实例）
-    Popup {
-        id: runResultDialog
-        modal: true
-        x: (parent.width - width) / 2
-        y: (parent.height - height) / 2
-        width: 400
-        height: 200
-        property string resultText: ""
-        background: Rectangle {
-            color: Tok.DesignTokens.bgPanel
-            border.color: Tok.DesignTokens.accentPrimary
-            border.width: 1
-            radius: Tok.DesignTokens.radiusMd
-        }
-        contentItem: ColumnLayout {
-            spacing: 10
-            Label {
-                text: "运行结果"
-                color: Tok.DesignTokens.accentPrimary
-                font.bold: true
-                font.pixelSize: Tok.DesignTokens.fontSizeBase
-                font.family: Tok.DesignTokens.fontFamilyCJK
-            }
-            Text {
-                text: runResultDialog.resultText
-                color: Tok.DesignTokens.textPrimary
-                font.pixelSize: 12
-                font.family: Tok.DesignTokens.fontFamilyCJK
-                wrapMode: Text.WordWrap
-                Layout.fillWidth: true
-            }
-            Button {
-                text: "确定"
-                Layout.alignment: Qt.AlignRight
-                onClicked: runResultDialog.close()
-            }
-        }
-    }
-
-    // v5.3.4：接收异步执行结果
+    // v2.5.0 功能 5c：运行结果摘要（v-spec: 改为内联状态条，移除模态弹窗）
+    // 接收异步执行结果
     Connections {
         target: dlg.bridge
         function onSingleOperatorFinished(result) {
             if (!result || !result.success) {
-                runResultDialog.resultText =
+                dlg.runStatus = 3
+                dlg.runStatusText =
                     "运行失败：" + (result && result.error ? result.error : "未知错误")
             } else {
-                runResultDialog.resultText =
-                    "运行成功\n上游算子数：" + result.upstreamCount +
-                    "\n总耗时：" + result.elapsedMs + " ms" +
-                    "\n输出图像：" + (result.outputImagePath || "无")
+                dlg.runStatus = 2
+                dlg.runStatusText =
+                    "运行成功 · 上游 " + result.upstreamCount + " 个算子 · 耗时 " +
+                    result.elapsedMs + " ms · 输出图像：" + (result.outputImagePath || "无")
             }
-            runResultDialog.open()
         }
     }
 }

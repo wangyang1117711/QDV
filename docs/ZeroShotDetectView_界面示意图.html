@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ZeroShotDetectView 界面示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1E1E1E; color: #E0E0E0;
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    padding: 20px;
+  }
+  .title-bar {
+    color: #7C4DFF; font-size: 20px; font-weight: bold;
+    margin-bottom: 16px; padding-bottom: 8px;
+    border-bottom: 2px solid #3D3D3D;
+  }
+  .toolbar {
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 12px; background: #242424;
+    border: 1px solid #3D3D3D; border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .btn {
+    background: #2D2D30; color: #E0E0E0;
+    border: 1px solid #3D3D3D; border-radius: 4px;
+    padding: 6px 14px; font-size: 12px; cursor: pointer;
+  }
+  .btn:hover { background: #7C4DFF; color: white; }
+  .btn-danger { border-color: #F44336; color: #FFCDD2; }
+  .progress {
+    flex: 1; height: 8px; background: #3D3D3D; border-radius: 4px;
+    overflow: hidden; margin: 0 8px;
+  }
+  .progress-fill {
+    height: 100%; width: 65%; background: linear-gradient(90deg, #7C4DFF, #B388FF);
+  }
+  .status { color: #aaa; font-size: 12px; min-width: 200px; }
+  .main {
+    display: grid; grid-template-columns: 360px 1fr 280px;
+    gap: 8px; height: calc(100vh - 140px);
+  }
+  .panel {
+    background: #242424; border: 1px solid #3D3D3D;
+    border-radius: 6px; padding: 12px; overflow-y: auto;
+  }
+  .panel-title {
+    color: #7C4DFF; font-size: 14px; font-weight: bold;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid #3D3D3D;
+  }
+  .form-row { display: flex; align-items: center; margin-bottom: 8px; }
+  .form-label { color: #aaa; font-size: 12px; min-width: 70px; }
+  .form-input {
+    flex: 1; background: #1E1E1E; color: #E0E0E0;
+    border: 1px solid #3D3D3D; border-radius: 3px;
+    padding: 4px 8px; font-size: 12px;
+  }
+  .btn-mini {
+    background: #2D2D30; color: #E0E0E0;
+    border: 1px solid #3D3D3D; border-radius: 3px;
+    padding: 3px 8px; font-size: 11px; margin-left: 4px; cursor: pointer;
+  }
+  .btn-mini:hover { background: #7C4DFF; color: white; }
+  .group-box {
+    border: 1px solid #3D3D3D; border-radius: 4px;
+    padding: 8px; margin-bottom: 8px;
+  }
+  .group-title { color: #FFA726; font-size: 12px; font-weight: bold; margin-bottom: 6px; }
+  .btn-primary {
+    background: #7C4DFF; color: white; border: none;
+    border-radius: 4px; padding: 6px 12px;
+    font-size: 12px; font-weight: bold; cursor: pointer; width: 100%;
+    margin-bottom: 4px;
+  }
+  .btn-primary:hover { background: #9575CD; }
+  .gauge-container {
+    display: flex; justify-content: center; align-items: center;
+    padding: 16px; background: #1E1E1E; border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .gauge {
+    width: 140px; height: 140px; border-radius: 50%;
+    background: conic-gradient(from 225deg, #F44336 0deg 243deg, #3D3D3D 243deg 270deg, transparent 270deg);
+    display: flex; justify-content: center; align-items: center;
+    position: relative;
+  }
+  .gauge-inner {
+    width: 110px; height: 110px; border-radius: 50%;
+    background: #1E1E1E;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+  }
+  .gauge-value { color: #F44336; font-size: 28px; font-weight: bold; }
+  .gauge-label { color: #aaa; font-size: 10px; margin-top: 2px; }
+  .result-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 10px; background: #1E1E1E;
+    border-radius: 4px; margin-bottom: 4px; font-size: 12px;
+  }
+  .result-row .label { color: #aaa; }
+  .result-row .value { color: #E0E0E0; font-weight: bold; }
+  .table {
+    width: 100%; border-collapse: collapse; font-size: 11px; margin: 8px 0;
+  }
+  .table th, .table td {
+    border: 1px solid #3D3D3D; padding: 4px 6px; text-align: left;
+  }
+  .table th { background: #2D2D30; color: #aaa; }
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+  .preview {
+    background: #1E1E1E; border: 1px solid #3D3D3D; border-radius: 4px;
+    padding: 8px; text-align: center;
+  }
+  .preview-img {
+    width: 100%; height: 80px; background: linear-gradient(135deg, #4A148C, #1A1A1A);
+    border-radius: 3px; margin-bottom: 4px;
+  }
+  .preview-label { color: #aaa; font-size: 10px; }
+  .perf-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0;
+  }
+  .perf-cell {
+    background: #1E1E1E; border: 1px solid #3D3D3D;
+    border-radius: 3px; padding: 6px; text-align: center;
+  }
+  .perf-label { color: #aaa; font-size: 10px; }
+  .perf-value { color: #66BB6A; font-size: 14px; font-weight: bold; }
+  .nav-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; background: #1E1E1E; border-radius: 4px;
+  }
+  .nav-info { color: #7C4DFF; font-size: 12px; font-weight: bold; }
+  .notes-content { font-size: 12px; line-height: 1.6; color: #ccc; }
+  .notes-content h3 { color: #7C4DFF; margin: 8px 0 6px; font-size: 14px; }
+  .notes-content h4 { color: #FFA726; margin: 10px 0 4px; font-size: 12px; }
+  .notes-content ul { margin-left: 20px; margin-bottom: 8px; }
+  .notes-content li { margin-bottom: 2px; }
+</style>
+</head>
+<body>
+  <div class="title-bar">⚡ 零样本检测视图 - 界面示意图</div>
+
+  <!-- 顶部工具栏 -->
+  <div class="toolbar">
+    <button class="btn">📂 加载图像</button>
+    <button class="btn">📁 批量目录</button>
+    <button class="btn btn-danger">⏹ 停止</button>
+    <div class="progress"><div class="progress-fill"></div></div>
+    <div class="status">状态：批量推理中 (7/10)</div>
+  </div>
+
+  <!-- 三栏主区域 -->
+  <div class="main">
+    <!-- 左栏：配置面板 -->
+    <div class="panel">
+      <div class="panel-title">配置面板</div>
+
+      <div class="group-box">
+        <div class="group-title">模型配置</div>
+        <div class="form-row">
+          <div class="form-label">模型类型:</div>
+          <select class="form-input">
+            <option>AnomalyCLIP</option>
+            <option>Grounding DINO</option>
+            <option>MobileSAM</option>
+            <option>PatchCore</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-label">模型路径:</div>
+          <input class="form-input" value="D:/models/clip">
+          <button class="btn-mini">浏览</button>
+        </div>
+        <div class="form-row">
+          <div class="form-label">提示词:</div>
+          <input class="form-input" value="normal, damaged, scratch">
+        </div>
+      </div>
+
+      <div class="group-box">
+        <div class="group-title">阈值设置</div>
+        <div class="form-row">
+          <div class="form-label">异常阈值:</div>
+          <input type="range" min="0" max="100" value="50" style="flex:1">
+          <span style="color:#7C4DFF; margin-left:8px;">0.50</span>
+        </div>
+        <div class="form-row">
+          <div class="form-label">检测阈值:</div>
+          <input type="range" min="0" max="100" value="30" style="flex:1">
+          <span style="color:#7C4DFF; margin-left:8px;">0.30</span>
+        </div>
+        <div class="form-row">
+          <label style="color:#aaa; font-size:12px;">
+            <input type="checkbox" checked> 启用 INT8 量化
+          </label>
+        </div>
+      </div>
+
+      <button class="btn-primary">⬇ 加载模型</button>
+      <button class="btn-primary" style="background:#66BB6A;">▶ 推理当前</button>
+      <button class="btn-primary" style="background:#FFA726;">⏩ 推理全部</button>
+
+      <div class="group-box" style="margin-top:12px;">
+        <div class="group-title">PatchCore 正常样本</div>
+        <div style="color:#aaa; font-size:12px; margin-bottom:4px;">
+          已添加样本: <span style="color:#66BB6A; font-weight:bold;">8</span> / 阈值 10
+        </div>
+        <button class="btn-mini">+ 添加当前图</button>
+        <button class="btn-mini">撤销</button>
+        <button class="btn-mini">清空</button>
+      </div>
+
+      <div class="group-box">
+        <div class="group-title">准确性保障</div>
+        <div class="form-row">
+          <label style="color:#aaa; font-size:12px;">
+            <input type="checkbox" checked> 多次推理稳定
+          </label>
+          <input type="number" value="3" style="width:40px; margin-left:8px; background:#1E1E1E; color:#E0E0E0; border:1px solid #3D3D3D; border-radius:3px; padding:2px;">
+        </div>
+        <div class="form-row">
+          <div class="form-label">NMS IoU:</div>
+          <input type="range" min="0" max="100" value="45" style="flex:1">
+          <span style="color:#7C4DFF; margin-left:8px;">0.45</span>
+        </div>
+        <div class="form-row">
+          <label style="color:#aaa; font-size:12px;">
+            <input type="checkbox"> 人工复核
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中栏：结果面板 -->
+    <div class="panel">
+      <div class="panel-title">推理结果</div>
+
+      <!-- 异常分数仪表 -->
+      <div class="gauge-container">
+        <div class="gauge">
+          <div class="gauge-inner">
+            <div class="gauge-value">0.87</div>
+            <div class="gauge-label">异常分数</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分类与置信度 -->
+      <div class="result-row">
+        <span class="label">分类结果:</span>
+        <span class="value" style="color:#F44336;">abnormal</span>
+      </div>
+      <div class="result-row">
+        <span class="label">置信度:</span>
+        <span class="value">0.92</span>
+      </div>
+
+      <!-- 检测框列表 -->
+      <div style="margin-top:12px; margin-bottom:4px; color:#aaa; font-size:12px;">
+        检测框列表 (2)
+      </div>
+      <table class="table">
+        <thead>
+          <tr><th>类别</th><th>置信度</th><th>cx</th><th>cy</th><th>w</th><th>h</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>scratch</td><td>0.91</td><td>0.45</td><td>0.32</td><td>0.18</td><td>0.06</td></tr>
+          <tr><td>dent</td><td>0.76</td><td>0.62</td><td>0.58</td><td>0.12</td><td>0.10</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 掩码与热力图预览 -->
+      <div class="preview-grid">
+        <div class="preview">
+          <div class="preview-img" style="background:linear-gradient(135deg, #4A148C, #1A1A1A);"></div>
+          <div class="preview-label">二值掩码 (前景 12.3%)</div>
+        </div>
+        <div class="preview">
+          <div class="preview-img" style="background:linear-gradient(135deg, #F44336, #FFC107, #4CAF50, #2196F3);"></div>
+          <div class="preview-label">异常热力图</div>
+        </div>
+      </div>
+
+      <!-- 性能指标 -->
+      <div style="margin-top:8px; margin-bottom:4px; color:#aaa; font-size:12px;">性能指标</div>
+      <div class="perf-grid">
+        <div class="perf-cell">
+          <div class="perf-label">预处理</div>
+          <div class="perf-value">23ms</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">推理</div>
+          <div class="perf-value">18ms</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">后处理</div>
+          <div class="perf-value">5ms</div>
+        </div>
+        <div class="perf-cell">
+          <div class="perf-label">总耗时</div>
+          <div class="perf-value" style="color:#FFA726;">46ms</div>
+        </div>
+      </div>
+      <div class="result-row" style="margin-top:4px;">
+        <span class="label">推理后端:</span>
+        <span class="value" style="color:#7C4DFF;">ONNX Runtime</span>
+      </div>
+
+      <!-- 批量导航 -->
+      <div class="nav-bar" style="margin-top:12px;">
+        <button class="btn-mini">◀ 上一张</button>
+        <span class="nav-info">3 / 10</span>
+        <button class="btn-mini">下一张 ▶</button>
+      </div>
+    </div>
+
+    <!-- 右栏：模型注意事项 -->
+    <div class="panel">
+      <div class="panel-title">模型注意事项</div>
+      <div class="notes-content">
+        <h3>AnomalyCLIP</h3>
+        <p style="color:#aaa; font-style:italic;">零样本异常检测，基于 CLIP ViT-B/32 视觉编码器与文本编码器的相似度比对。</p>
+
+        <h4>注意事项</h4>
+        <ul>
+          <li>推荐输入尺寸 224×224</li>
+          <li>输入图像需归一化到 [0,1]</li>
+          <li>提示词建议用英文，效果更佳</li>
+          <li>异常分数 &gt; 阈值即判定为异常</li>
+        </ul>
+
+        <h4>输入格式</h4>
+        <ul>
+          <li>JPG / PNG / BMP / TIFF / WEBP</li>
+          <li>最大文件 50MB</li>
+          <li>最小尺寸 32×32</li>
+        </ul>
+
+        <h4>限制条件</h4>
+        <ul>
+          <li>不支持中文文件路径（已通过 QFile 规避）</li>
+          <li>对纹理类异常检测效果有限</li>
+          <li>需预先准备 clip_vision_vit_b32.onnx</li>
+        </ul>
+
+        <h4>使用建议</h4>
+        <ul>
+          <li>启用量化可降低内存 70%</li>
+          <li>多次推理取稳定值可减少抖动</li>
+          <li>异常阈值建议从 0.5 起调</li>
+          <li>可与 PatchCore 渐进式切换</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

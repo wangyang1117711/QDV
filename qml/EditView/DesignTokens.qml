@@ -165,4 +165,13 @@ QtObject {
     readonly property int listPadding: 8
     readonly property int formLabelWidth: 120
     readonly property int inputHeight: 32
+
+    // ============ v2.7.0 Phase 3.1：分组容器叠加层设计令牌 ============
+    // 子链/分支/并行分组容器的视觉色板（虚线边框 + 标题栏）
+    readonly property color subChainGroupColor: "#42A5F5"   // 子链：蓝
+    readonly property color trueBranchColor:    "#66BB6A"   // 真分支：绿
+    readonly property color falseBranchColor:   "#EF5350"   // 假分支：红
+    readonly property color parallelGroupColor:  "#FFCA28"   // 并行：黄
+    readonly property int   groupHeaderHeight:  24           // 分组标题栏高度（世界坐标，未缩放）
+    readonly property int   groupPadding:        12           // 分组容器内边距（世界坐标）
 }

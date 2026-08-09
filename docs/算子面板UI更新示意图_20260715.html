@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV 算子面板分组示意图 - P0/P1 升级后</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #f0f2f5;
+    color: #1f2937;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .container { display: flex; gap: 24px; max-width: 1400px; width: 100%; }
+  .panel-mock {
+    width: 340px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .panel-header {
+    background: linear-gradient(135deg, #1e293b, #334155);
+    color: white;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-header .count { font-size: 12px; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; }
+  .search-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #f9fafb;
+  }
+  .filter-tabs {
+    display: flex;
+    padding: 8px 16px;
+    gap: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .filter-tab {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #f3f4f6;
+    color: #6b7280;
+    cursor: pointer;
+  }
+  .filter-tab.active { background: #2563eb; color: white; }
+  .op-list { max-height: 700px; overflow-y: auto; }
+  .cat-row {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cat-row .chevron { color: #9ca3af; font-size: 10px; }
+  .cat-row .cat-name { flex: 1; }
+  .cat-row .cat-count { font-size: 11px; color: #9ca3af; font-weight: 400; }
+  .cat-color {
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+  }
+  .sub-row {
+    padding: 6px 16px 6px 36px;
+    font-size: 12px;
+    color: #6b7280;
+    background: #fafbfc;
+    font-weight: 500;
+  }
+  .op-row {
+    padding: 8px 16px 8px 28px;
+    font-size: 13px;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #f9fafb;
+    transition: background 0.1s;
+  }
+  .op-row.sub { padding-left: 48px; }
+  .op-row:hover { background: #eff6ff; }
+  .op-row .star { color: #d1d5db; font-size: 14px; }
+  .op-row .star.fav { color: #fbbf24; }
+  .op-row .name { flex: 1; }
+  .op-row.new {
+    background: #f0fdf4;
+    border-left: 3px solid #10b981;
+    padding-left: 25px;
+  }
+  .op-row.new.sub { padding-left: 45px; }
+  .badge-new {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #d1fae5;
+    color: #065f46;
+    font-weight: 600;
+  }
+  .legend {
+    flex: 1;
+    background: white;
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  }
+  .legend h2 { color: #1e293b; margin-bottom: 16px; font-size: 18px; }
+  .legend h3 { color: #374151; margin: 16px 0 8px; font-size: 14px; border-left: 3px solid #2563eb; padding-left: 8px; }
+  .legend p { color: #6b7280; font-size: 13px; margin-bottom: 8px; }
+  .legend ul { margin-left: 20px; color: #4b5563; font-size: 13px; }
+  .legend li { margin-bottom: 4px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 12px 0; }
+  .stat { background: #f9fafb; padding: 12px; border-radius: 6px; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 700; color: #2563eb; }
+  .stat .lbl { font-size: 11px; color: #6b7280; }
+  .new-cat-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .new-cat-tag { font-size: 11px; padding: 3px 10px; border-radius: 12px; background: #f0fdf4; color: #065f46; border: 1px solid #a7f3d0; }
+  .footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel-mock">
+    <div class="panel-header">
+      <span>算子库</span>
+      <span class="count">68 个</span>
+    </div>
+    <div class="search-box">
+      <input class="search-input" placeholder="搜索算子..." />
+    </div>
+    <div class="filter-tabs">
+      <div class="filter-tab active">全部</div>
+      <div class="filter-tab">收藏</div>
+      <div class="filter-tab">最近</div>
+      <div class="filter-tab">常用</div>
+    </div>
+    <div class="op-list">
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#EC4899"></span>
+        <span class="cat-name">Blob分析</span>
+        <span class="cat-count">5 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">斑块检测</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">连通域分析</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">轮廓分析</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">形状选择</span>
+      </div>
+      <div class="sub-row">└ 区域特征</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">面积中心点</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#14B8A6"></span>
+        <span class="cat-name">几何变换</span>
+        <span class="cat-count">4 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">仿射变换</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">极坐标变换</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">图像变换</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">图像合并</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#EF4444"></span>
+        <span class="cat-name">几何测量</span>
+        <span class="cat-count">3 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">几何测量</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">点到点距离</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">线到线角度</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#64748B"></span>
+        <span class="cat-name">分支</span>
+        <span class="cat-count">1 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">分支控制</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#7C3AED"></span>
+        <span class="cat-name">分析与识别</span>
+        <span class="cat-count">1 个 (+1 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">端到端OCR</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#6366F1"></span>
+        <span class="cat-name">匹配定位</span>
+        <span class="cat-count">4 个 (+1 新)</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">NCC匹配</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">形状匹配</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">模板匹配</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">轮廓匹配</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#F59E0B"></span>
+        <span class="cat-name">图像分割</span>
+        <span class="cat-count">4 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">动态阈值</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">分水岭分割</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">区域生长</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">阈值分割</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#3B82F6"></span>
+        <span class="cat-name">图像采集</span>
+        <span class="cat-count">3 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">读图</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">采集图像</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">打开相机</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#8B5CF6"></span>
+        <span class="cat-name">形态学</span>
+        <span class="cat-count">6 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">闭运算</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">底帽变换</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">腐蚀</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">开运算</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">顶帽变换</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">膨胀</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#0EA5E9"></span>
+        <span class="cat-name">标定与坐标</span>
+        <span class="cat-count">5 个 (+3 新)</span>
+      </div>
+      <div class="sub-row">└ 标定</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">手眼标定</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">机器人位姿</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">位置修正</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">单位换算</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">相机标定</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#DC2626"></span>
+        <span class="cat-name">检测与缺陷</span>
+        <span class="cat-count">2 个 (+2 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">表面缺陷检测</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">轮廓比对</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#A855F7"></span>
+        <span class="cat-name">流程控制</span>
+        <span class="cat-count">3 个 (+3 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">循环遍历</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">Python脚本</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">变量运算</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#0891B2"></span>
+        <span class="cat-name">测量与分析</span>
+        <span class="cat-count">1 个 (+1 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">卡尺测量</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#F97316"></span>
+        <span class="cat-name">深度学习</span>
+        <span class="cat-count">5 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">AI 分类</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">YOLO检测</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">深度学习分割</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">深度学习检测</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">均一化</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#06B6D4"></span>
+        <span class="cat-name">特征提取</span>
+        <span class="cat-count">6 个</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">Harris角点</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">线圆检测</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">亚像素边缘</span>
+      </div>
+      <div class="sub-row">└ 条码识别</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">二维码识别</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">一维码识别</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">OCR字符识别</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#059669"></span>
+        <span class="cat-name">采集与控制</span>
+        <span class="cat-count">1 个 (+1 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">光源控制</span>
+        <span class="badge-new">NEW</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#10B981"></span>
+        <span class="cat-name">预处理</span>
+        <span class="cat-count">13 个</span>
+      </div>
+      <div class="sub-row">└ 频域滤波</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">FFT变换</span>
+      </div>
+      <div class="sub-row">└ 空间滤波</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">高斯滤波</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">均值滤波</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">中值滤波</span>
+      </div>
+      <div class="sub-row">└ 增强与色彩</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">锐化增强</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">灰度缩放</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">颜色检测</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">图像算术</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">图像预处理</span>
+      </div>
+      <div class="op-row">
+        <span class="star">☆</span>
+        <span class="name">边缘检测</span>
+      </div>
+      <div class="sub-row">└ 图像分析</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">直方图</span>
+      </div>
+      <div class="sub-row">└ 通道操作</div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">RGB通道提取</span>
+      </div>
+      <div class="op-row sub">
+        <span class="star">☆</span>
+        <span class="name">通道分离</span>
+      </div>
+      <div class="cat-row">
+        <span class="chevron">▶</span>
+        <span class="cat-color" style="background:#DB2777"></span>
+        <span class="cat-name">颜色与分割</span>
+        <span class="cat-count">1 个 (+1 新)</span>
+      </div>
+      <div class="op-row new">
+        <span class="star">☆</span>
+        <span class="name">颜色比对</span>
+        <span class="badge-new">NEW</span>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <h2>算子面板 UI 更新说明</h2>
+    <p>P0/P1 升级后，算子面板（左侧拖拽栏）通过动态加载 <code>config/operators.json</code> 自动显示 13 个新算子，无需修改 QML 代码。</p>
+
+    <div class="stat-grid">
+      <div class="stat"><div class="num">68</div><div class="lbl">算子总数</div></div>
+      <div class="stat"><div class="num">18</div><div class="lbl">分类数</div></div>
+      <div class="stat"><div class="num">13</div><div class="lbl">新增算子</div></div>
+    </div>
+
+    <h3>数据流（自动显示机制）</h3>
+    <ul>
+      <li><code>config/operators.json</code>（数据源，68 个算子）</li>
+      <li>→ <code>OperatorDescriptors::loadFromJson()</code>（JSON 解析 + 幽灵算子过滤）</li>
+      <li>→ <code>ToolFactory::getAvailableToolTypes()</code>（交叉校验，已注册 13 个新算子）</li>
+      <li>→ <code>EditViewBridge::searchOperators()</code>（QML 桥接）</li>
+      <li>→ <code>Main.qml buildModel()</code>（按 category → subGroup 二级分组）</li>
+      <li>→ <code>operatorList ListView</code>（渲染分类色块 + 中文名 + 收藏星标）</li>
+    </ul>
+
+    <h3>新增算子分布（8 个分类）</h3>
+    <div class="new-cat-list">
+      <span class="new-cat-tag">分析与识别</span>
+      <span class="new-cat-tag">匹配定位</span>
+      <span class="new-cat-tag">标定与坐标</span>
+      <span class="new-cat-tag">检测与缺陷</span>
+      <span class="new-cat-tag">流程控制</span>
+      <span class="new-cat-tag">测量与分析</span>
+      <span class="new-cat-tag">采集与控制</span>
+      <span class="new-cat-tag">颜色与分割</span>
+    </div>
+
+    <h3>本次 UI 更新工作</h3>
+    <ul>
+      <li>✅ 13 个新算子已在 <code>operators.json</code> 中，category/cnName/description 完整</li>
+      <li>✅ ToolFactory 已注册 13 个新算子（编译期硬编码）</li>
+      <li>✅ JSON 格式有效，字段校验通过（enum options/optionKeys 一致，minValue≤maxValue）</li>
+      <li>✅ 统一 category 命名：<code>ContourMatch</code> 从「匹配与定位」→「匹配定位」</li>
+      <li>✅ <code>build/bin/config/operators.json</code> 已同步最新版本</li>
+      <li>✅ CMake POST_BUILD 规则自动同步（<code>apps/SmartVision/CMakeLists.txt L86-94</code>）</li>
+    </ul>
+
+    <h3>UI 渲染说明</h3>
+    <ul>
+      <li>算子行只渲染：分类色块 + 中文名 + 收藏星标（不渲染图标）</li>
+      <li>iconPath 字段当前为空，不影响显示（UI 不消费此字段）</li>
+      <li>无 subGroup 的算子直接挂在 category 下（如 PositionCorrect/UnitConvert/CameraCalib）</li>
+      <li>有 subGroup 的算子按二级分组展示（如 HandEyeCalib 在「标定与坐标 → 标定」下）</li>
+    </ul>
+
+    <div class="footer">QDV 算子面板 UI 更新示意图 | 2026-07-15 | 数据源：build/bin/config/operators.json</div>
+  </div>
+</div>
+</body>
+</html>

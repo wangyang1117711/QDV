@@ -76,6 +76,22 @@ cv::Mat FindShapeModelTool::rotateTemplate(const cv::Mat& tpl, double angleDeg) 
     return dst;
 }
 
+// P0-6a：各向异性缩放模板，ScaleX/ScaleY 独立
+// 用 cv::resize 双三次插值；尺度为 1.0 时返回克隆避免无谓拷贝开销
+cv::Mat FindShapeModelTool::scaleTemplate(const cv::Mat& tpl, double scaleX, double scaleY) const {
+    if (std::abs(scaleX - 1.0) < 1e-6 && std::abs(scaleY - 1.0) < 1e-6) {
+        return tpl.clone();
+    }
+    // 尺度钳制到合理范围，避免过大/过小导致内存爆炸或退化
+    scaleX = std::max(0.1, std::min(scaleX, 10.0));
+    scaleY = std::max(0.1, std::min(scaleY, 10.0));
+    int newW = std::max(1, static_cast<int>(tpl.cols * scaleX + 0.5));
+    int newH = std::max(1, static_cast<int>(tpl.rows * scaleY + 0.5));
+    cv::Mat dst;
+    cv::resize(tpl, dst, cv::Size(newW, newH), 0, 0, cv::INTER_CUBIC);
+    return dst;
+}
+
 bool FindShapeModelTool::configure(const QJsonObject& params) {
     if (params.contains("templatePath")) {
         QString newPath = params["templatePath"].toString();
@@ -111,6 +127,17 @@ bool FindShapeModelTool::configure(const QJsonObject& params) {
         m_maxMatches = m;
     }
 
+    // P0-6a 各向异性尺度搜索参数解析
+    if (params.contains("scaleMin"))  m_scaleMin = std::max(0.1, params["scaleMin"].toDouble());
+    if (params.contains("scaleMax"))  m_scaleMax = std::max(m_scaleMin, params["scaleMax"].toDouble());
+    if (params.contains("scaleStep")) m_scaleStep = std::max(0.01, params["scaleStep"].toDouble());
+    if (params.contains("anisotropyEnabled")) m_anisotropyEnabled = params["anisotropyEnabled"].toBool();
+    if (params.contains("scaleXRatio")) m_scaleXRatio = params["scaleXRatio"].toDouble();
+    if (params.contains("scaleYRatio")) m_scaleYRatio = params["scaleYRatio"].toDouble();
+    if (params.contains("ratioMin"))  m_ratioMin  = std::max(0.1, params["ratioMin"].toDouble());
+    if (params.contains("ratioMax"))  m_ratioMax  = std::max(m_ratioMin, params["ratioMax"].toDouble());
+    if (params.contains("ratioStep")) m_ratioStep = std::max(0.01, params["ratioStep"].toDouble());
+
     m_params = params;
     return true;
 }
@@ -143,94 +170,135 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
         grayInput = input.clone();
     }
 
-    // 在角度范围内枚举旋转角度
-    // 步长策略: 范围≤90°用 5° 步长, 否则用 10° 步长(平衡精度与耗时)
+    // P0-6a：构建尺度搜索列表
+    // 当 scaleMin==scaleMax==1.0 时仅一次尺度（退化为原行为）
+    std::vector<double> scales;
+    for (double s = m_scaleMin; s <= m_scaleMax + 1e-6; s += m_scaleStep) {
+        scales.push_back(s);
+    }
+    if (scales.empty()) scales.push_back(1.0);
+
+    // 各向异性比率搜索列表（仅 anisotropyEnabled 且 ratioMin<ratioMax 时枚举）
+    // ratio = ScaleX/ScaleY；ScaleX = scale*ratio, ScaleY = scale/ratio
+    std::vector<double> ratios;
+    if (m_anisotropyEnabled && m_ratioMax > m_ratioMin + 1e-6) {
+        for (double r = m_ratioMin; r <= m_ratioMax + 1e-6; r += m_ratioStep) {
+            ratios.push_back(r);
+        }
+    } else {
+        ratios.push_back(1.0); // 各向同性
+    }
+    if (ratios.empty()) ratios.push_back(1.0);
+
+    // 角度步长策略: 范围≤90°用 5° 步长, 否则用 10° 步长(平衡精度与耗时)
     double step = (m_angleExtent <= 90.0) ? 5.0 : 10.0;
     if (m_angleExtent <= 0.0) step = 360.0; // 退化为 0° 单次匹配
 
-    // bestScoreMap: 每个位置在所有角度下的最高得分
-    // bestAngleMap : 对应的最优角度(度)
-    cv::Mat bestScoreMap;
-    cv::Mat bestAngleMap;
-
     double a = m_angleStart;
     double aEnd = m_angleStart + m_angleExtent;
-    bool first = true;
-    for (double ang = a; ang < aEnd || (first && m_angleExtent == 0.0); ang += step) {
-        first = false;
 
-        cv::Mat rotated = rotateTemplate(m_template, ang);
-        if (rotated.cols > grayInput.cols || rotated.rows > grayInput.rows) {
-            // 旋转后模板可能比输入还大,跳过该角度
-            continue;
-        }
-
-        cv::Mat score;
-        cv::matchTemplate(grayInput, rotated, score, cv::TM_CCOEFF_NORMED);
-
-        if (first || bestScoreMap.empty()) {
-            bestScoreMap = score.clone();
-            bestAngleMap = cv::Mat(score.size(), CV_32FC1, cv::Scalar(static_cast<float>(ang)));
-        } else {
-            // 逐像素取最大值, 同时记录对应角度
-            for (int y = 0; y < score.rows; ++y) {
-                const float* sRow = score.ptr<float>(y);
-                float* bRow = bestScoreMap.ptr<float>(y);
-                float* angRow = bestAngleMap.ptr<float>(y);
-                for (int x = 0; x < score.cols; ++x) {
-                    if (sRow[x] > bRow[x]) {
-                        bRow[x] = sRow[x];
-                        angRow[x] = static_cast<float>(ang);
-                    }
-                }
-            }
-        }
-        if (m_angleExtent == 0.0) break;
-    }
-
-    if (bestScoreMap.empty()) {
-        Logger::warn("FindShapeModelTool: no valid angle iteration");
-        result.ok = false;
-        result.data["error"] = "No valid angle iteration";
-        return false;
-    }
-
-    // 收集候选并按得分降序, NMS 去重
-    // 这里直接对 bestScoreMap 做候选采集, 用模板外接尺寸作为框大小
+    // 候选结构（含各向异性尺度信息）
     struct Cand {
         cv::Point pt;
         double score;
         double angle;
+        double scaleX;
+        double scaleY;
+        int boxLen; // 该候选的框尺寸（随尺度变化）
     };
-    std::vector<Cand> cands;
-    for (int y = 0; y < bestScoreMap.rows; ++y) {
-        const float* sRow = bestScoreMap.ptr<float>(y);
-        const float* aRow = bestAngleMap.ptr<float>(y);
-        for (int x = 0; x < bestScoreMap.cols; ++x) {
-            if (sRow[x] >= static_cast<float>(m_threshold)) {
-                cands.push_back({cv::Point(x, y),
-                                 static_cast<double>(sRow[x]),
-                                 static_cast<double>(aRow[x])});
+
+    // 遍历所有 (尺度, 比率, 角度) 组合，逐位置记录最优
+    // bestScoreMap 在每个尺度组合内独立计算，再与全局最优合并
+    std::vector<Cand> allCands;
+
+    for (double scale : scales) {
+        for (double ratio : ratios) {
+            // 各向异性：ScaleX = scale*ratio, ScaleY = scale/ratio
+            // 各向同性（ratio=1.0）时 ScaleX=ScaleY=scale
+            double sx = scale * ratio;
+            double sy = scale / ratio;
+
+            cv::Mat scaledTpl = scaleTemplate(m_template, sx, sy);
+            if (scaledTpl.empty()) continue;
+
+            // 当前尺度下的外接框尺寸（旋转基准）
+            int curBoxLen = static_cast<int>(std::sqrt(
+                double(scaledTpl.cols * scaledTpl.cols +
+                       scaledTpl.rows * scaledTpl.rows)) + 0.5);
+            curBoxLen = std::max(curBoxLen, std::max(scaledTpl.cols, scaledTpl.rows));
+
+            cv::Mat bestScoreMap;
+            cv::Mat bestAngleMap;
+            bool firstAng = true;
+
+            for (double ang = a; ang < aEnd || (firstAng && m_angleExtent == 0.0); ang += step) {
+                firstAng = false;
+
+                cv::Mat rotated = rotateTemplate(scaledTpl, ang);
+                if (rotated.cols > grayInput.cols || rotated.rows > grayInput.rows) {
+                    continue;
+                }
+
+                cv::Mat score;
+                cv::matchTemplate(grayInput, rotated, score, cv::TM_CCOEFF_NORMED);
+
+                if (bestScoreMap.empty()) {
+                    bestScoreMap = score.clone();
+                    bestAngleMap = cv::Mat(score.size(), CV_32FC1, cv::Scalar(static_cast<float>(ang)));
+                } else {
+                    for (int y = 0; y < score.rows; ++y) {
+                        const float* sRow = score.ptr<float>(y);
+                        float* bRow = bestScoreMap.ptr<float>(y);
+                        float* angRow = bestAngleMap.ptr<float>(y);
+                        for (int x = 0; x < score.cols; ++x) {
+                            if (sRow[x] > bRow[x]) {
+                                bRow[x] = sRow[x];
+                                angRow[x] = static_cast<float>(ang);
+                            }
+                        }
+                    }
+                }
+                if (m_angleExtent == 0.0) break;
+            }
+
+            if (bestScoreMap.empty()) continue;
+
+            // 收集该尺度组合下超过阈值的候选
+            for (int y = 0; y < bestScoreMap.rows; ++y) {
+                const float* sRow = bestScoreMap.ptr<float>(y);
+                const float* aRow = bestAngleMap.ptr<float>(y);
+                for (int x = 0; x < bestScoreMap.cols; ++x) {
+                    if (sRow[x] >= static_cast<float>(m_threshold)) {
+                        allCands.push_back({cv::Point(x, y),
+                                            static_cast<double>(sRow[x]),
+                                            static_cast<double>(aRow[x]),
+                                            sx, sy, curBoxLen});
+                    }
+                }
             }
         }
     }
-    std::sort(cands.begin(), cands.end(),
+
+    if (allCands.empty()) {
+        Logger::warn("FindShapeModelTool: no valid match across scale/angle");
+        result.ok = false;
+        result.data["error"] = "No valid match across scale/angle";
+        return false;
+    }
+
+    // 按得分降序
+    std::sort(allCands.begin(), allCands.end(),
         [](const Cand& a, const Cand& b) { return a.score > b.score; });
 
-    // NMS: 框尺寸取原模板外接正方形(旋转后基准尺寸),保证框可比性
-    int boxLen = static_cast<int>(std::sqrt(
-        double(m_template.cols * m_template.cols + m_template.rows * m_template.rows)) + 0.5);
-    boxLen = std::max(boxLen, std::max(m_template.cols, m_template.rows));
+    // NMS 去重：使用各候选自身的 boxLen（各向异性时框尺寸不同）
     const double iouThr = 0.3;
-    const double boxArea = static_cast<double>(boxLen) * boxLen;
-
     std::vector<Cand> kept;
-    for (const auto& c : cands) {
+    for (const auto& c : allCands) {
         if (static_cast<int>(kept.size()) >= m_maxMatches) break;
-        cv::Rect box(c.pt.x, c.pt.y, boxLen, boxLen);
+        cv::Rect box(c.pt.x, c.pt.y, c.boxLen, c.boxLen);
         bool keep = true;
         for (const auto& k : kept) {
-            cv::Rect kb(k.pt.x, k.pt.y, boxLen, boxLen);
+            cv::Rect kb(k.pt.x, k.pt.y, k.boxLen, k.boxLen);
             int x1 = std::max(box.x, kb.x);
             int y1 = std::max(box.y, kb.y);
             int x2 = std::min(box.x + box.width, kb.x + kb.width);
@@ -238,7 +306,8 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
             int iw = std::max(0, x2 - x1);
             int ih = std::max(0, y2 - y1);
             double inter = static_cast<double>(iw) * ih;
-            double uni = boxArea * 2.0 - inter;
+            double uni = static_cast<double>(box.width) * box.height +
+                         static_cast<double>(k.boxLen) * k.boxLen - inter;
             if (uni > 0.0 && (inter / uni) > iouThr) {
                 keep = false;
                 break;
@@ -265,17 +334,23 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
     for (const auto& k : kept) {
         if (k.score > bestScore) bestScore = k.score;
 
-        // 框的左上角即匹配点, 右下角加上外接尺寸
-        // 注意: cv::matchTemplate 返回的 (x,y) 是模板左上角在原图中的坐标,
-        // 但旋转模板尺寸为 boxLen x boxLen, 实际目标中心在该框中心附近
-        cv::Rect box(k.pt.x, k.pt.y, boxLen, boxLen);
+        // P0-6a：使用各候选自身的 boxLen（各向异性时随尺度变化）
+        cv::Rect box(k.pt.x, k.pt.y, k.boxLen, k.boxLen);
         // 钳制到图像范围内,避免框线越界
         box = box & cv::Rect(0, 0, overlay.cols, overlay.rows);
         cv::rectangle(overlay, box.tl(), box.br(), cv::Scalar(0, 255, 0), 2);
 
-        QString label = QString("%1@%2°")
-            .arg(k.score, 0, 'f', 3)
-            .arg(k.angle, 0, 'f', 1);
+        // 标签含尺度信息（非 1.0 时显示）
+        QString label;
+        if (std::abs(k.scaleX - 1.0) < 1e-3 && std::abs(k.scaleY - 1.0) < 1e-3) {
+            label = QString("%1@%2°").arg(k.score, 0, 'f', 3).arg(k.angle, 0, 'f', 1);
+        } else {
+            label = QString("%1@%2°(%3,%4)")
+                .arg(k.score, 0, 'f', 3)
+                .arg(k.angle, 0, 'f', 1)
+                .arg(k.scaleX, 0, 'f', 2)
+                .arg(k.scaleY, 0, 'f', 2);
+        }
         cv::putText(overlay, label.toStdString(),
                     cv::Point(box.x, std::max(box.y - 5, 12)),
                     cv::FONT_HERSHEY_SIMPLEX, 0.5,
@@ -295,6 +370,9 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
         m["cy"] = center.y;
         m["score"] = k.score;
         m["angle"] = k.angle;
+        // P0-6a：输出各向异性尺度
+        m["scaleX"] = k.scaleX;
+        m["scaleY"] = k.scaleY;
         matchesArr.append(m);
     }
 
@@ -307,6 +385,9 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
     result.data["threshold"] = m_threshold;
     result.data["angleStart"] = m_angleStart;
     result.data["angleExtent"] = m_angleExtent;
+    result.data["scaleMin"] = m_scaleMin;
+    result.data["scaleMax"] = m_scaleMax;
+    result.data["anisotropyEnabled"] = m_anisotropyEnabled;
     result.data["templatePath"] = m_templatePath;
 
     m_results["lastMatchCount"] = static_cast<int>(kept.size());
@@ -325,6 +406,16 @@ QJsonObject FindShapeModelTool::serialize() const {
     obj["angleStart"] = m_angleStart;
     obj["angleExtent"] = m_angleExtent;
     obj["maxMatches"] = m_maxMatches;
+    // P0-6a 各向异性尺度搜索参数
+    obj["scaleMin"] = m_scaleMin;
+    obj["scaleMax"] = m_scaleMax;
+    obj["scaleStep"] = m_scaleStep;
+    obj["anisotropyEnabled"] = m_anisotropyEnabled;
+    obj["scaleXRatio"] = m_scaleXRatio;
+    obj["scaleYRatio"] = m_scaleYRatio;
+    obj["ratioMin"] = m_ratioMin;
+    obj["ratioMax"] = m_ratioMax;
+    obj["ratioStep"] = m_ratioStep;
     return obj;
 }
 
@@ -355,5 +446,15 @@ bool FindShapeModelTool::deserialize(const QJsonObject& data) {
         if (m > 1000) m = 1000;
         m_maxMatches = m;
     }
+    // P0-6a 各向异性尺度搜索参数
+    if (data.contains("scaleMin"))  m_scaleMin = std::max(0.1, data["scaleMin"].toDouble());
+    if (data.contains("scaleMax"))  m_scaleMax = std::max(m_scaleMin, data["scaleMax"].toDouble());
+    if (data.contains("scaleStep")) m_scaleStep = std::max(0.01, data["scaleStep"].toDouble());
+    if (data.contains("anisotropyEnabled")) m_anisotropyEnabled = data["anisotropyEnabled"].toBool();
+    if (data.contains("scaleXRatio")) m_scaleXRatio = data["scaleXRatio"].toDouble();
+    if (data.contains("scaleYRatio")) m_scaleYRatio = data["scaleYRatio"].toDouble();
+    if (data.contains("ratioMin"))  m_ratioMin  = std::max(0.1, data["ratioMin"].toDouble());
+    if (data.contains("ratioMax"))  m_ratioMax  = std::max(m_ratioMin, data["ratioMax"].toDouble());
+    if (data.contains("ratioStep")) m_ratioStep = std::max(0.01, data["ratioStep"].toDouble());
     return true;
 }

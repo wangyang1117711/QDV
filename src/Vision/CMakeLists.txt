@@ -63,8 +63,32 @@ set(VISION_HEADERS
     # 新增：深度学习算子（2026-07-10）
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DetectObjectsDlTool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/SegmentDlTool.h
+    # 新增：YOLO检测算子（2026-07-11）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/YoloDetectTool.h
+    # 新增：均一化算子（2026-07-13）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/NormalizationTool.h
     # 新增：机器人位姿算子（2026-07-10）
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/RobotPoseTool.h
+    # P0/P1 升级新增算子（2026-07-15）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/PositionCorrectTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/UnitConvertTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/CaliperTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/CameraCalibTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ContourMatchTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ColorMatchTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/DLOCRTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/LightControlTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/LoopTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ScriptTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/VariableTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/SurfaceDefectTool.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ContourCompareTool.h
+    # v2.7.0 流程合并算子
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/FlowJoinTool.h
+    # spec v2 阶段三 Task 8：零样本检测算子
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ZeroShotDetectTool.h
+    # 工具链验证器（EditViewBridge 依赖）
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/Vision/ToolChainVerifier.h
 )
 
 set(VISION_SOURCES
@@ -130,8 +154,32 @@ set(VISION_SOURCES
     # 新增：深度学习算子（2026-07-10）
     DetectObjectsDlTool.cpp
     SegmentDlTool.cpp
+    # 新增：YOLO检测算子（2026-07-11）
+    YoloDetectTool.cpp
+    # 新增：均一化算子（2026-07-13）
+    NormalizationTool.cpp
     # 新增：机器人位姿算子（2026-07-10）
     RobotPoseTool.cpp
+    # P0/P1 升级新增算子（2026-07-15）
+    PositionCorrectTool.cpp
+    UnitConvertTool.cpp
+    CaliperTool.cpp
+    CameraCalibTool.cpp
+    ContourMatchTool.cpp
+    ColorMatchTool.cpp
+    DLOCRTool.cpp
+    LightControlTool.cpp
+    LoopTool.cpp
+    ScriptTool.cpp
+    VariableTool.cpp
+    SurfaceDefectTool.cpp
+    ContourCompareTool.cpp
+    # v2.7.0 流程合并算子
+    FlowJoinTool.cpp
+    # spec v2 阶段三 Task 8：零样本检测算子
+    ZeroShotDetectTool.cpp
+    # 工具链验证器（EditViewBridge 依赖）
+    ToolChainVerifier.cpp
 )
 
 add_library(Vision STATIC
@@ -148,9 +196,19 @@ target_include_directories(Vision PUBLIC
 target_link_libraries(Vision PUBLIC
     Core
     OperatorSDK
+    Communication    # P0-6e LightControlTool 依赖 IOController
     Qt6::Network
+    Qt6::Concurrent   # v2.7.0: ToolChainExecutor 并行分支（QtConcurrent::blockingMap）
     ${OpenCV_LIBS}
+    ZeroShotKit::Core  # spec v2 阶段三 Task 8：ZeroShotDetectTool 依赖 zsu::Kit
 )
+
+# P1-4b ScriptTool: 嵌入式 CPython 链接（QDV_WITH_PYTHON 宏在根 CMakeLists 定义）
+if(QDV_WITH_PYTHON AND Python3_INCLUDE_DIRS)
+    target_include_directories(Vision PRIVATE ${Python3_INCLUDE_DIRS})
+    target_link_libraries(Vision PRIVATE ${Python3_LIBRARIES})
+    message(STATUS "Vision: linked against CPython for ScriptTool")
+endif()
 
 target_compile_features(Vision PUBLIC cxx_std_17)
 

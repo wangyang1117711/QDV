@@ -18,6 +18,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QPixmap>
+#include "Core/PathValidator.h"  // S6 修复：路径校验
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QCheckBox>
@@ -331,6 +332,13 @@ void CameraView::saveSnapshot() {
     QString filePath = QFileDialog::getSaveFileName(this, "保存快照", "", "PNG Images (*.png);;JPEG Images (*.jpg)");
     if (filePath.isEmpty()) return;
 
+    // S6 修复：清理路径，防止路径穿越与非法字符
+    filePath = QDV::PathValidator::sanitize(filePath);
+    if (filePath.isEmpty()) {
+        QMessageBox::warning(this, "错误", "保存路径无效（包含非法字符或路径穿越）");
+        return;
+    }
+
     cv::imwrite(filePath.toStdString(), *m_lastFrame);
 #endif
 }
@@ -354,11 +362,25 @@ void CameraView::importImages() {
 
     if (files.isEmpty()) return;
 
+    // S6 修复：清理每个路径，过滤掉包含路径穿越或非法字符的条目
+    QStringList sanitizedFiles;
+    sanitizedFiles.reserve(files.size());
+    for (const QString& f : files) {
+        QString cleaned = QDV::PathValidator::sanitize(f);
+        if (!cleaned.isEmpty()) {
+            sanitizedFiles.append(cleaned);
+        }
+    }
+    if (sanitizedFiles.isEmpty()) {
+        QMessageBox::warning(this, "错误", "所有选定路径均无效（包含非法字符或路径穿越）");
+        return;
+    }
+
     stopCamera();
     m_capture = nullptr;
 
     m_importedImages.clear();
-    m_importedImages = files;
+    m_importedImages = sanitizedFiles;
     m_currentImageIndex = 0;
 
     enterImageMode();

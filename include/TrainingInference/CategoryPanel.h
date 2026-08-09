@@ -1,6 +1,7 @@
 #ifndef CATEGORY_PANEL_H
 #define CATEGORY_PANEL_H
 
+#include "TrainingInference/CategoryManager.h"
 #include <QWidget>
 #include <QTreeWidget>
 #include <QLineEdit>
@@ -23,6 +24,8 @@ signals:
 
 public slots:
     void updateAddToCategoryButtons(bool hasSelection);
+    // 刷新类别树视图（加载项目后需手动调用，因 QSignalBlocker 会阻塞自动刷新）
+    void refreshTree(const QString& filter = QString());
 
 private slots:
     void onAddCategory();
@@ -35,9 +38,10 @@ private slots:
 
 private:
     void setupUI();
-    void refreshTree(const QString& filter = QString());
-    QTreeWidgetItem* createCategoryItem(const QString& name, const QString& id, QTreeWidgetItem* parent = nullptr);
+    QTreeWidgetItem* createCategoryItem(const QString& name, const QString& id, int annotatedCount, QTreeWidgetItem* parent = nullptr);
     void updateButtonForItem(QTreeWidgetItem* item, bool hasSelection);
+    int countAnnotatedImages(const CategoryNode& node) const;
+    void deleteCategoryItemWidgets(QTreeWidgetItem* item);
 
     QTreeWidget* m_tree;
     QLineEdit* m_searchEdit;

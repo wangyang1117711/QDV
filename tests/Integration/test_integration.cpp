@@ -10,9 +10,13 @@
 #include <QFuture>
 #include <QSignalSpy>
 #include <opencv2/core/mat.hpp>
+#include <iostream>
 
 static int s_argc = 0;
-static QApplication s_app(s_argc, nullptr);
+// 复用 test_main.cpp 中创建的全局 QApplication 实例，避免多实例冲突
+static QApplication* s_app() {
+    return qobject_cast<QApplication*>(QCoreApplication::instance());
+}
 
 using namespace QDV;
 
@@ -111,7 +115,7 @@ TEST_CASE("ToolChainExecutor executeAsync chainCompleted signal", "[integration]
     cv::Mat testMat(100, 100, CV_8UC3, cv::Scalar(128, 128, 128));
     QFuture<bool> future = executor.executeAsync(testMat);
     future.waitForFinished();
-    s_app.processEvents();
+    s_app()->processEvents();
     CHECK(completed);
     delete tool;
 }

@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QFile>
 #include <QDateTime>
+#include "Core/PathValidator.h"  // S6 修复：路径校验
 
 SchemeView::SchemeView(QWidget* parent) : QWidget(parent) {
     setupUI();
@@ -100,12 +101,24 @@ void SchemeView::onNewScheme() {
 void SchemeView::onSaveScheme() {
     QString filePath = QFileDialog::getSaveFileName(this, "保存方案", "", "JSON Files (*.json)");
     if (filePath.isEmpty()) return;
+    // S6 修复：清理路径，防止路径穿越与非法字符
+    filePath = QDV::PathValidator::sanitize(filePath);
+    if (filePath.isEmpty()) {
+        QMessageBox::warning(this, "错误", "保存路径无效（包含非法字符或路径穿越）");
+        return;
+    }
     saveSchemesToFile(filePath);
 }
 
 void SchemeView::onLoadScheme() {
     QString filePath = QFileDialog::getOpenFileName(this, "加载方案", "", "JSON Files (*.json)");
     if (filePath.isEmpty()) return;
+    // S6 修复：清理路径，防止路径穿越与非法字符
+    filePath = QDV::PathValidator::sanitize(filePath);
+    if (filePath.isEmpty()) {
+        QMessageBox::warning(this, "错误", "加载路径无效（包含非法字符或路径穿越）");
+        return;
+    }
     loadSchemesFromFile(filePath);
     refreshSchemeTree();
     emit schemeCountChanged(m_schemeMap.size());

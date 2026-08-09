@@ -1,0 +1,410 @@
+# QDetectVision CI/CD 流水线
+# 技术栈: C++17 / Qt 6.11.1 / OpenCV 4.13.0 / MinGW 13.1.0 / CMake / ONNX Runtime
+name: QDV CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# 同一分支的新推送取消正在进行的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: '6.11.1'
+  OPENCV_VERSION: '4.13.0'
+  ONNXRUNTIME_VERSION: '1.18.1'
+  MINGW_TOOL: 'mingw1310_64'
+  BUILD_TYPE: Release
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      # ============================================================
+      # 阶段 1: Checkout — 拉取代码
+      # ============================================================
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 设置 Python（aqtinstall 依赖）
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # ============================================================
+      # 阶段 2: Cache — 缓存依赖和构建目录
+      # ============================================================
+      - name: 缓存 Qt + MinGW 工具链
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\Qt
+          key: qt-${{ env.QT_VERSION }}-mingw-charts-${{ runner.os }}-v1
+
+      - name: 缓存 OpenCV
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\opencv_install
+          key: opencv-${{ env.OPENCV_VERSION }}-mingw-${{ runner.os }}-v1
+
+      - name: 缓存 ONNX Runtime
+        id: cache-onnxruntime
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\onnxruntime
+          key: onnxruntime-${{ env.ONNXRUNTIME_VERSION }}-cpu-${{ runner.os }}-v1
+
+      - name: 缓存 CMake 构建目录
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}\build
+            !${{ github.workspace }}\build\bin\QDV_tests.exe
+            !${{ github.workspace }}\build\test_output.log
+          key: cmake-build-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', '**/CMakeLists.txt') }}
+          restore-keys: |
+            cmake-build-${{ runner.os }}-
+
+      # ============================================================
+      # 阶段 3: 安装依赖（缓存未命中时执行）
+      # ============================================================
+      - name: 安装 Qt 6 + MinGW 工具链
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "::group::安装 aqtinstall"
+          pip install aqtinstall
+          Write-Host "::endgroup::"
+
+          Write-Host "::group::安装 Qt ${{ env.QT_VERSION }} (win64_mingw + qtcharts)"
+          aqt install-qt windows desktop ${{ env.QT_VERSION }} win64_mingw -m qtcharts -O ${{ github.workspace }}\Qt
+          Write-Host "::endgroup::"
+
+          Write-Host "::group::安装 MinGW ${{ env.MINGW_TOOL }} 工具链"
+          aqt install-tool windows desktop tools_${{ env.MINGW_TOOL }} -O ${{ github.workspace }}\Qt
+          Write-Host "::endgroup::"
+
+      - name: 安装 OpenCV ${{ env.OPENCV_VERSION }}
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/opencv/opencv/releases/download/${{ env.OPENCV_VERSION }}/opencv-${{ env.OPENCV_VERSION }}-windows.exe"
+          Write-Host "下载 OpenCV: $url"
+          Invoke-WebRequest -Uri $url -OutFile opencv.exe -MaximumRedirection 10
+
+          Write-Host "解压 OpenCV..."
+          7z x opencv.exe -o"${{ github.workspace }}\opencv_install" -y
+
+          # CMakeLists.txt 期望 OpenCV 配置位于 ${OPENCV_ROOT}/build_mingw/
+          # 官方包结构为 build/x64/mingw/，创建目录联接以匹配
+          $opencvDir = Get-ChildItem -Path "${{ github.workspace }}\opencv_install" -Directory | Select-Object -First 1
+          $mingwPath = Join-Path $opencvDir.FullName "build\x64\mingw"
+          $linkPath = Join-Path $opencvDir.FullName "build_mingw"
+
+          if (Test-Path $mingwPath) {
+            Write-Host "创建目录联接: $linkPath -> $mingwPath"
+            cmd /c mklink /J "$linkPath" "$mingwPath"
+            Write-Host "OpenCV MinGW 构建配置就绪"
+          } else {
+            Write-Host "::warning::OpenCV 包中未找到 MinGW 构建 (build/x64/mingw)。构建可能失败。"
+            Write-Host "可用目录:"
+            Get-ChildItem -Path (Join-Path $opencvDir.FullName "build\x64") -Directory | ForEach-Object { Write-Host "  $_" }
+          }
+
+          Remove-Item opencv.exe -Force
+
+      - name: 安装 ONNX Runtime ${{ env.ONNXRUNTIME_VERSION }}
+        if: steps.cache-onnxruntime.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v${{ env.ONNXRUNTIME_VERSION }}/onnxruntime-win-x64-${{ env.ONNXRUNTIME_VERSION }}.zip"
+          Write-Host "下载 ONNX Runtime (CPU): $url"
+          Invoke-WebRequest -Uri $url -OutFile onnxruntime.zip -MaximumRedirection 10
+
+          Write-Host "解压 ONNX Runtime..."
+          Expand-Archive -Path onnxruntime.zip -DestinationPath "${{ github.workspace }}\onnxruntime_temp" -Force
+
+          # 将解压目录内容移动到标准化路径
+          $ortDir = Get-ChildItem -Path "${{ github.workspace }}\onnxruntime_temp" -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Path "${{ github.workspace }}\onnxruntime" -Force | Out-Null
+          Copy-Item -Path (Join-Path $ortDir.FullName "*") -Destination "${{ github.workspace }}\onnxruntime" -Recurse -Force
+
+          Remove-Item onnxruntime.zip -Force
+          Remove-Item "${{ github.workspace }}\onnxruntime_temp" -Recurse -Force
+
+          Write-Host "ONNX Runtime 安装完成:"
+          Get-ChildItem -Path "${{ github.workspace }}\onnxruntime" -Recurse -File | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.FullName)" }
+
+      # ============================================================
+      # 阶段 4: Configure — 设置环境变量 + CMake 配置
+      # ============================================================
+      - name: 设置环境变量
+        shell: pwsh
+        run: |
+          $qtRoot = "${{ github.workspace }}\Qt\${{ env.QT_VERSION }}\mingw_64"
+          $mingwRoot = "${{ github.workspace }}\Qt\Tools\${{ env.MINGW_TOOL }}"
+          $opencvDir = (Get-ChildItem -Path "${{ github.workspace }}\opencv_install" -Directory | Select-Object -First 1).FullName
+
+          # 将 Qt 和 MinGW 的 bin 目录添加到 PATH（后续步骤生效）
+          Add-Content -Path $env:GITHUB_PATH -Value "$qtRoot\bin"
+          Add-Content -Path $env:GITHUB_PATH -Value "$mingwRoot\bin"
+
+          # 设置环境变量（后续步骤生效）
+          Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_PREFIX_PATH=$qtRoot"
+          Add-Content -Path $env:GITHUB_ENV -Value "OPENCV_ROOT=$opencvDir"
+          Add-Content -Path $env:GITHUB_ENV -Value "ONNXRUNTIME_ROOT_DIR=${{ github.workspace }}\onnxruntime"
+          Add-Content -Path $env:GITHUB_ENV -Value "QT_QPA_PLATFORM=minimal"
+
+          Write-Host "Qt 根目录: $qtRoot"
+          Write-Host "MinGW 根目录: $mingwRoot"
+          Write-Host "OpenCV 根目录: $opencvDir"
+          Write-Host "ONNX Runtime 根目录: ${{ github.workspace }}\onnxruntime"
+
+          # 验证 MinGW 编译器可访问
+          $gxx = Get-Command g++ -ErrorAction SilentlyContinue
+          if ($gxx) {
+            Write-Host "MinGW g++ 路径: $($gxx.Source)"
+            & g++ --version
+          } else {
+            Write-Host "::error::未找到 g++，MinGW 工具链未正确安装"
+            exit 1
+          }
+
+      - name: CMake 配置 (MinGW Makefiles)
+        shell: pwsh
+        run: |
+          Write-Host "::group::CMake 配置"
+          cmake -B build -S . -G "MinGW Makefiles" `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" `
+            -DOPENCV_ROOT="$env:OPENCV_ROOT" `
+            -DONNXRUNTIME_ROOT_DIR="$env:ONNXRUNTIME_ROOT_DIR" `
+            -DQDV_WITH_PYTHON=OFF
+          $cmakeExitCode = $LASTEXITCODE
+          Write-Host "::endgroup::"
+
+          if ($cmakeExitCode -ne 0) {
+            Write-Host "::error::CMake 配置失败 (exit code: $cmakeExitCode)"
+            exit 1
+          }
+          Write-Host "CMake 配置成功"
+
+      # ============================================================
+      # 阶段 5: Build — 编译项目
+      # ============================================================
+      - name: 编译项目 (-j 8)
+        shell: pwsh
+        run: |
+          Write-Host "::group::编译项目"
+          cmake --build build -j 8
+          $buildExitCode = $LASTEXITCODE
+          Write-Host "::endgroup::"
+
+          if ($buildExitCode -ne 0) {
+            Write-Host "::error::编译失败 (exit code: $buildExitCode)"
+            exit 1
+          }
+
+          # 验证测试可执行文件已生成
+          $testExe = "${{ github.workspace }}\build\bin\QDV_tests.exe"
+          if (Test-Path $testExe) {
+            Write-Host "测试可执行文件已生成: $testExe"
+          } else {
+            Write-Host "::error::测试可执行文件未找到: $testExe"
+            exit 1
+          }
+
+      # ============================================================
+      # 阶段 6: Test — 运行 QDV_tests.exe 并解析结果
+      # ============================================================
+      - name: 运行测试
+        id: test
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          # 设置 UTF-8 控制台输出（测试输出含中文）
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PYTHONIOENCODING = "utf-8"
+
+          $testExe = "${{ github.workspace }}\build\bin\QDV_tests.exe"
+
+          # 将 OpenCV、Qt、ONNX Runtime 的 DLL 目录加入 PATH（运行时解析）
+          $opencvBin = Join-Path $env:OPENCV_ROOT "build_mingw\bin"
+          if (Test-Path $opencvBin) {
+            $env:PATH = "$opencvBin;$env:PATH"
+            Write-Host "OpenCV DLL 路径: $opencvBin"
+          }
+          $qtBin = "${{ github.workspace }}\Qt\${{ env.QT_VERSION }}\mingw_64\bin"
+          if (Test-Path $qtBin) {
+            $env:PATH = "$qtBin;$env:PATH"
+          }
+          $ortBin = "${{ github.workspace }}\onnxruntime\bin"
+          if (Test-Path $ortBin) {
+            $env:PATH = "$ortBin;$env:PATH"
+          }
+
+          # 确保无头模式运行 Qt
+          $env:QT_QPA_PLATFORM = "minimal"
+
+          Write-Host "::group::运行 QDV_tests.exe"
+          # 捕获 stdout + stderr，同时写入日志文件
+          $output = & $testExe 2>&1 | Tee-Object -FilePath "${{ github.workspace }}\build\test_output.log"
+          $testExitCode = $LASTEXITCODE
+          Write-Host "::endgroup::"
+
+          # 输出完整测试日志（用于调试）
+          Write-Host "::group::完整测试输出"
+          $output | ForEach-Object { Write-Host $_ }
+          Write-Host "::endgroup::"
+
+          # 解析测试结果：统计 [PASS] / [FAIL] 行数
+          $passCount = @($output | Select-String -Pattern '\[PASS\]').Count
+          $failCount = @($output | Select-String -Pattern '\[FAIL\]').Count
+          $summaryLine = ($output | Select-String -Pattern 'Total:\s*\d+\s*\|\s*Passed:\s*\d+\s*\|\s*Failed:\s*\d+').Line
+
+          $total = $passCount + $failCount
+          Write-Host "===== 测试结果摘要 ====="
+          Write-Host "通过: $passCount"
+          Write-Host "失败: $failCount"
+          Write-Host "总计: $total"
+          Write-Host "汇总行: $summaryLine"
+          Write-Host "退出码: $testExitCode"
+
+          # 设置步骤输出（供报告步骤使用）
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "pass_count=$passCount"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "fail_count=$failCount"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "total_count=$total"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "summary=$summaryLine"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "exit_code=$testExitCode"
+
+          # 有失败用例则标记步骤失败（但 continue-on-error 保证后续步骤继续）
+          if ($failCount -gt 0) {
+            Write-Host "::error::测试失败: $failCount 个用例未通过"
+            exit 1
+          }
+
+          if ($testExitCode -ne 0) {
+            Write-Host "::error::测试异常退出 (exit code: $testExitCode)"
+            exit 1
+          }
+
+      # ============================================================
+      # 阶段 7: Report — 生成测试报告摘要
+      # ============================================================
+      - name: 生成测试报告
+        if: always()
+        shell: pwsh
+        run: |
+          $pass = "${{ steps.test.outputs.pass_count }}"
+          $fail = "${{ steps.test.outputs.fail_count }}"
+          $total = "${{ steps.test.outputs.total_count }}"
+          $summary = "${{ steps.test.outputs.summary }}"
+          $exitCode = "${{ steps.test.outputs.exit_code }}"
+
+          # 未运行测试时设置默认值
+          if ([string]::IsNullOrWhiteSpace($pass)) { $pass = "0" }
+          if ([string]::IsNullOrWhiteSpace($fail)) { $fail = "0" }
+          if ([string]::IsNullOrWhiteSpace($total)) { $total = "0" }
+          if ([string]::IsNullOrWhiteSpace($summary)) { $summary = "未获取到汇总信息" }
+          if ([string]::IsNullOrWhiteSpace($exitCode)) { $exitCode = "N/A" }
+
+          # 判断整体状态
+          $status = if ([int]$fail -eq 0 -and [int]$pass -gt 0) { "PASS" } else { "FAIL" }
+          $statusIcon = if ($status -eq "PASS") { "PASS" } else { "FAIL" }
+
+          # 生成 Markdown 报告写入 GitHub Step Summary
+          $report = @"
+          ## QDetectVision 测试报告
+
+          **整体状态: $statusIcon**
+
+          | 指标 | 数值 |
+          |------|------|
+          | 通过 | $pass |
+          | 失败 | $fail |
+          | 总计 | $total |
+          | 测试退出码 | $exitCode |
+
+          ### 汇总行
+          ``````
+          $summary
+          ``````
+
+          ### 环境信息
+          | 项目 | 值 |
+          |------|------|
+          | Qt 版本 | ${{ env.QT_VERSION }} |
+          | OpenCV 版本 | ${{ env.OPENCV_VERSION }} |
+          | ONNX Runtime 版本 | ${{ env.ONNXRUNTIME_VERSION }} (CPU) |
+          | 构建类型 | ${{ env.BUILD_TYPE }} |
+          | 编译器 | MinGW 13.1.0 |
+          | 生成器 | MinGW Makefiles |
+          | 运行平台 | ${{ runner.os }} |
+          | Git 分支 | ${{ github.ref_name }} |
+          | 提交 | ${{ github.sha }} |
+
+          ### 失败用例详情
+          "@
+
+          # 如果有测试日志，提取失败用例
+          $logPath = "${{ github.workspace }}\build\test_output.log"
+          if (Test-Path $logPath) {
+            $failLines = Get-Content $logPath | Select-String -Pattern '\[FAIL\]'
+            if ($failLines) {
+              $report += "`n`n"
+              foreach ($line in $failLines) {
+                $report += "- $line`n"
+              }
+            } else {
+              $report += "`n`n无失败用例。`n"
+            }
+          } else {
+            $report += "`n`n测试日志文件未找到。`n"
+          }
+
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $report
+
+          Write-Host "测试报告已生成并写入 Step Summary"
+
+      - name: 上传测试日志制品
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qdv-test-results
+          path: |
+            ${{ github.workspace }}\build\test_output.log
+            ${{ github.workspace }}\build\bin\*.txt
+          retention-days: 7
+          if-no-files-found: warn
+
+      # ============================================================
+      # 最终状态检查
+      # ============================================================
+      - name: 检查整体状态
+        if: always()
+        shell: pwsh
+        run: |
+          $testResult = "${{ steps.test.outcome }}"
+          Write-Host "测试步骤结果: $testResult"
+
+          if ($testResult -eq "failure") {
+            Write-Host "::error::CI 流水线失败：测试未通过"
+            exit 1
+          } elseif ($testResult -eq "skipped") {
+            Write-Host "::warning::测试步骤被跳过"
+          } else {
+            Write-Host "CI 流水线成功：所有测试通过"
+          }

@@ -19,6 +19,7 @@ class IOView;
 class CommView;
 class MonitorView;
 class TrainingInferenceView;
+class ZeroShotDetectView;  // [零样本检测模块] 前置声明，索引 8
 
 class CentralWindow : public QWidget {
     Q_OBJECT
@@ -71,6 +72,7 @@ private:
     CommView* m_commView;
     MonitorView* m_monitorView;
     TrainingInferenceView* m_trainingView;
+    ZeroShotDetectView* m_zeroShotView;  // [零样本检测模块] 索引 8
 };
 
 #endif // CENTRAL_WINDOW_H

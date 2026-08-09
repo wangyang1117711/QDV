@@ -6,6 +6,7 @@
 #include "OutputConfig.h"
 #include "ModelBinding.h"
 #include "Logger.h"
+#include "Vision/ToolFactory.h"   // v2.7.0：子链/并行分支反序列化时需要 ToolFactory::createTool
 #include <algorithm>
 
 using namespace QDV;
@@ -91,6 +92,65 @@ QMap<QString, BranchNode*> Scheme::branches() const {
     QMap<QString, BranchNode*> result;
     for (const auto& pair : m_branches) {
         result[pair.first] = pair.second.get();
+    }
+    return result;
+}
+
+// ============================================================================
+// v2.7.0 子链管理实现
+// ============================================================================
+
+void Scheme::addSubChain(const QString& loopToolId, std::vector<std::unique_ptr<QDV::VisionTool>> tools) {
+    m_subChains[loopToolId] = std::move(tools);
+}
+
+void Scheme::removeSubChain(const QString& loopToolId) {
+    m_subChains.erase(loopToolId);
+}
+
+QMap<QString, QList<QDV::VisionTool*>> Scheme::subChainPtrs() const {
+    QMap<QString, QList<QDV::VisionTool*>> result;
+    for (const auto& pair : m_subChains) {
+        QList<QDV::VisionTool*> ptrs;
+        for (const auto& tool : pair.second) {
+            ptrs.append(tool.get());
+        }
+        result[pair.first] = ptrs;
+    }
+    return result;
+}
+
+QList<QDV::VisionTool*> Scheme::subChainPtrs(const QString& loopToolId) const {
+    QList<QDV::VisionTool*> ptrs;
+    auto it = m_subChains.find(loopToolId);
+    if (it != m_subChains.end()) {
+        for (const auto& tool : it->second) {
+            ptrs.append(tool.get());
+        }
+    }
+    return ptrs;
+}
+
+// ============================================================================
+// v2.7.0 并行分支管理实现
+// ============================================================================
+
+void Scheme::addParallelBranch(const QString& branchId, std::vector<std::unique_ptr<QDV::VisionTool>> tools) {
+    m_parallelBranches[branchId] = std::move(tools);
+}
+
+void Scheme::removeParallelBranch(const QString& branchId) {
+    m_parallelBranches.erase(branchId);
+}
+
+QMap<QString, QList<QDV::VisionTool*>> Scheme::parallelBranchPtrs() const {
+    QMap<QString, QList<QDV::VisionTool*>> result;
+    for (const auto& pair : m_parallelBranches) {
+        QList<QDV::VisionTool*> ptrs;
+        for (const auto& tool : pair.second) {
+            ptrs.append(tool.get());
+        }
+        result[pair.first] = ptrs;
     }
     return result;
 }
@@ -214,7 +274,29 @@ QJsonObject Scheme::serialize() const {
         branchesArray.append(pair.second->serialize());
     }
     obj["branches"] = branchesArray;
-    
+
+    // v2.7.0：子链序列化
+    QJsonObject subChainsObj;
+    for (const auto& pair : m_subChains) {
+        QJsonArray arr;
+        for (const auto& tool : pair.second) {
+            if (tool) arr.append(tool->serialize());
+        }
+        subChainsObj[pair.first] = arr;
+    }
+    obj["subChains"] = subChainsObj;
+
+    // v2.7.0：并行分支序列化
+    QJsonObject parallelObj;
+    for (const auto& pair : m_parallelBranches) {
+        QJsonArray arr;
+        for (const auto& tool : pair.second) {
+            if (tool) arr.append(tool->serialize());
+        }
+        parallelObj[pair.first] = arr;
+    }
+    obj["parallelBranches"] = parallelObj;
+
     return obj;
 }
 
@@ -245,7 +327,53 @@ bool Scheme::deserialize(const QJsonObject& data) {
     if (data.contains("model") && !data["model"].isNull()) {
         m_modelBinding->deserialize(data["model"].toObject());
     }
-    
+
+    // v2.7.0：子链反序列化
+    m_subChains.clear();
+    if (data.contains("subChains") && data["subChains"].isObject()) {
+        const QJsonObject subObj = data["subChains"].toObject();
+        for (auto it = subObj.begin(); it != subObj.end(); ++it) {
+            const QString loopId = it.key();
+            std::vector<std::unique_ptr<QDV::VisionTool>> tools;
+            const QJsonArray arr = it.value().toArray();
+            for (const QJsonValue& v : arr) {
+                if (!v.isObject()) continue;
+                const QJsonObject toolObj = v.toObject();
+                const QString type = toolObj.value("type").toString();
+                if (type.isEmpty()) continue;
+                QDV::VisionTool* tool = ::ToolFactory::instance()->createTool(type);
+                if (tool) {
+                    tool->deserialize(toolObj);
+                    tools.emplace_back(tool);
+                }
+            }
+            m_subChains[loopId] = std::move(tools);
+        }
+    }
+
+    // v2.7.0：并行分支反序列化
+    m_parallelBranches.clear();
+    if (data.contains("parallelBranches") && data["parallelBranches"].isObject()) {
+        const QJsonObject parObj = data["parallelBranches"].toObject();
+        for (auto it = parObj.begin(); it != parObj.end(); ++it) {
+            const QString branchId = it.key();
+            std::vector<std::unique_ptr<QDV::VisionTool>> tools;
+            const QJsonArray arr = it.value().toArray();
+            for (const QJsonValue& v : arr) {
+                if (!v.isObject()) continue;
+                const QJsonObject toolObj = v.toObject();
+                const QString type = toolObj.value("type").toString();
+                if (type.isEmpty()) continue;
+                QDV::VisionTool* tool = ::ToolFactory::instance()->createTool(type);
+                if (tool) {
+                    tool->deserialize(toolObj);
+                    tools.emplace_back(tool);
+                }
+            }
+            m_parallelBranches[branchId] = std::move(tools);
+        }
+    }
+
     return true;
 }
 

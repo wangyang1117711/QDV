@@ -7,12 +7,12 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Q-DetectVision 项目构建" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-$QtRoot = "D:\Qt\6.11\6.11.1\mingw_64"
-$MinGW = "D:\Qt\6.11\Tools\mingw1120_64"
+$QtRoot = "D:\Qt_new\6.11.1\mingw_64"
+$MinGW = "D:\Qt_new\Tools\mingw1310_64"
 
 $env:QTDIR = $QtRoot
 $env:CMAKE_PREFIX_PATH = $QtRoot
-$env:PATH = "$QtRoot\bin;$MinGW\bin;D:\Qt\6.11\Tools\CMake_64\bin;D:\Qt\6.11\Tools\Ninja;$env:PATH"
+$env:PATH = "$QtRoot\bin;$MinGW\bin;D:\Qt_new\Tools\CMake_64\bin;D:\Qt_new\Tools\Ninja;$env:PATH"
 
 Write-Host "Qt 路径: $QtRoot"
 Write-Host "MinGW: $MinGW`n"
@@ -31,7 +31,7 @@ New-Item -ItemType Directory -Path "build" -Force | Out-Null
 Set-Location "build"
 
 Write-Host "`n--- 配置 CMake ---"
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="D:/Qt/6.11/6.11.1/mingw_64"
+cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="D:/Qt_new/6.11.1/mingw_64"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n[错误] CMake 配置失败！" -ForegroundColor Red

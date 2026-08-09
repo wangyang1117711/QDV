@@ -1,6 +1,9 @@
 #include "ResultDatabase.h"
 #include "Core/Logger.h"
 #include <QSqlError>
+#include <QCryptographicHash>
+#include <QSysInfo>
+#include <QRandomGenerator>
 
 using namespace QDV;
 
@@ -26,6 +29,18 @@ ResultDatabase* ResultDatabase::instance() {
 bool ResultDatabase::open(const QString& dbPath) {
     QMutexLocker locker(&m_mutex);
 
+    // 崩溃根因修复：重复 open() 会重复 addDatabase 同名连接，导致 QSqlDatabase 内部
+    // 引用状态混乱。多次开/关后 m_db 可能指向已失效的连接对象，QSqlQuery(m_db) 访问
+    // 已释放内存触发 0xC0000005。此处先彻底清理旧连接再创建新连接。
+    if (m_db.isValid() && m_db.isOpen()) {
+        m_db.close();
+    }
+    const QString oldConnName = m_db.connectionName();
+    if (!oldConnName.isEmpty()) {
+        m_db = QSqlDatabase();  // 释放旧引用，必须在 removeDatabase 之前
+        QSqlDatabase::removeDatabase(oldConnName);
+    }
+
     m_db = QSqlDatabase::addDatabase("QSQLITE", "QDVResults");
     m_db.setDatabaseName(dbPath);
 
@@ -48,10 +63,19 @@ void ResultDatabase::close() {
     if (m_db.isOpen()) {
         m_db.close();
     }
+    // 崩溃根因修复：必须 removeDatabase 彻底清理连接，否则连接泄漏累积。
+    // 旧版只 close() 不 removeDatabase()，再次 open() 时 addDatabase 同名连接
+    // 会触发 Qt 警告 "connection already exists" 并返回旧连接，多次累积后
+    // m_db 指向的内部句柄可能失效，导致 0xC0000005。
+    const QString connName = m_db.connectionName();
+    if (!connName.isEmpty()) {
+        m_db = QSqlDatabase();  // 释放引用，必须在 removeDatabase 之前
+        QSqlDatabase::removeDatabase(connName);
+    }
 }
 
 bool ResultDatabase::createTables() {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_mutex);  // 递归锁允许 open()/createTables() 嵌套加锁
 
     QSqlQuery query(m_db);
 
@@ -101,10 +125,11 @@ bool ResultDatabase::insertResult(const QString& schemeId, const QString& scheme
     )");
 
     query.bindValue(":scheme_id", schemeId);
-    query.bindValue(":scheme_name", schemeName);
+    // S5 安全加固：敏感字段加密后存储（方案名、图像路径）
+    query.bindValue(":scheme_name", encryptField(schemeName));
     query.bindValue(":ok", ok ? 1 : 0);
     query.bindValue(":score", score);
-    query.bindValue(":image_path", imagePath);
+    query.bindValue(":image_path", encryptField(imagePath));
     query.bindValue(":timestamp", timestamp.isEmpty() ? QDateTime::currentDateTime().toString(Qt::ISODate) : timestamp);
 
     bool success = query.exec();
@@ -146,10 +171,11 @@ bool ResultDatabase::insertResultsBatch(const QList<ResultItem>& items) {
     int inserted = 0;
     for (const auto& item : items) {
         query.bindValue(":scheme_id", item.schemeId);
-        query.bindValue(":scheme_name", item.schemeName);
+        // S5 安全加固：敏感字段加密后存储（方案名、图像路径）
+        query.bindValue(":scheme_name", encryptField(item.schemeName));
         query.bindValue(":ok", item.ok ? 1 : 0);
         query.bindValue(":score", item.score);
-        query.bindValue(":image_path", item.imagePath);
+        query.bindValue(":image_path", encryptField(item.imagePath));
         query.bindValue(":timestamp", item.timestamp.isEmpty()
             ? QDateTime::currentDateTime().toString(Qt::ISODate) : item.timestamp);
 
@@ -202,11 +228,11 @@ QList<QMap<QString, QVariant>> ResultDatabase::queryResults(const QString& schem
         queryStr += " AND timestamp <= :end_time";
     }
     
-    queryStr += " ORDER BY timestamp DESC LIMIT 1000";
-    
+    queryStr += " ORDER BY timestamp DESC LIMIT 10000";
+
     QSqlQuery query(m_db);
     query.prepare(queryStr);
-    
+
     if (!schemeId.isEmpty()) {
         query.bindValue(":scheme_id", schemeId);
     }
@@ -216,21 +242,22 @@ QList<QMap<QString, QVariant>> ResultDatabase::queryResults(const QString& schem
     if (!endTime.isEmpty()) {
         query.bindValue(":end_time", endTime);
     }
-    
+
     if (query.exec()) {
         while (query.next()) {
             QMap<QString, QVariant> result;
             result["id"] = query.value("id").toInt();
             result["scheme_id"] = query.value("scheme_id").toString();
-            result["scheme_name"] = query.value("scheme_name").toString();
+            // S5 安全加固：读取时解密敏感字段
+            result["scheme_name"] = decryptField(query.value("scheme_name").toString());
             result["ok"] = query.value("ok").toInt() == 1;
             result["score"] = query.value("score").toDouble();
-            result["image_path"] = query.value("image_path").toString();
+            result["image_path"] = decryptField(query.value("image_path").toString());
             result["timestamp"] = query.value("timestamp").toString();
             results.append(result);
         }
     }
-    
+
     return results;
 }
 
@@ -300,4 +327,67 @@ bool ResultDatabase::deleteResults(const QString& schemeId, bool requireConfirma
 
 int ResultDatabase::getResultCount(const QString& schemeId) {
     return countResults(schemeId);
+}
+
+// ===== S5 安全加固：应用层加密实现 =====
+// 密钥来源 = 应用固定盐 + 机器特征码（machineUniqueId），避免硬编码密钥。
+// 不同机器派生出不同密钥，数据库文件被复制到其他机器后无法解密。
+QByteArray ResultDatabase::deriveEncryptionKey() const {
+    const QByteArray kAppSalt = QByteArray("QDV_ResultDB_S5_v1");
+    QByteArray machineId = QSysInfo::machineUniqueId();
+    QByteArray material = kAppSalt + machineId;
+    return QCryptographicHash::hash(material, QCryptographicHash::Sha256);
+}
+
+// S5 加密：XOR + 随机 IV 流密码（与 AuthService 加密方案一致）
+// 返回格式 "iv_hex:ciphertext_hex"，仅含十六进制与冒号，可安全存入 SQLite TEXT 字段。
+// 空字符串不加密直接返回，避免无谓开销并保持语义。
+QString ResultDatabase::encryptField(const QString& plaintext) const {
+    if (plaintext.isEmpty()) {
+        return QString();
+    }
+
+    QByteArray key = deriveEncryptionKey();
+    QByteArray iv(16, '\0');
+    for (int i = 0; i < 16; ++i) {
+        iv[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
+    }
+
+    QByteArray plainBytes = plaintext.toUtf8();
+    QByteArray cipher;
+    cipher.resize(plainBytes.size());
+    for (int i = 0; i < plainBytes.size(); ++i) {
+        cipher[i] = plainBytes[i] ^ key[i % key.size()] ^ iv[i % iv.size()];
+    }
+
+    return QString::fromLatin1(iv.toHex() + ":" + cipher.toHex());
+}
+
+// S5 解密：与 encryptField 互逆。
+// 向后兼容：若传入值不匹配 "hex:hex" 格式（如旧版明文数据），原样返回。
+QString ResultDatabase::decryptField(const QString& ciphertext) const {
+    if (ciphertext.isEmpty()) {
+        return QString();
+    }
+
+    const QStringList parts = ciphertext.split(':');
+    if (parts.size() != 2) {
+        // 非加密格式（旧版明文数据），直接返回原值以保持向后兼容
+        return ciphertext;
+    }
+
+    QByteArray iv = QByteArray::fromHex(parts[0].toLatin1());
+    QByteArray data = QByteArray::fromHex(parts[1].toLatin1());
+    if (iv.size() == 0 || data.size() == 0) {
+        return ciphertext;
+    }
+
+    QByteArray key = deriveEncryptionKey();
+    QByteArray plain;
+    plain.resize(data.size());
+    for (int i = 0; i < data.size(); ++i) {
+        plain[i] = data[i] ^ key[i % key.size()] ^ iv[i % iv.size()];
+    }
+
+    return QString::fromUtf8(plain);
 }

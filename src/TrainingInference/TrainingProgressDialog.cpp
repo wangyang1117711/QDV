@@ -141,8 +141,9 @@ void TrainingProgressDialog::updateProgress(const QVariantMap& progress)
     }
     m_currentEpoch = epoch;
 
-    // 更新epoch标签与进度条
-    m_epochLabel->setText(QString("Epoch %1 / %2").arg(epoch).arg(total));
+    // 更新epoch标签与进度条（同时显示总体完成百分比）
+    int percent = total > 0 ? static_cast<int>(epoch * 100.0 / total) : 0;
+    m_epochLabel->setText(QString("Epoch %1 / %2  (%3%)").arg(epoch).arg(total).arg(percent));
     m_epochProgressBar->setValue(epoch);
 
     // 计算并更新预估剩余时间

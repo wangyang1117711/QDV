@@ -5,6 +5,8 @@
 #include "Core/Logger.h"
 
 #include <QtConcurrent/QtConcurrent>
+#include <QDir>
+#include <QFileInfo>
 
 // EditViewBridge 在全局命名空间，已在 PreviewManager.h 前置声明
 // 这里 include 完整定义供 m_bridge->runSingleOperator() 等调用使用
@@ -138,6 +140,17 @@ void PreviewManager::doPreview() {
     m_runningNodeId = m_pendingNodeId;
     const QString nodeIdToRun = m_pendingNodeId;
 
+    // 捕获执行前的图像（用于 Snapshot 前后对比）
+    // 在子线程执行前，于主线程读取当前节点的输出图像作为 before
+    if (m_ivm) {
+        const QString beforePath = m_ivm->imagePath(nodeIdToRun);
+        if (!beforePath.isEmpty() && QFileInfo::exists(beforePath)) {
+            m_pendingBeforeImage = QImage(beforePath);
+        } else {
+            m_pendingBeforeImage = QImage();
+        }
+    }
+
     m_watcher.setFuture(QtConcurrent::run([this, nodeIdToRun]() -> QVariantMap {
         // 在子线程执行算子链（不阻塞 UI 主线程）
         return m_bridge->runSingleOperator(nodeIdToRun, QString());
@@ -169,6 +182,17 @@ void PreviewManager::onPreviewFinished() {
     // 修复：删除此处的重复 updateImageVariable 调用。
 
     if (success) {
+        // 加载 after 图像并记录 Snapshot（前后对比快照）
+        QImage afterImage;
+        if (!outputPath.isEmpty() && QFileInfo::exists(outputPath)) {
+            afterImage = QImage(outputPath);
+        }
+        // 构建预览参数 JSON
+        QJsonObject paramsObj;
+        paramsObj["success"] = true;
+        paramsObj["outputImagePath"] = outputPath;
+        appendSnapshot(nodeId, m_pendingBeforeImage, afterImage, paramsObj);
+
         emit previewCompleted(nodeId, true, outputPath);
     } else {
         const QString error = result.value("error").toString();
@@ -191,6 +215,62 @@ void PreviewManager::onPreviewFinished() {
     if (m_autoPreviewEnabled && !m_pendingNodeId.isEmpty() && m_pendingNodeId != nodeId) {
         requestPreview();
     }
+}
+
+// === Snapshot 历史实现 ===
+
+void PreviewManager::appendSnapshot(const QString& nodeId, const QImage& before,
+                                     const QImage& after, const QJsonObject& params) {
+    PreviewSnapshot snapshot;
+    snapshot.timestamp = QDateTime::currentMSecsSinceEpoch();
+    snapshot.nodeId = nodeId;
+    snapshot.beforeImage = before;
+    snapshot.afterImage = after;
+    snapshot.params = params;
+
+    // 将 before/after 图像保存到临时文件，供 QML 分屏视图通过 file:/// 路径加载
+    const QString tempDir = QDir::tempPath();
+    const QString ts = QString::number(snapshot.timestamp);
+    if (!before.isNull()) {
+        const QString beforePath = tempDir + "/qdv_snapshot_" + ts + "_before.png";
+        if (before.save(beforePath, "PNG")) {
+            snapshot.beforeImagePath = beforePath;
+        }
+    }
+    if (!after.isNull()) {
+        const QString afterPath = tempDir + "/qdv_snapshot_" + ts + "_after.png";
+        if (after.save(afterPath, "PNG")) {
+            snapshot.afterImagePath = afterPath;
+        }
+    }
+
+    m_snapshots.prepend(snapshot);  // 最新的在前
+
+    // LRU 淘汰：超过上限时移除最旧的
+    while (m_snapshots.size() > m_maxSnapshots) {
+        m_snapshots.removeLast();
+    }
+
+    emit snapshotAdded();
+}
+
+QList<PreviewManager::PreviewSnapshot> PreviewManager::snapshots() const {
+    return m_snapshots;
+}
+
+void PreviewManager::clearSnapshots() {
+    m_snapshots.clear();
+    emit snapshotsCleared();
+}
+
+QString PreviewManager::latestSnapshotBeforePath() const {
+    if (m_snapshots.isEmpty()) return QString();
+    return m_snapshots.first().beforeImagePath;
+}
+
+QString PreviewManager::latestSnapshotAfterPath() const {
+    if (m_snapshots.isEmpty()) return QString();
+    return m_snapshots.first().afterImagePath;
 }
 
 } // namespace QDV

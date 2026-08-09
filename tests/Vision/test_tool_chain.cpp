@@ -13,7 +13,7 @@
 using namespace QDV;
 
 static int s_argc = 0;
-static QApplication s_app(s_argc, nullptr);
+// 复用 test_main.cpp 中创建的全局 QApplication 实例，避免多实例冲突
 
 TEST_CASE("ToolChainExecutor execute with all tool types", "[toolchain]") {
     ToolChainExecutor executor;

@@ -12,7 +12,8 @@ Write-Host "Q-DetectVision 项目构建" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # 检查 D 盘 Qt
-$QtRoot = "D:\Qt\6.5.0\mingw_64"
+$QtRoot = "D:\Qt_new\6.11.1\mingw_64"
+$MinGW = "D:\Qt_new\Tools\mingw1310_64"
 if (-not (Test-Path $QtRoot)) {
     Write-Host "[错误] Qt6 未找到！" -ForegroundColor Red
     Write-Host "请确保已将 Qt 安装到: $QtRoot"
@@ -22,10 +23,11 @@ if (-not (Test-Path $QtRoot)) {
 
 Write-Host "[OK] Qt6 已找到" -ForegroundColor Green
 Write-Host "Qt 路径: $QtRoot"
+Write-Host "MinGW: $MinGW"
 
 # 设置环境变量
 $env:QTDIR = $QtRoot
-$env:PATH = "$QtRoot\bin;D:\Qt\Tools\mingw1120_64\bin;$env:PATH"
+$env:PATH = "$QtRoot\bin;$MinGW\bin;D:\Qt_new\Tools\CMake_64\bin;$env:PATH"
 $env:CMAKE_PREFIX_PATH = $QtRoot
 
 # 验证 qmake
@@ -71,7 +73,7 @@ $cmakeArgs = @(
     ".."
     "-G", "MinGW Makefiles"
     "-DCMAKE_BUILD_TYPE=Release"
-    "-DCMAKE_PREFIX_PATH=D:/Qt/6.5.0/mingw_64"
+    "-DCMAKE_PREFIX_PATH=D:/Qt_new/6.11.1/mingw_64"
 )
 
 $cmakeResult = & cmake @cmakeArgs

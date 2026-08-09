@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "comment": "Q-DetectVision 共享提示词库 (v2.0 阶段二)\nbuiltin: 12 类工业检测常见缺陷默认提示词（不可删除，可被覆盖）\ncustom: 用户自定义类别（跨重启持久化）\nrecent: 最近使用的提示词组合（最多 10 条，去重）\n字段含义: name=内部名, prompt=英文提示词, cnName=中文名, scene=适用场景, exampleImagePath=可选示例图路径",
+  "builtin": [
+    {"name": "scratch",        "prompt": "scratch",        "cnName": "划痕",       "scene": "表面划伤检测"},
+    {"name": "dent",           "prompt": "dent",           "cnName": "凹坑",       "scene": "冲压/注塑件凹陷"},
+    {"name": "stain",          "prompt": "stain",          "cnName": "污渍",       "scene": "表面污染检测"},
+    {"name": "crack",          "prompt": "crack",          "cnName": "裂纹",       "scene": "结构性缺陷"},
+    {"name": "deformation",    "prompt": "deformation",    "cnName": "变形",       "scene": "形状偏差检测"},
+    {"name": "discoloration",  "prompt": "discoloration",  "cnName": "变色",       "scene": "涂层/电镀缺陷"},
+    {"name": "missing_part",   "prompt": "missing part",   "cnName": "缺件",       "scene": "装配完整性"},
+    {"name": "misalignment",   "prompt": "misalignment",   "cnName": "错位",       "scene": "装配位置偏差"},
+    {"name": "burr",           "prompt": "burr",           "cnName": "毛刺",       "scene": "机加工边缘缺陷"},
+    {"name": "hole",           "prompt": "hole",           "cnName": "孔洞",       "scene": "铸造/焊接缺陷"},
+    {"name": "contamination",  "prompt": "contamination",  "cnName": "异物污染",   "scene": "异物混入检测"},
+    {"name": "rust",           "prompt": "rust",           "cnName": "锈点/锈蚀",  "scene": "金属锈蚀"}
+  ],
+  "custom": [],
+  "recent": []
+}

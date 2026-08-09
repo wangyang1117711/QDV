@@ -41,6 +41,9 @@ Item {
     /// P1-B4-H1 联动：算子类型（由外部传入，用于 isParamVisible 判断）
     /// 调用方需绑定：PropertyPreviewPanel 传 selectedNode.type，OperatorEditorDialog 传 meta.type
     property string operatorType: ""
+    /// v5.4.0：模型库列表（由外部传入，用于 modelPath 参数的下拉选择）
+    /// 调用方需绑定：通过 bridge.getRegisteredModels() 获取并赋值
+    property var modelList: []
     /// 任意值变化时回传（外部用于 updateOperatorParams）
     signal valuesChanged(var newValues)
     /// 校验错误信号（bridge.validateParam 失败时）
@@ -53,13 +56,28 @@ Item {
     // 用哨兵值 "\u0000" 确保首次加载（operatorType="" 时）也触发快照
     property string _snapshotOperatorType: "\u0000"
 
-    // 快照函数：仅在 operatorType 变化时从 currentValues 覆盖 _internalValues
-    // 同时处理 onCurrentValuesChanged 和 onOperatorTypeChanged，避免初始化竞态
+    // 快照函数：从 currentValues 覆盖 _internalValues
+    // 触发条件：
+    //   1. operatorType 变化（切换算子类型）
+    //   2. currentValues 变化且与 _internalValues 不一致（外部传入新的参数值，
+    //      例如重新打开参数编辑器时从节点读取到的最新值）。
+    // 条件 2 不会与 setValue 形成循环：setValue 更新 _internalValues 后发出
+    // valuesChanged，父组件回传相同的 currentValues，此时 JSON 相同，不会重复快照。
     function _maybeSnapshot() {
         if (!currentValues || Object.keys(currentValues).length === 0) return
         if (root.operatorType !== _snapshotOperatorType) {
             _snapshotOperatorType = root.operatorType
             _internalValues = JSON.parse(JSON.stringify(currentValues))
+            _linkageTrigger++
+            return
+        }
+        // v5.4.1 修复模型路径等参数在重新打开编辑器后恢复默认值的问题：
+        // 当 currentValues 与 _internalValues 不一致时，说明外部传入了新的权威值，
+        // 需要同步到 _internalValues，确保下拉框等控件能正确显示保存值。
+        var currJson = JSON.stringify(currentValues)
+        var intJson = JSON.stringify(_internalValues)
+        if (currJson !== intJson) {
+            _internalValues = JSON.parse(currJson)
             _linkageTrigger++
         }
     }
@@ -184,6 +202,98 @@ Item {
         _linkageTrigger++
     }
 
+    // ==================== v2.8.0 参数帮助 tooltip 组件 ====================
+    // 在每个参数右侧显示"?"图标（16x16，灰色圆形，白色问号）
+    // hover 显示 ToolTip，内容来自 editViewBridge.getParamHelp(type, paramName)
+    // 多行显示（Text.WordWrap），最长 200 字符自动截断换行
+    // 调用方式：Loader 加载本 Component，并通过同名 property 传入 helpType/helpParam
+    Component {
+        id: paramHelpIconComp
+        Item {
+            id: helpIcon
+            width: 16
+            height: 16
+            // 通过 Loader 上下文注入（parent 即 Loader，可直接读其 property）
+            property string helpType: parent ? (parent.helpType || "") : ""
+            property string helpParam: parent ? (parent.helpParam || "") : ""
+            property string helpText: ""
+
+            function updateHelpText() {
+                try {
+                    if (typeof editViewBridge !== "undefined" && editViewBridge
+                            && helpType.length > 0 && helpParam.length > 0) {
+                        var t = editViewBridge.getParamHelp(helpType, helpParam) || ""
+                        // v2.8.0：最长 200 字符截断（防止超长 tooltip 撑爆界面）
+                        if (t.length > 200) t = t.substring(0, 200) + "…"
+                        helpText = t
+                    } else {
+                        helpText = ""
+                    }
+                } catch (e) {
+                    helpText = ""
+                }
+            }
+
+            Component.onCompleted: updateHelpText()
+            onHelpTypeChanged: updateHelpText()
+            onHelpParamChanged: updateHelpText()
+
+            // 灰色圆形 + 白色问号；无帮助文本时半透明显示
+            Rectangle {
+                id: helpBg
+                anchors.fill: parent
+                radius: 8
+                color: helpMa.containsMouse ? Tok.DesignTokens.accentInfo : Tok.DesignTokens.textDisabled
+                opacity: helpIcon.helpText.length > 0
+                         ? (helpMa.containsMouse ? 1.0 : 0.7)
+                         : 0.25
+
+                Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "?"
+                    color: "#FFFFFF"
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+            }
+
+            MouseArea {
+                id: helpMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: helpIcon.helpText.length > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+            }
+
+            ToolTip {
+                id: helpTip
+                parent: helpIcon
+                visible: helpMa.containsMouse && helpIcon.helpText.length > 0
+                delay: 200
+                timeout: 10000
+                x: 18
+                y: -6
+                width: 240   // 多行显示，固定宽度 240px，最长 200 字符自动换行
+
+                contentItem: Text {
+                    text: helpIcon.helpText
+                    color: Tok.DesignTokens.textPrimary
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.3
+                }
+
+                background: Rectangle {
+                    color: Tok.DesignTokens.bgPanel
+                    border.color: Tok.DesignTokens.borderDefault
+                    border.width: 1
+                    radius: Tok.DesignTokens.radiusSm
+                }
+            }
+        }
+    }
+
     // ==================== 7 个内联 Component ====================
 
     // 0: Int — SpinBox（整数）
@@ -242,6 +352,15 @@ Item {
                     root.setValue(intItem.paramName, value)
                     intLabelAnim.running = true
                 }
+            }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: intItem.paramName
             }
         }
     }
@@ -347,6 +466,15 @@ Item {
                     root.setValue(floatItem.paramName, v)
                     floatLabelAnim.running = true
                 }
+            }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: floatItem.paramName
             }
         }
     }
@@ -459,6 +587,131 @@ Item {
                     Qt.callLater(function() { combo._userEditing = false })
                 }
             }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: enumItem.paramName
+            }
+        }
+    }
+
+    // v5.4.0: 模型路径选择组件 — 当参数名为 modelPath 时使用
+    // 模型列表由 root.modelList 提供（外部通过 bridge.getRegisteredModels() 绑定）
+    // v5.4.1 修复：采用与 enum ComboBox 相同的显式同步策略，避免 modelList 异步
+    // 填充或 currentValues 变化时 currentIndex 绑定不刷新，导致保存值丢失。
+    Component {
+        id: modelPathComp
+        RowLayout {
+            id: modelItem
+            property var spec
+            property string paramName: spec.name
+            property var currentValue
+            spacing: 6
+            Layout.fillWidth: true
+            height: 32
+
+            // spec 注入完成后延迟同步一次，防止 ComboBox 创建时 modelList 尚未就绪
+            onSpecChanged: {
+                Qt.callLater(function() {
+                    if (modelCombo) modelCombo.syncIndexFromValue()
+                })
+            }
+
+            Label {
+                text: spec.cnName + (spec.unit ? " (" + spec.unit + ")" : "")
+                color: Tok.DesignTokens.textPrimary
+                font.pixelSize: 12
+                Layout.preferredWidth: 100
+            }
+            ComboBox {
+                id: modelCombo
+                Layout.fillWidth: true
+                Accessible.name: spec.cnName + " 模型选择"
+                Accessible.description: spec.help || "从模型库中选择已注册的模型"
+                // 模型列表由外部 bridge 提供通过 modelList 属性传入
+                model: root.modelList || []
+                textRole: "displayName"
+                valueRole: "filePath"
+                // v5.4.1：去掉 currentIndex 绑定表达式，改命令式同步
+                // 关键：syncIndexFromValue 读 root.getValue()（最新内部值），
+                // 而非 modelItem.currentValue（可能为过时值），避免闪回/丢失。
+                property bool _userEditing: false
+
+                function syncIndexFromValue() {
+                    var cv = root.getValue(modelItem.paramName)
+                    if (!cv || cv === "") {
+                        if (currentIndex !== -1) currentIndex = -1
+                        return
+                    }
+                    var list = root.modelList || []
+                    for (var i = 0; i < list.length; ++i) {
+                        if (list[i].filePath === cv) {
+                            if (currentIndex !== i) currentIndex = i
+                            return
+                        }
+                    }
+                    // 保存的路径不在当前模型列表中：保持 -1，displayText 会显示原值
+                    if (currentIndex !== -1) currentIndex = -1
+                }
+
+                Component.onCompleted: {
+                    console.log("[modelPathComp] modelList.length = " + (root.modelList ? root.modelList.length : 0))
+                    syncIndexFromValue()
+                }
+                // v5.4.1：响应 _linkageTrigger / operatorType / modelList 变化，
+                // 在快照/重置/模型库刷新后重新同步 currentIndex。
+                Connections {
+                    target: root
+                    function on_linkageTriggerChanged() {
+                        if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
+                    }
+                    function onOperatorTypeChanged() {
+                        if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
+                    }
+                    function onModelListChanged() {
+                        if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
+                    }
+                }
+
+                displayText: currentIndex >= 0 ? currentText : (modelItem.currentValue || "（选择模型）")
+
+                onActivated: function(index) {
+                    modelCombo._userEditing = true
+                    if (index >= 0 && root.modelList && index < root.modelList.length) {
+                        var path = root.modelList[index].filePath
+                        root.setValue(modelItem.paramName, path)
+                    }
+                    syncIndexFromValue()
+                    Qt.callLater(function() { modelCombo._userEditing = false })
+                }
+
+                background: Rectangle {
+                    color: modelCombo.activeFocus ? Tok.DesignTokens.bgHover : Tok.DesignTokens.bgSurface
+                    border.color: modelCombo.activeFocus ? Tok.DesignTokens.borderFocus : Tok.DesignTokens.borderDefault
+                    border.width: 1
+                    radius: Tok.DesignTokens.radiusSm
+                }
+                contentItem: Label {
+                    text: modelCombo.displayText
+                    color: Tok.DesignTokens.textPrimary
+                    font.pixelSize: 12
+                    leftPadding: 8
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: modelItem.paramName
+            }
         }
     }
 
@@ -499,6 +752,15 @@ Item {
                     color: checkBox.checked ? Tok.DesignTokens.borderFocus : Tok.DesignTokens.bgSurface
                 }
                 onToggled: root.setValue(boolItem.paramName, checked)
+            }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: boolItem.paramName
             }
             Item { Layout.fillWidth: true }   // 占位
         }
@@ -564,6 +826,15 @@ Item {
                     root.setValue(stringItem.paramName, text)
                     stringLabelAnim.running = true
                 }
+            }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: stringItem.paramName
             }
         }
     }
@@ -659,6 +930,15 @@ Item {
                     vectorLabelAnim.running = true
                 }
             }
+            // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容
+            Loader {
+                sourceComponent: paramHelpIconComp
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignVCenter
+                property string helpType: root.operatorType
+                property string helpParam: vectorItem.paramName
+            }
         }
     }
 
@@ -693,6 +973,8 @@ Item {
                 // 关键：根据 spec.type 选择 Component
                 sourceComponent: {
                     if (!modelData) return null
+                    // v5.4.0：modelPath 参数使用模型选择下拉组件（从模型库选择已注册模型）
+                    if (modelData.name === "modelPath") return modelPathComp
                     // v3.2.0：filePath 字段走专用文件路径组件（带浏览按钮 + 路径记忆）
                     if (modelData.name === "filePath") return filePathFieldComp
                     switch (modelData.type) {
@@ -743,6 +1025,48 @@ Item {
             font.pixelSize: 11
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+        }
+
+        // ===== spec 阶段一 Task 4：通用 ROI 控件（所有算子自动获得 ROI 参数）=====
+        // 设计：在算子参数表单末尾固定显示 ROI 控件，绑定到 currentValues["roi"]
+        // - 矩形格式："x,y,w,h"
+        // - 多边形格式："poly:x1,y1,x2,y2,..."
+        // - 空字符串 = 全图（无 ROI，向后兼容）
+        // ROI 值通过 setValue("roi", ...) 回传，buildToolChainFromNodes 解析后调用 setRoi
+        Loader {
+            id: roiLoader
+            Layout.fillWidth: true
+            source: "qrc:/qml/EditView/ROISelector.qml"
+            onLoaded: {
+                if (item) {
+                    item.spec = ({
+                        name: "roi",
+                        cnName: "ROI 区域",
+                        help: "算子级通用 ROI，留空表示全图。矩形 x,y,w,h 或多边形 poly:x1,y1,..."
+                    })
+                    var cv = root.getValue("roi")
+                    item.currentValue = (cv !== undefined && cv !== null) ? String(cv) : ""
+                    item.valueEdited.connect(function(newVal) {
+                        root.setValue("roi", newVal)
+                    })
+                }
+            }
+            // 响应算子切换与参数重置，刷新 currentValue
+            Connections {
+                target: root
+                function onOperatorTypeChanged() {
+                    if (roiLoader.item) {
+                        var cv = root.getValue("roi")
+                        roiLoader.item.currentValue = (cv !== undefined && cv !== null) ? String(cv) : ""
+                    }
+                }
+                function on_linkageTriggerChanged() {
+                    if (roiLoader.item) {
+                        var cv = root.getValue("roi")
+                        roiLoader.item.currentValue = (cv !== undefined && cv !== null) ? String(cv) : ""
+                    }
+                }
+            }
         }
     }
 }

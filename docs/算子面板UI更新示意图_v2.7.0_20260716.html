@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV v2.7.0 海康VM算子集成 - 界面示意图</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: #1e1e2e; color: #cdd6f4; padding: 20px; }
+h1 { text-align: center; color: #89b4fa; margin-bottom: 8px; font-size: 22px; }
+.subtitle { text-align: center; color: #6c7086; margin-bottom: 24px; font-size: 13px; }
+.section { background: #181825; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #313244; }
+.section-title { color: #f9e2af; font-size: 16px; margin-bottom: 14px; border-bottom: 1px solid #313244; padding-bottom: 8px; }
+.section-desc { color: #6c7086; font-size: 12px; margin-bottom: 14px; }
+
+/* === 算子面板 === */
+.op-panel { display: flex; gap: 12px; flex-wrap: wrap; }
+.op-category { background: #11111b; border-radius: 6px; padding: 10px; min-width: 200px; border: 1px solid #313244; }
+.op-cat-title { color: #f9e2af; font-size: 12px; margin-bottom: 8px; font-weight: bold; }
+.op-item { background: #1e1e2e; border-radius: 4px; padding: 6px 10px; margin-bottom: 4px; font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: background 0.2s; }
+.op-item:hover { background: #313244; }
+.op-item.new { border-left: 3px solid #a6e3a1; }
+.op-item.updated { border-left: 3px solid #f9e2af; }
+.op-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: bold; }
+.op-badge.new { background: #a6e3a1; color: #11111b; }
+.op-badge.updated { background: #f9e2af; color: #11111b; }
+.op-params { color: #6c7086; font-size: 10px; margin-left: auto; }
+
+/* === 画布示意图 === */
+.canvas-container { background: #11111b; border-radius: 8px; padding: 20px; min-height: 500px; position: relative; overflow: hidden; border: 1px solid #313244; }
+.canvas-grid { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, #313244 1px, transparent 1px); background-size: 20px 20px; opacity: 0.3; }
+
+/* 节点 */
+.node { position: absolute; width: 140px; background: #1e1e2e; border: 1px solid #585b70; border-radius: 6px; padding: 8px; z-index: 2; }
+.node-title { font-size: 11px; color: #cdd6f4; font-weight: bold; margin-bottom: 2px; }
+.node-type { font-size: 9px; color: #6c7086; }
+.node-port { position: absolute; width: 8px; height: 8px; border-radius: 50%; top: 50%; transform: translateY(-50%); }
+.node-port.in { left: -4px; background: #f38ba8; }
+.node-port.out { right: -4px; background: #a6e3a1; }
+.node.loop { border-color: #89b4fa; }
+.node.branch { border-color: #f9e2af; }
+.node.flowjoin { border-color: #cba6f7; }
+
+/* 分组容器 */
+.group-container { position: absolute; border: 2px dashed; border-radius: 8px; z-index: 1; }
+.group-header { font-size: 10px; padding: 4px 8px; border-radius: 6px 6px 0 0; display: flex; align-items: center; gap: 4px; }
+.group-header .arrow { font-size: 8px; }
+.subchain-group { border-color: #89b4fa; }
+.subchain-group .group-header { background: rgba(137,180,250,0.15); color: #89b4fa; }
+.true-branch { border-color: #a6e3a1; }
+.true-branch .group-header { background: rgba(166,227,161,0.15); color: #a6e3a1; }
+.false-branch { border-color: #f38ba8; }
+.false-branch .group-header { background: rgba(243,139,168,0.15); color: #f38ba8; }
+.parallel-group { border-color: #f9e2af; }
+.parallel-group .group-header { background: rgba(249,226,175,0.15); color: #f9e2af; }
+
+/* 连线 SVG */
+.connections { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+
+/* 图例 */
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.legend-color { width: 20px; height: 12px; border-radius: 3px; border: 1px solid #585b70; }
+
+/* 参数表格 */
+.param-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.param-table th { background: #313244; color: #cdd6f4; padding: 6px 8px; text-align: left; border: 1px solid #45475a; }
+.param-table td { padding: 5px 8px; border: 1px solid #313244; color: #a6adc8; }
+.param-table .new-param { background: rgba(166,227,161,0.08); }
+.param-table .param-name { color: #89b4fa; font-family: monospace; }
+
+/* 标签 */
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; margin-right: 4px; }
+.tag.flow { background: rgba(137,180,250,0.2); color: #89b4fa; border: 1px solid #89b4fa; }
+.tag.branch { background: rgba(249,226,175,0.2); color: #f9e2af; border: 1px solid #f9e2af; }
+.tag.logic { background: rgba(203,166,247,0.2); color: #cba6f7; border: 1px solid #cba6f7; }
+</style>
+</head>
+<body>
+
+<h1>QDV v2.7.0 海康VM算子集成 — 界面示意图</h1>
+<p class="subtitle">自定义参数 · 逻辑运算 · 流程分支控制 · 循环遍历 · 流程合并 | 2026-07-16</p>
+
+<!-- ========== 1. 算子面板 ========== -->
+<div class="section">
+    <div class="section-title">1. 算子面板（左侧库）— 新增/更新算子一览</div>
+    <div class="section-desc">绿色边框=新增算子，黄色边框=参数更新的已有算子。分类归属："流程控制"和"分支"。</div>
+    <div class="op-panel">
+        <div class="op-category">
+            <div class="op-cat-title">流程控制</div>
+            <div class="op-item updated">
+                <span class="op-badge updated">更新</span>
+                <span>循环遍历</span>
+                <span class="op-params">+count/while</span>
+            </div>
+            <div class="op-item updated">
+                <span class="op-badge updated">更新</span>
+                <span>变量运算</span>
+                <span class="op-params">+get/set/define/delete</span>
+            </div>
+            <div class="op-item new">
+                <span class="op-badge new">新增</span>
+                <span>流程合并</span>
+                <span class="op-params">waitBranches/timeout</span>
+            </div>
+        </div>
+        <div class="op-category">
+            <div class="op-cat-title">分支</div>
+            <div class="op-item updated">
+                <span class="op-badge updated">更新</span>
+                <span>分支控制</span>
+                <span class="op-params">+AND/OR/NOT/XOR/switch</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 2. 画布示意图 ========== -->
+<div class="section">
+    <div class="section-title">2. 画布可视化 — 子链分组容器 + 分支路由 + 并行汇合</div>
+    <div class="section-desc">虚线框=分组容器（蓝=子链，绿=true分支，红=false分支，黄=并行分支）。节点为扁平列表，分组为叠加层。</div>
+    <div class="canvas-container" style="height: 520px;">
+        <div class="canvas-grid"></div>
+
+        <!-- SVG 连线 -->
+        <svg class="connections">
+            <!-- 主链连线 -->
+            <defs>
+                <marker id="arrow-main" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#585b70"/>
+                </marker>
+                <marker id="arrow-true" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#a6e3a1"/>
+                </marker>
+                <marker id="arrow-false" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#f38ba8"/>
+                </marker>
+                <marker id="arrow-parallel" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0,0 8,3 0,6" fill="#f9e2af"/>
+                </marker>
+            </defs>
+            <!-- 采集 → 分支 -->
+            <path d="M 160 80 L 220 80" stroke="#585b70" stroke-width="2" fill="none" marker-end="url(#arrow-main)"/>
+            <!-- 分支 → true分支容器 -->
+            <path d="M 360 80 L 380 80" stroke="#a6e3a1" stroke-width="2" fill="none" marker-end="url(#arrow-true)"/>
+            <!-- 分支 → false分支容器 -->
+            <path d="M 360 95 L 380 230" stroke="#f38ba8" stroke-width="2" fill="none" marker-end="url(#arrow-false)"/>
+            <!-- true分支 → 循环(子链) -->
+            <path d="M 500 80 L 540 80" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#arrow-main)"/>
+            <!-- 子链内部连线 -->
+            <path d="M 680 110 L 680 150" stroke="#585b70" stroke-width="1.5" fill="none" marker-end="url(#arrow-main)"/>
+            <!-- 循环 → 并行汇合点 -->
+            <path d="M 680 250 L 680 300 L 540 300 L 540 350" stroke="#f9e2af" stroke-width="2" fill="none" marker-end="url(#arrow-parallel)"/>
+            <!-- false分支 → 并行汇合点 -->
+            <path d="M 500 280 L 540 280 L 540 350" stroke="#f9e2af" stroke-width="2" fill="none" marker-end="url(#arrow-parallel)"/>
+            <!-- 并行汇合 → 输出 -->
+            <path d="M 610 380 L 680 380 L 680 420" stroke="#585b70" stroke-width="2" fill="none" marker-end="url(#arrow-main)"/>
+        </svg>
+
+        <!-- 主链节点 -->
+        <div class="node" style="left: 20px; top: 65px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">图像采集</div>
+            <div class="node-type">GrabImage</div>
+        </div>
+
+        <div class="node branch" style="left: 220px; top: 65px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">分支控制</div>
+            <div class="node-type">BranchControl — score > 0.8</div>
+        </div>
+
+        <!-- True 分支容器 -->
+        <div class="group-container true-branch" style="left: 380px; top: 50px; width: 120px; height: 70px;">
+            <div class="group-header">
+                <span class="arrow">▼</span>
+                <span>True 分支 (1)</span>
+            </div>
+        </div>
+        <div class="node" style="left: 390px; top: 80px; width: 100px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">模板匹配</div>
+            <div class="node-type">TemplateMatch</div>
+        </div>
+
+        <!-- False 分支容器 -->
+        <div class="group-container false-branch" style="left: 380px; top: 200px; width: 120px; height: 100px;">
+            <div class="group-header">
+                <span class="arrow">▼</span>
+                <span>False 分支 (1)</span>
+            </div>
+        </div>
+        <div class="node" style="left: 390px; top: 230px; width: 100px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">缺陷检测</div>
+            <div class="node-type">SurfaceDefect</div>
+        </div>
+
+        <!-- 子链分组容器 -->
+        <div class="group-container subchain-group" style="left: 540px; top: 50px; width: 160px; height: 210px;">
+            <div class="group-header">
+                <span class="arrow">▼</span>
+                <span>子链: 循环遍历 (3个算子)</span>
+            </div>
+        </div>
+        <div class="node loop" style="left: 555px; top: 80px; width: 120px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">循环遍历</div>
+            <div class="node-type">Loop — count=5</div>
+        </div>
+        <div class="node" style="left: 555px; top: 150px; width: 120px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">变量运算</div>
+            <div class="node-type">Variable — get</div>
+        </div>
+        <div class="node" style="left: 555px; top: 210px; width: 120px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">边缘检测</div>
+            <div class="node-type">EdgeDetect</div>
+        </div>
+
+        <!-- 并行分支容器 -->
+        <div class="group-container parallel-group" style="left: 380px; top: 340px; width: 240px; height: 45px;">
+            <div class="group-header">
+                <span class="arrow">▼</span>
+                <span>并行分支汇合 (FlowJoin)</span>
+            </div>
+        </div>
+        <div class="node flowjoin" style="left: 500px; top: 360px; width: 110px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">流程合并</div>
+            <div class="node-type">FlowJoin — 2分支</div>
+        </div>
+
+        <!-- 输出节点 -->
+        <div class="node" style="left: 620px; top: 420px; width: 120px;">
+            <div class="node-port in"></div>
+            <div class="node-port out"></div>
+            <div class="node-title">结果输出</div>
+            <div class="node-type">Output</div>
+        </div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="border-style: dashed; border-color: #89b4fa; background: rgba(137,180,250,0.1);"></div>
+            <span>子链分组（LoopTool 子链容器）</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="border-style: dashed; border-color: #a6e3a1; background: rgba(166,227,161,0.1);"></div>
+            <span>True 分支路由</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="border-style: dashed; border-color: #f38ba8; background: rgba(243,139,168,0.1);"></div>
+            <span>False 分支路由</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="border-style: dashed; border-color: #f9e2af; background: rgba(249,226,175,0.1);"></div>
+            <span>并行分支汇合（FlowJoin）</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 3. 算子参数对照表 ========== -->
+<div class="section">
+    <div class="section-title">3. 算子参数对照表 — v2.7.0 新增/扩展参数</div>
+
+    <h3 style="color:#89b4fa; font-size:13px; margin: 10px 0 6px;">
+        <span class="tag flow">流程控制</span> 循环遍历 (LoopTool)
+    </h3>
+    <table class="param-table">
+        <tr><th>参数名</th><th>类型</th><th>默认值</th><th>说明</th><th>状态</th></tr>
+        <tr><td class="param-name">mode</td><td>Enum</td><td>grid</td><td>遍历模式：grid/list/detection/count/while</td><td>更新 (+count/while)</td></tr>
+        <tr><td class="param-name">gridCols</td><td>Int</td><td>3</td><td>网格列数</td><td>已有</td></tr>
+        <tr><td class="param-name">gridRows</td><td>Int</td><td>3</td><td>网格行数</td><td>已有</td></tr>
+        <tr><td class="param-name">maxIterations</td><td>Int</td><td>100</td><td>最大迭代次数</td><td>已有</td></tr>
+        <tr class="new-param"><td class="param-name">count</td><td>Int</td><td>1</td><td>count模式下的循环次数</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">whileCondition</td><td>String</td><td>""</td><td>while模式条件表达式（为真继续循环）</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">maxWhileIterations</td><td>Int</td><td>1000</td><td>while模式最大迭代数（防死循环）</td><td>新增</td></tr>
+    </table>
+
+    <h3 style="color:#89b4fa; font-size:13px; margin: 16px 0 6px;">
+        <span class="tag flow">流程控制</span> 变量运算 (VariableTool)
+    </h3>
+    <table class="param-table">
+        <tr><th>参数名</th><th>类型</th><th>默认值</th><th>说明</th><th>状态</th></tr>
+        <tr><td class="param-name">operation</td><td>Enum</td><td>add</td><td>运算：add/sub/mul/div/mod/concat/format/get/set/define/delete</td><td>更新 (+4操作)</td></tr>
+        <tr><td class="param-name">operand1</td><td>ROI</td><td>"0"</td><td>操作数1（get/set/define时为变量名）</td><td>已有</td></tr>
+        <tr><td class="param-name">operand2</td><td>ROI</td><td>"0"</td><td>操作数2（define时为变量类型）</td><td>已有</td></tr>
+        <tr class="new-param"><td class="param-name">variableName</td><td>String</td><td>""</td><td>get/set/define/delete的目标变量名</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">variableType</td><td>Enum</td><td>int</td><td>define模式变量类型：int/double/string/bool/roi/region/points</td><td>新增</td></tr>
+    </table>
+
+    <h3 style="color:#f9e2af; font-size:13px; margin: 16px 0 6px;">
+        <span class="tag branch">分支</span> 分支控制 (BranchControlTool)
+    </h3>
+    <table class="param-table">
+        <tr><th>参数名</th><th>类型</th><th>默认值</th><th>说明</th><th>状态</th></tr>
+        <tr><td class="param-name">conditionOp</td><td>Enum</td><td>&gt;</td><td>条件：&gt;/&lt;/==/!=/&gt;=/&lt;=/AND/OR/NOT/XOR/switch</td><td>更新 (+5操作)</td></tr>
+        <tr><td class="param-name">conditionValue</td><td>Float</td><td>0.5</td><td>比较阈值</td><td>已有</td></tr>
+        <tr><td class="param-name">trueBranch</td><td>Vector</td><td>""</td><td>真分支工具ID列表</td><td>已有</td></tr>
+        <tr><td class="param-name">falseBranch</td><td>Vector</td><td>""</td><td>假分支工具ID列表</td><td>已有</td></tr>
+        <tr class="new-param"><td class="param-name">logicInputs</td><td>String</td><td>""</td><td>逻辑运算输入：nodeId1:bool1,nodeId2:bool2</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">switchValue</td><td>String</td><td>"0"</td><td>switch模式输入值（支持${var}引用）</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">branchCases</td><td>String</td><td>""</td><td>switch分支映射：case1:toolId1;case2:toolId2</td><td>新增</td></tr>
+    </table>
+
+    <h3 style="color:#89b4fa; font-size:13px; margin: 16px 0 6px;">
+        <span class="tag flow">流程控制</span> 流程合并 (FlowJoinTool) — 全新算子
+    </h3>
+    <table class="param-table">
+        <tr><th>参数名</th><th>类型</th><th>默认值</th><th>说明</th><th>状态</th></tr>
+        <tr class="new-param"><td class="param-name">waitBranches</td><td>Vector</td><td>""</td><td>等待的分支ID列表（逗号分隔）</td><td>新增</td></tr>
+        <tr class="new-param"><td class="param-name">timeoutMs</td><td>Int</td><td>5000</td><td>超时时间（毫秒）</td><td>新增</td></tr>
+    </table>
+</div>
+
+<!-- ========== 4. 架构总览 ========== -->
+<div class="section">
+    <div class="section-title">4. 架构总览 — v2.7.0 数据流</div>
+    <div class="section-desc">从方案文件加载 → EditViewBridge 桥接 → QML 可视化 → ToolChainExecutor 执行</div>
+    <pre style="font-size: 11px; line-height: 1.6; color: #a6adc8; overflow-x: auto;">
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Scheme 方案文件 (.json)                           │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐              │
+│  │  toolChain   │  │  subChains   │  │ parallelBranches │              │
+│  │  (主链算子)  │  │ (子链映射)   │  │  (并行分支映射)  │              │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘              │
+│         │                 │                    │                        │
+│         └─────────────────┼────────────────────┘                        │
+│                           ▼                                              │
+│  ┌────────────────────────────────────────────────────────┐             │
+│  │              EditViewBridge (桥接层)                    │             │
+│  │  Q_PROPERTY: currentNodes / subChainGroups /            │             │
+│  │              branchGroups / parallelGroups              │             │
+│  └────────────────────────┬───────────────────────────────┘             │
+│                           ▼                                              │
+│  ┌────────────────────────────────────────────────────────┐             │
+│  │              QML EditView (可视化层)                    │             │
+│  │  ┌─────────┐  ┌──────────────┐  ┌────────────────┐   │             │
+│  │  │ 节点     │  │ 分组叠加层   │  │ 连线 Canvas    │   │             │
+│  │  │ Repeater │  │ (z:0.5)     │  │ (z:1)          │   │             │
+│  │  │ (z:0)   │  │ 蓝绿红黄框   │  │ 贝塞尔曲线+箭头│   │             │
+│  │  └─────────┘  └──────────────┘  └────────────────┘   │             │
+│  └────────────────────────────────────────────────────────┘             │
+│                           ▼                                              │
+│  ┌────────────────────────────────────────────────────────┐             │
+│  │           ToolChainExecutor (执行引擎)                  │             │
+│  │  execute() → 主链循环                                   │             │
+│  │    ├─ LoopTool → executeSubChain() (子链循环)          │             │
+│  │    ├─ BranchControl → trueBranch/falseBranch 路由     │             │
+│  │    └─ FlowJoin → executeParallelBranches() (并行)     │             │
+│  │  ExecutionContext: 迭代索引/当前ROI/上游结果/深度      │             │
+│  └────────────────────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────────────────┘
+    </pre>
+</div>
+
+<!-- ========== 5. 海康VM对齐对照 ========== -->
+<div class="section">
+    <div class="section-title">5. 海康VM算子对齐对照表</div>
+    <table class="param-table">
+        <tr><th>海康VM算子</th><th>QDV对应实现</th><th>对齐状态</th><th>说明</th></tr>
+        <tr><td>全局变量自定义工具</td><td class="param-name">VariableManager + VariableTool(define)</td><td>已对齐</td><td>支持7种类型: int/double/string/bool/roi/region/points</td></tr>
+        <tr><td>变量读算子</td><td class="param-name">VariableTool(get)</td><td>已对齐</td><td>从全局变量管理器读取变量值</td></tr>
+        <tr><td>变量写算子</td><td class="param-name">VariableTool(set)</td><td>已对齐</td><td>写入全局变量管理器</td></tr>
+        <tr><td>逻辑运算 AND</td><td class="param-name">BranchControlTool(AND)</td><td>已对齐</td><td>多输入逻辑与</td></tr>
+        <tr><td>逻辑运算 OR</td><td class="param-name">BranchControlTool(OR)</td><td>已对齐</td><td>多输入逻辑或</td></tr>
+        <tr><td>逻辑运算 NOT</td><td class="param-name">BranchControlTool(NOT)</td><td>已对齐</td><td>单输入逻辑非</td></tr>
+        <tr><td>逻辑运算 XOR</td><td class="param-name">BranchControlTool(XOR)</td><td>已对齐</td><td>双输入逻辑异或</td></tr>
+        <tr><td>条件分支</td><td class="param-name">BranchControlTool(比较运算)</td><td>已对齐</td><td>6种比较: &gt;/&lt;/==/!=/&gt;=/&lt;=</td></tr>
+        <tr><td>多分支选择 switch</td><td class="param-name">BranchControlTool(switch)</td><td>已对齐</td><td>switchValue + branchCases 映射</td></tr>
+        <tr><td>流程合并/等待</td><td class="param-name">FlowJoinTool</td><td>已对齐</td><td>等待并行分支完成，支持超时</td></tr>
+        <tr><td>循环遍历(网格)</td><td class="param-name">LoopTool(grid)</td><td>已对齐</td><td>gridCols × gridRows 网格切片</td></tr>
+        <tr><td>循环遍历(列表)</td><td class="param-name">LoopTool(list)</td><td>已对齐</td><td>自定义ROI列表遍历</td></tr>
+        <tr><td>循环遍历(检测)</td><td class="param-name">LoopTool(detection)</td><td>已对齐</td><td>基于检测结果遍历</td></tr>
+        <tr><td>计数循环</td><td class="param-name">LoopTool(count)</td><td>已对齐</td><td>固定次数循环</td></tr>
+        <tr><td>条件循环</td><td class="param-name">LoopTool(while)</td><td>已对齐</td><td>whileCondition 为真时继续</td></tr>
+        <tr><td>自定义算子封装</td><td class="param-name">Scheme 子链 + ToolFactory</td><td>已对齐</td><td>子链算子序列封装为可复用单元</td></tr>
+    </table>
+</div>
+
+</body>
+</html>

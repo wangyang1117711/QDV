@@ -2,6 +2,33 @@
 #include "AI/InferenceEngine.h"
 #include "AI/ModelManager.h"
 #include <opencv2/opencv.hpp>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+
+namespace {
+// 测试辅助：定位轻量测试模型。
+// 测试可执行文件通常位于 build/bin，沿目录向上回溯即可到达项目根目录，
+// 从而找到源码树中的 tests/fixtures/dummy_classifier.onnx。
+QString findTestModelPath() {
+    QString envPath = qEnvironmentVariable("QDV_TEST_MODEL");
+    if (!envPath.isEmpty() && QFileInfo::exists(envPath)) {
+        return envPath;
+    }
+
+    QDir dir(QCoreApplication::applicationDirPath());
+    for (int i = 0; i < 6; ++i) {
+        QString candidate = dir.absoluteFilePath("tests/fixtures/dummy_classifier.onnx");
+        if (QFileInfo::exists(candidate)) {
+            return candidate;
+        }
+        if (!dir.cdUp()) {
+            break;
+        }
+    }
+    return QString();
+}
+} // namespace
 
 TEST_CASE("InferenceEngine构造", "[inference]") {
     InferenceEngine engine;
@@ -64,4 +91,63 @@ TEST_CASE("InferenceEngine后端切换", "[inference]") {
 
     engine.setBackend(InferenceEngine::BackendONNXRuntime);
     REQUIRE_EQUAL(engine.backend(), InferenceEngine::BackendONNXRuntime);
+}
+
+// 修复验证：preprocess 必须将单通道/4 通道输入统一转换为 3 通道 NCHW blob，
+// 否则下游分类/检测模型会因"Number of input channels should be multiple of 3 but got 1"失败。
+TEST_CASE("InferenceEngine preprocess 单通道输入自动转 3 通道", "[inference]") {
+    InferenceEngine engine;
+    QString modelPath = findTestModelPath();
+    REQUIRE_FALSE(modelPath.isEmpty());
+    bool loaded = engine.loadModel(modelPath, QSize(224, 224),
+                                   cv::Scalar(0.485, 0.456, 0.406), 1.0 / 255.0, true,
+                                   cv::Scalar(0.229, 0.224, 0.225));
+    REQUIRE(loaded);
+
+    cv::Mat gray(800, 800, CV_8UC1, cv::Scalar(128));
+    cv::Mat blob = engine.preprocess(gray);
+
+    REQUIRE(blob.dims == 4);
+    REQUIRE(blob.size[0] == 1);
+    REQUIRE(blob.size[1] == 3);   // 必须转为 3 通道
+    REQUIRE(blob.size[2] == 224); // resize 到模型输入尺寸
+    REQUIRE(blob.size[3] == 224);
+}
+
+TEST_CASE("InferenceEngine preprocess 4 通道输入自动转 3 通道", "[inference]") {
+    InferenceEngine engine;
+    QString modelPath = findTestModelPath();
+    REQUIRE_FALSE(modelPath.isEmpty());
+    bool loaded = engine.loadModel(modelPath, QSize(224, 224),
+                                   cv::Scalar(0.485, 0.456, 0.406), 1.0 / 255.0, true,
+                                   cv::Scalar(0.229, 0.224, 0.225));
+    REQUIRE(loaded);
+
+    cv::Mat bgra(800, 800, CV_8UC4, cv::Scalar(128, 128, 128, 255));
+    cv::Mat blob = engine.preprocess(bgra);
+
+    REQUIRE(blob.dims == 4);
+    REQUIRE(blob.size[0] == 1);
+    REQUIRE(blob.size[1] == 3);
+    REQUIRE(blob.size[2] == 224);
+    REQUIRE(blob.size[3] == 224);
+}
+
+TEST_CASE("InferenceEngine preprocess 3 通道输入保持 3 通道", "[inference]") {
+    InferenceEngine engine;
+    QString modelPath = findTestModelPath();
+    REQUIRE_FALSE(modelPath.isEmpty());
+    bool loaded = engine.loadModel(modelPath, QSize(224, 224),
+                                   cv::Scalar(0.485, 0.456, 0.406), 1.0 / 255.0, true,
+                                   cv::Scalar(0.229, 0.224, 0.225));
+    REQUIRE(loaded);
+
+    cv::Mat bgr(800, 800, CV_8UC3, cv::Scalar(128, 128, 128));
+    cv::Mat blob = engine.preprocess(bgr);
+
+    REQUIRE(blob.dims == 4);
+    REQUIRE(blob.size[0] == 1);
+    REQUIRE(blob.size[1] == 3);
+    REQUIRE(blob.size[2] == 224);
+    REQUIRE(blob.size[3] == 224);
 }

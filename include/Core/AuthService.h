@@ -54,7 +54,18 @@ private:
     bool isLockedOut(const QString& username);
     void recordFailedAttempt(const QString& username);
     void clearFailedAttempts(const QString& username);
+
+    // S1 修复：密钥派生（新版 AES-256-GCM 替代方案：HMAC-SHA256 流密码+认证标签）
+    // 主密钥来源 = 机器特征码 + 安装时随机生成的盐值（存储在 QSettings，非硬编码）
     QByteArray deriveEncryptionKey() const;
+    // 安装盐：首次运行生成 32 字节随机值并持久化，后续读取复用
+    QByteArray getOrCreateInstallSalt() const;
+    // 子密钥派生：从主密钥派生加密密钥/认证密钥（标签化分离）
+    static QByteArray deriveSubKey(const QByteArray& masterKey, const QByteArray& label);
+    // 旧版 XOR 派生（仅用于解密历史数据，向后兼容）
+    QByteArray deriveEncryptionKeyLegacy() const;
+    // 旧版 XOR 解密（向后兼容，解密 v2: 前缀出现前的历史数据）
+    QByteArray decryptLegacyXOR(const QByteArray& ciphertext) const;
     
     static const int MAX_FAILED_ATTEMPTS = 5;
     static const int LOCKOUT_WINDOW_SECS = 900;

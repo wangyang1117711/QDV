@@ -1,0 +1,6 @@
+=== Visual Verification Report: category_buttons_disabled ===
+Result: PASSED
+Message: Category buttons verified: 2/2 in expected state (enabled=0)
+Confidence: 100.0%
+Screenshot captured: 1
+Detected regions: 0

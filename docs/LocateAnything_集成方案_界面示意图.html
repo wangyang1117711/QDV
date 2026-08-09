@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LocateAnything 集成方案 - 界面示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #1e1f26;
+    color: #e6e6e6;
+    padding: 20px;
+  }
+  h1 { font-size: 18px; color: #4fc3f7; margin-bottom: 6px; }
+  .subtitle { font-size: 12px; color: #9aa0a6; margin-bottom: 18px; }
+  .legend { display: flex; gap: 16px; margin-bottom: 14px; font-size: 11px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+  .new { color: #ffb74d; font-weight: bold; }
+  .badge-new { background: #ff9800; color: #1e1f26; font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; font-weight: bold; }
+  .badge-disabled { background: #616161; color: #bbb; font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+
+  .window {
+    border: 1px solid #3c4043;
+    border-radius: 6px;
+    background: #2a2c33;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .titlebar {
+    background: #353740;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: #ccc;
+    border-bottom: 1px solid #3c4043;
+    display: flex;
+    justify-content: space-between;
+  }
+  .titlebar .tabs { display: flex; gap: 2px; }
+  .titlebar .tab { padding: 3px 12px; border-radius: 3px 3px 0 0; }
+  .titlebar .tab.active { background: #1e88e5; color: white; }
+  .titlebar .tab.dim { color: #777; }
+
+  .main { display: grid; grid-template-columns: 280px 1fr 280px; height: 540px; }
+  .panel { border-right: 1px solid #3c4043; padding: 12px; overflow-y: auto; font-size: 11px; }
+  .panel:last-child { border-right: none; border-left: 1px solid #3c4043; }
+
+  .group { margin-bottom: 14px; }
+  .group-title { font-size: 11px; color: #9aa0a6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; border-bottom: 1px solid #3c4043; padding-bottom: 3px; }
+
+  .field { margin-bottom: 8px; }
+  .field label { display: block; color: #bdc1c6; margin-bottom: 3px; }
+  .select, .input {
+    width: 100%; background: #1e1f26; border: 1px solid #4a4d54; color: #e6e6e6;
+    padding: 5px 7px; border-radius: 3px; font-size: 11px;
+  }
+  .input-area { width: 100%; background: #1e1f26; border: 1px solid #4a4d54; color: #e6e6e6; padding: 5px 7px; border-radius: 3px; font-size: 11px; min-height: 50px; resize: vertical; font-family: inherit; }
+
+  .opt { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; }
+  .opt input { accent-color: #1e88e5; }
+  .opt.disabled { color: #616161; cursor: not-allowed; }
+  .opt.disabled input { accent-color: #616161; }
+
+  .btn { background: #1e88e5; color: white; border: none; padding: 6px 14px; border-radius: 3px; font-size: 11px; cursor: pointer; }
+  .btn.secondary { background: #3c4043; }
+  .btn-row { display: flex; gap: 6px; margin-top: 6px; }
+
+  .status-pill { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+  .status-ok { background: #2e7d32; color: #c8e6c9; }
+  .status-warn { background: #ef6c00; color: #ffe0b2; }
+  .status-err { background: #c62828; color: #ffcdd2; }
+
+  /* 中间画布区 */
+  .canvas-area { display: flex; flex-direction: column; background: #1a1b21; }
+  .canvas-toolbar { background: #353740; padding: 6px 10px; font-size: 11px; border-bottom: 1px solid #3c4043; display: flex; justify-content: space-between; align-items: center; }
+  .canvas-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; padding: 14px; }
+  .canvas-mock {
+    width: 460px; height: 320px; background:
+      linear-gradient(135deg, #3a3d45 25%, transparent 25%) -10px 0,
+      linear-gradient(225deg, #3a3d45 25%, transparent 25%) -10px 0,
+      linear-gradient(315deg, #3a3d45 25%, transparent 25%),
+      linear-gradient(45deg, #3a3d45 25%, transparent 25%);
+    background-size: 20px 20px;
+    background-color: #2a2c33;
+    border: 1px solid #4a4d54;
+    position: relative;
+    border-radius: 3px;
+  }
+  .obj-box { position: absolute; border: 2px solid; border-radius: 2px; }
+  .box-det { border-color: #4fc3f7; }
+  .box-ano { border-color: #ff5252; }
+  .box-sam { border-color: #69f0ae; border-style: dashed; }
+  .box-label { position: absolute; top: -16px; left: -1px; font-size: 9px; padding: 1px 4px; border-radius: 2px; white-space: nowrap; }
+  .label-det { background: #4fc3f7; color: #1e1f26; }
+  .label-ano { background: #ff5252; color: white; }
+  .label-sam { background: #69f0ae; color: #1e1f26; }
+
+  /* 三阶段流水线可视化 */
+  .pipeline {
+    background: #353740; padding: 10px; border-top: 1px solid #3c4043;
+    display: flex; align-items: center; gap: 6px; font-size: 10px;
+  }
+  .stage {
+    flex: 1; background: #2a2c33; border: 1px solid #4a4d54; border-radius: 4px;
+    padding: 7px 8px; text-align: center; position: relative;
+  }
+  .stage .stage-name { color: #bdc1c6; font-weight: bold; font-size: 11px; }
+  .stage .stage-desc { color: #9aa0a6; font-size: 9px; margin-top: 2px; }
+  .stage .stage-status { position: absolute; top: 3px; right: 4px; font-size: 8px; }
+  .arrow { color: #616161; font-size: 14px; }
+
+  /* 右侧结果面板 */
+  .result-card { background: #1e1f26; border: 1px solid #4a4d54; border-radius: 4px; padding: 8px; margin-bottom: 8px; }
+  .gauge { width: 100%; height: 8px; background: #3c4043; border-radius: 4px; overflow: hidden; margin: 4px 0; }
+  .gauge-fill { height: 100%; background: linear-gradient(90deg, #4caf50, #ffeb3b, #f44336); }
+  .det-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed #3c4043; font-size: 10px; }
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px; }
+  .metric { background: #1e1f26; padding: 4px 6px; border-radius: 3px; border: 1px solid #3c4043; }
+  .metric .k { color: #9aa0a6; font-size: 9px; }
+  .metric .v { color: #4fc3f7; font-weight: bold; }
+
+  /* 灰显态提示 */
+  .disable-note {
+    background: #3e2723; border: 1px solid #bf360c; border-radius: 4px;
+    padding: 8px; font-size: 10px; color: #ffccbc; margin-top: 6px;
+  }
+  .disable-note .title { color: #ff9800; font-weight: bold; margin-bottom: 3px; }
+
+  .help-link { color: #4fc3f7; text-decoration: underline; cursor: pointer; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<h1>LocateAnything 集成方案 - 界面示意图</h1>
+<div class="subtitle">零样本检测视图（ZeroShotDetectView）布局 · 含第6种模型类型 + 三阶段流水线 · 方案用，非最终视觉稿</div>
+
+<div class="legend">
+  <span><i style="background:#4fc3f7"></i>检测框 (LocateAnything)</span>
+  <span><i style="background:#ff5252"></i>异常区域 (AnomalyCLIP)</span>
+  <span><i style="background:#69f0ae"></i>分割掩码 (MobileSAM)</span>
+  <span class="new">■ 橙色 = 新增/修改项</span>
+</div>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="tabs">
+      <div class="tab dim">编辑</div>
+      <div class="tab dim">检测</div>
+      <div class="tab dim">训练</div>
+      <div class="tab active">零样本检测</div>
+      <div class="tab dim">方案导出</div>
+    </div>
+    <div>QDetectVision v2.x</div>
+  </div>
+
+  <div class="main">
+
+    <!-- 左侧配置面板 -->
+    <div class="panel">
+      <div class="group">
+        <div class="group-title">模型配置</div>
+
+        <div class="field">
+          <label>模型类型 <span class="badge-new">新增</span></label>
+          <select class="select">
+            <option>AnomalyCLIP（异常检测）</option>
+            <option>GroundingDINO（开集检测-mock）</option>
+            <option>MobileSAM（分割-mock）</option>
+            <option selected>LocateAnything（自然语言定位）<span class="new">●</span></option>
+            <option disabled style="color:#616161">OpenCLIP（预留）</option>
+            <option>PatchCore（正常样本建模）</option>
+          </select>
+          <div style="margin-top:4px;">
+            <span class="status-pill status-ok">服务就绪</span>
+            <span class="status-pill status-ok">GPU 8.2GB / CUDA</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Python 服务路径 <span class="badge-new">新增</span></label>
+          <input class="input" value="D:/models/locate_anything/server.py" readonly>
+          <div class="btn-row">
+            <button class="btn secondary">浏览…</button>
+            <button class="btn secondary">重启服务</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>模型权重目录</label>
+          <input class="input" value="D:/models/locate_anything/LocateAnything-3B" readonly>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">提示词（自然语言）<span class="badge-new">增强</span></div>
+        <textarea class="input-area" placeholder="支持开放词汇检测与指代表达定位(REC)">左上角那条划痕 . 右下角的压痕</textarea>
+        <div style="font-size:9px;color:#9aa0a6;margin-top:3px;">
+          提示：用 " . " 分隔多类别；或输入指代短语如 "红色的那个"
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">推理参数</div>
+        <div class="field"><label>框阈值 (box_threshold)</label><input class="input" value="0.25"></div>
+        <div class="field"><label>文本阈值 (text_threshold)</label><input class="input" value="0.20"></div>
+        <div class="field"><label>最大框数</label><input class="input" value="50"></div>
+        <div class="field"><label>单请求超时(秒)</label><input class="input" value="30"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">三阶段流水线 <span class="badge-new">新增</span></div>
+        <div class="opt"><input type="checkbox" checked>启用流水线模式</div>
+        <div class="opt"><input type="checkbox" checked>① AnomalyCLIP 判异常</div>
+        <div class="opt"><input type="checkbox" checked>② LocateAnything 定位</div>
+        <div class="opt"><input type="checkbox" checked>③ MobileSAM 精分割</div>
+        <div style="font-size:9px;color:#9aa0a6;margin-top:3px;">全链路零样本，输出框+掩码+面积</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn">加载模型</button>
+        <button class="btn" style="background:#43a047">开始推理</button>
+      </div>
+    </div>
+
+    <!-- 中间画布 -->
+    <div class="canvas-area">
+      <div class="canvas-toolbar">
+        <div>当前图像：sample_0142.jpg · 1920×1080</div>
+        <div>
+          <span class="status-pill status-ok">推理 182ms</span>
+          <span class="status-pill status-ok">3 阶段全通过</span>
+        </div>
+      </div>
+
+      <div class="canvas-stage">
+        <div class="canvas-mock">
+          <!-- 异常区域（红，AnomalyCLIP） -->
+          <div class="obj-box box-ano" style="left:40px;top:50px;width:380px;height:240px;">
+            <span class="box-label label-ano">异常区域 0.92</span>
+          </div>
+          <!-- LocateAnything 检测框（蓝） -->
+          <div class="obj-box box-det" style="left:60px;top:70px;width:120px;height:50px;">
+            <span class="box-label label-det">scratch 0.87</span>
+          </div>
+          <div class="obj-box box-det" style="left:280px;top:200px;width:110px;height:60px;">
+            <span class="box-label label-det">dent 0.79</span>
+          </div>
+          <!-- MobileSAM 分割（绿虚线） -->
+          <div class

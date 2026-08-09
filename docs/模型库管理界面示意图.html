@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>模型库管理界面示意图 v2.7.3</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; background:#1e1e1e; color:#e0e0e0; padding:20px; }
+  h2 { color:#fff; }
+  .note { color:#aaa; font-size:12px; margin-bottom:12px; }
+  .dialog {
+    width: 960px; min-height: 680px; margin: 0 auto;
+    background:#252526; border:1px solid #444; border-radius:6px;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .titlebar {
+    background:#2d2d2d; padding:10px 16px; font-weight:bold; font-size:16px;
+    border-bottom:1px solid #444; color:#fff;
+  }
+  .toolbar {
+    display:flex; gap:8px; padding:12px 16px; border-bottom:1px solid #444; align-items:center;
+  }
+  .btn { padding:6px 14px; border-radius:4px; font-size:13px; color:#fff; }
+  .btn-primary { background:#0d7377; }
+  .btn-danger { background:#6b2c2c; }
+  .btn-verify { background:#1e3a5f; }
+  .btn-secondary { background:#555; }
+  .spacer { flex:1; }
+  .searchbar { padding:10px 16px; border-bottom:1px solid #444; display:flex; align-items:center; }
+  .searchbar input { flex:1; background:#2d2d2d; border:1px solid #555; color:#fff; padding:6px; border-radius:4px; }
+  .main { flex:1; display:flex; min-height:0; }
+  .tabs {
+    flex:1; display:flex; flex-direction:column; padding:12px 16px;
+  }
+  .tab-header { display:flex; gap:4px; margin-bottom:8px; }
+  .tab { background:#2d2d2d; border:1px solid #444; border-bottom:none; padding:8px 16px; border-radius:4px 4px 0 0; }
+  .tab.active { background:#1e1e1e; border-bottom:2px solid #0d7377; }
+  .list {
+    flex:1; background:#1e1e1e; border:1px solid #444; border-radius:4px;
+    padding:8px; overflow:auto;
+  }
+  .list-item { padding:8px 12px; border-bottom:1px solid #333; }
+  .list-item.selected { background:#0d7377; color:#fff; }
+  .list-item.incompatible { color:#ff9800; }
+  .detail {
+    width: 320px; background:#252526; border-left:1px solid #444; padding:12px; display:flex; flex-direction:column; gap:10px;
+  }
+  .panel { background:#1e1e1e; border:1px solid #444; border-radius:4px; padding:10px; font-size:12px; }
+  .panel h4 { margin:0 0 6px 0; color:#fff; }
+  .badge { display:inline-block; padding:2px 6px; border-radius:3px; font-size:11px; }
+  .badge-ok { background:#1b3a1b; color:#8f8; }
+  .badge-err { background:#3a1b1b; color:#f88; }
+  .bottom { background:#252526; padding:10px 16px; border-top:1px solid #444; display:flex; justify-content:space-between; align-items:center; }
+</style>
+</head>
+<body>
+<h2>模型库管理界面示意图（v2.7.3 多选 + 兼容性状态）</h2>
+<div class="note">
+  关键变更：<br>
+  1. 四个 QListWidget 全部设置为 ExtendedSelection，支持 Ctrl / Shift 多选。<br>
+  2. 顶部新增“批量注册 / 批量删除 / 批量验证”按钮，仅在多选或扫描标签页可用。<br>
+  3. 详情面板新增“加载兼容性”区域，自动预检 OpenCV DNN 是否能解析当前 ONNX。<br>
+  4. 列表项对不兼容模型显示橙色 [不兼容OpenCV]，对文件缺失显示红色。
+</div>
+
+<div class="dialog">
+  <div class="titlebar">模型库管理</div>
+  <div class="toolbar">
+    <span style="font-size:14px; color:#ccc;">批量操作：</span>
+    <div class="btn btn-primary">批量注册</div>
+    <div class="btn btn-danger">批量删除</div>
+    <div class="btn btn-verify">批量验证</div>
+    <div class="spacer"></div>
+    <div class="btn btn-primary">+ 导入模型</div>
+    <div class="btn btn-verify">验证完整性</div>
+    <div class="btn btn-secondary">扫描目录</div>
+  </div>
+
+  <div class="searchbar">
+    <span style="margin-right:8px;">🔍</span>
+    <input type="text" placeholder="搜索模型名称、文件名或描述（实时过滤当前标签页）...">
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <div class="tab-header">
+        <div class="tab">内置模型 (5)</div>
+        <div class="tab active">已加载/已注册 (N)</div>
+        <div class="tab">扫描结果 (0)</div>
+        <div class="tab">回收站(.trash) (0)</div>
+      </div>
+      <div class="list">
+        <div class="list-item selected">● yolov5s [已注册]</div>
+        <div class="list-item">● model_20260713_132358 [已注册]</div>
+        <div class="list-item incompatible">● best_model [已注册] [不兼容OpenCV]</div>
+        <div class="list-item incompatible">● best_model_20260715_174933 [已注册] [不兼容OpenCV]</div>
+        <div class="list-item">● model0713 [已注册]</div>
+      </div>
+    </div>
+
+    <div class="detail">
+      <div class="panel">
+        <h4>模型详情</h4>
+        <div>名称: yolov5s</div>
+        <div>路径: models/yolov5s.onnx</div>
+        <div>大小: 7.5 MB</div>
+        <div>类型: yolo / 输入: 640x640</div>
+      </div>
+      <div class="panel">
+        <h4>加载兼容性</h4>
+        <span class="badge badge-ok">✓ 当前 OpenCV DNN 后端可加载</span>
+      </div>
+      <div class="panel">
+        <h4>完整性校验</h4>
+        <span class="badge badge-ok">✓ 校验通过</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:auto;">
+        <div class="btn btn-primary">加载选中模型</div>
+        <div class="btn btn-verify">验证此项</div>
+        <div class="btn btn-danger">删除</div>
+      </div>
+      <div style="font-size:12px; color:#aaa;">
+        <input type="checkbox"> 删除时同时清理关联数据
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <span style="color:#777; font-size:11px;">提示：导入即发布到 models/ 目录；删除采用事务性 .trash 机制；不兼容 OpenCV DNN 的模型无法用于推理。</span>
+    <div class="btn btn-secondary">取消</div>
+  </div>
+</div>
+</body>
+</html>

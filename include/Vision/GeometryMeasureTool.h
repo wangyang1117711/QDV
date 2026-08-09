@@ -19,6 +19,8 @@ private:
     double m_minThreshold = 0.0;
     double m_maxThreshold = 1000.0;
     double m_pixelScale = 1.0;
+    // P0-3 扩展：输出单位选择（px/mm），默认 px 保持向后兼容
+    QString m_outputUnit = "px";
 
     double measureDistance(const std::vector<cv::Point>& contour) const;
     double measureArea(const std::vector<cv::Point>& contour) const;

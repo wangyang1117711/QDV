@@ -19,7 +19,9 @@ target_link_libraries(${MODULE_NAME} PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Concurrent
     AI
+    QDV::OperatorLibrary  # spec D Task 11：训练产物自动注册为算子（OperatorLibraryController）
 )
 
 target_compile_features(${MODULE_NAME} PUBLIC cxx_std_20)

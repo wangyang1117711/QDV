@@ -62,6 +62,9 @@ Popup {
     property bool isReadImage: false         // 当前节点是否为 ReadImage（输入源型算子）
     // v5.3.7：相机类算子不需要输入图像，可直接执行
     property bool isNoImageOperator: false   // OpenFramegrabber/GrabImage 等无需图像输入的算子
+    // v5.4：输出参数开关相关
+    property bool outputSectionCollapsed: true  // 输出设置分组默认折叠
+    property var outputConfig: ({})             // 当前节点的输出开关配置（key=输出名 value={enabled:bool}）
 
     // ============ 防抖定时器 ============
     // 参数变化后 300ms 内若无新变化，则触发执行；避免拖动滑块过程中频繁执行
@@ -124,6 +127,11 @@ Popup {
             }
         }
         tunableParams = tunable
+
+        // v5.4：加载节点输出开关配置（从 bridge 读取，走 UndoCommand 已持久化的数据）
+        if (bridge && nodeId) {
+            outputConfig = bridge.getOutputConfig(nodeId) || ({})
+        }
 
         // 检查上游/自身输入图像
         refreshInputImageStatus()
@@ -356,6 +364,115 @@ Popup {
                                 }
                             }
                         }
+
+                        // ============ v5.4: 输出参数开关区 ============
+                        // 放在参数列表下方，随 ScrollView 滚动
+                        // 仅当算子元数据包含 outputs 时显示
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 10
+                            spacing: 6
+                            visible: tuner.meta && tuner.meta.outputs
+                                     && tuner.meta.outputs.length > 0
+
+                            // 折叠标题
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 28
+                                color: Tok.DesignTokens.bgSurface
+                                radius: Tok.DesignTokens.radiusSm
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    spacing: 6
+
+                                    Label {
+                                        text: "输出参数设置"
+                                        color: Tok.DesignTokens.accentSuccess
+                                        font.bold: true
+                                        font.pixelSize: Tok.DesignTokens.fontSizeSm
+                                        font.family: Tok.DesignTokens.fontFamilyCJK
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Label {
+                                        text: tuner.outputSectionCollapsed ? "▶" : "▼"
+                                        color: Tok.DesignTokens.textSecondary
+                                        font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: tuner.outputSectionCollapsed = !tuner.outputSectionCollapsed
+                                    }
+                                }
+                            }
+
+                            // 输出开关列表（折叠时隐藏）
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                visible: !tuner.outputSectionCollapsed
+                                spacing: 4
+
+                                Repeater {
+                                    model: tuner.meta && tuner.meta.outputs ? tuner.meta.outputs : []
+                                    delegate: RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        CheckBox {
+                                            // 优先取 outputConfig 中的 enabled，未配置时回退到 defaultEnabled
+                                            checked: tuner.outputConfig[modelData.name]
+                                                     ? (tuner.outputConfig[modelData.name].enabled === true)
+                                                     : (modelData.defaultEnabled !== false)
+                                            onCheckedChanged: {
+                                                // 更新本地 outputConfig 副本（深拷贝触发变化信号）
+                                                var newConfig = JSON.parse(JSON.stringify(tuner.outputConfig || ({})))
+                                                if (!newConfig[modelData.name]) {
+                                                    newConfig[modelData.name] = {}
+                                                }
+                                                newConfig[modelData.name].enabled = checked
+                                                tuner.outputConfig = newConfig
+                                                // 实时写回 bridge（走 UndoCommand 可撤销路径）
+                                                if (tuner.bridge && tuner.nodeId) {
+                                                    tuner.bridge.updateOutputConfig(tuner.nodeId, newConfig)
+                                                }
+                                            }
+                                            // multiTargetOnly 输出在单目标场景下给出提示
+                                            ToolTip.visible: hovered && modelData.multiTargetOnly === true
+                                            ToolTip.text: "仅多目标分类场景下启用有效"
+                                        }
+
+                                        Rectangle {
+                                            width: 10; height: 10; radius: 2
+                                            color: modelData.color || Tok.DesignTokens.accentSuccess
+                                        }
+
+                                        Label {
+                                            text: modelData.cnName || modelData.name
+                                            color: Tok.DesignTokens.textPrimary
+                                            font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                            font.family: Tok.DesignTokens.fontFamilyCJK
+                                        }
+                                        Label {
+                                            text: "(" + (modelData.typeName || "") + ")"
+                                            color: Tok.DesignTokens.textSecondary
+                                            font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                            font.family: Tok.DesignTokens.fontFamilyCJK
+                                        }
+                                        Label {
+                                            text: modelData.desc || ""
+                                            color: Tok.DesignTokens.textPlaceholder
+                                            font.pixelSize: Tok.DesignTokens.fontSizeXs
+                                            font.family: Tok.DesignTokens.fontFamilyCJK
+                                            Layout.fillWidth: true
+                                            wrapMode: Text.WordWrap
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -431,7 +548,6 @@ Popup {
                 }
             }
         }
-
         // 底部按钮栏
         Rectangle {
             Layout.fillWidth: true

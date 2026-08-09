@@ -1,0 +1,11 @@
+{
+    "comment": "Q-DetectVision 受信任插件 SHA256 白名单 (S3 安全要求)\n\n本文件用于在 PluginManager::loadPlugin 加载 DLL 前强制校验文件 SHA256 摘要，\n防止插件被替换或篡改。文件缺失时 PluginManager 走 fail-open 兼容模式（仅告警）；\n文件存在时强制 fail-closed（哈希不在白名单即拒绝加载）。\n\n如何生成真实哈希（PowerShell）：\n  Get-FileHash -Algorithm SHA256 path\\to\\Histogram.dll | Select-Object -ExpandProperty Hash\n\n将输出的小写十六进制串填入对应条目的 sha256 字段即可。\n部署位置：<appdir>/config/trusted_plugins.json\n\n注意：DLL 重新编译后哈希会变化，需同步更新本文件。",
+    "trusted_plugins": [
+        {
+            "name": "Histogram.dll",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "_note": "占位哈希，部署前必须替换为 Histogram.dll 的真实 SHA256（小写十六进制 64 位）"
+        }
+    ],
+    "_strict_mode_env": "设置环境变量 QDV_STRICT_PLUGIN_VERIFY=1 可在配置缺失时强制 fail-closed（拒绝所有未校验插件）"
+}

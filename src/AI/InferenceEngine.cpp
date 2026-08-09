@@ -1,9 +1,13 @@
 #include "AI/InferenceEngine.h"
+#include "AI/InferenceCache.h"
 #include "Core/Logger.h"
+#include "Monitoring/TrainingInferenceMonitor.h"
 #include <QFileInfo>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <cmath>
+#include <algorithm>
+#include <vector>
 
 using namespace QDV;
 
@@ -33,7 +37,8 @@ QStringList InferenceEngine::availableBackends() {
 
 bool InferenceEngine::loadModel(const QString& modelPath,
                                  const QSize& inputSize,
-                                 const cv::Scalar& mean, double scale, bool swapRB) {
+                                 const cv::Scalar& mean, double scale, bool swapRB,
+                                 const cv::Scalar& std) {
     m_lastError.clear();
 
     if (!QFileInfo::exists(modelPath)) {
@@ -47,6 +52,7 @@ bool InferenceEngine::loadModel(const QString& modelPath,
     m_mean = mean;
     m_scale = scale;
     m_swapRB = swapRB;
+    m_std = std;
     m_modelPath = modelPath;
 
     try {
@@ -96,20 +102,36 @@ cv::Mat InferenceEngine::preprocess(const cv::Mat& input) {
     QElapsedTimer timer;
     timer.start();
 
+    // 1) 统一 resize 到模型输入尺寸
     cv::Mat resized;
     cv::resize(input, resized, cv::Size(m_inputSize.width(), m_inputSize.height()));
 
-    cv::Mat blob;
-    if (input.channels() == 3 && m_swapRB) {
-        cv::cvtColor(resized, resized, cv::COLOR_BGR2RGB);
+    // 2) 统一转换为 3 通道 BGR：分类/检测模型均要求 3 通道输入
+    // 单通道（如 ReadImage 通道分离 G）或 4 通道（BGRA）均需转换
+    cv::Mat bgr;
+    if (resized.channels() == 1) {
+        cv::cvtColor(resized, bgr, cv::COLOR_GRAY2BGR);
+    } else if (resized.channels() == 4) {
+        cv::cvtColor(resized, bgr, cv::COLOR_BGRA2BGR);
+    } else {
+        bgr = resized;
     }
 
-    if (input.channels() == 3) {
-        cv::Size cvSize(m_inputSize.width(), m_inputSize.height());
-        blob = cv::dnn::blobFromImage(resized, m_scale, cvSize, m_mean, m_swapRB, false);
-    } else {
-        std::vector<cv::Mat> channels = { resized };
-        blob = cv::dnn::blobFromImages(channels);
+    // 3) blobFromImage 一步完成: resize + swapRB(BGR→RGB) + scale(÷255) + mean 减法
+    // 修复: 不再手动 cvtColor(BGR2RGB)，避免与 swapRB=true 双重交换导致最终仍为 BGR
+    cv::Size cvSize(m_inputSize.width(), m_inputSize.height());
+    cv::Mat blob = cv::dnn::blobFromImage(bgr, m_scale, cvSize, m_mean, m_swapRB, false);
+
+    // 4) 补全 std 归一化: 训练时为 (pixel/255 - mean) / std，推理必须一致
+    // blob 为 NCHW [1, 3, H, W] float32，逐通道除以 std
+    if (m_std[0] != 1.0 || m_std[1] != 1.0 || m_std[2] != 1.0) {
+        int h = blob.size[2];
+        int w = blob.size[3];
+        for (int c = 0; c < 3; c++) {
+            // 构造指向第 c 个通道 H×W 区域的 Mat 头，原地除法
+            cv::Mat channel(h, w, CV_32F, blob.ptr<float>(0, c));
+            channel /= static_cast<float>(m_std[c]);
+        }
     }
 
     m_lastMetrics.preprocessMs = timer.elapsed();
@@ -125,6 +147,7 @@ QJsonObject InferenceEngine::postprocess(const cv::Mat& output, const cv::Mat& p
         .arg(preprocessed.size[3]).arg(preprocessed.size[2]);
 
     if (output.dims == 2 && output.cols > 0) {
+        // === 分类分支：dims=2 [1, nc] ===
         cv::Mat softmax;
         cv::exp(output, softmax);
         double sum = cv::sum(softmax)[0];
@@ -158,8 +181,34 @@ QJsonObject InferenceEngine::postprocess(const cv::Mat& output, const cv::Mat& p
             top.append(item);
         }
         result["top5"] = top;
-
+        result["model_type"] = "classification";
         result["pass"] = maxVal >= 0.5;
+
+    } else if (output.dims == 3) {
+        // === YOLO 检测分支：dims=3 ===
+        // YOLOv8: [1, 4+nc, anchors]  (第二维 4+nc，box 回归在前，类别在后)
+        // YOLOv5: [1, anchors, 5+nc]  (第二维是 anchors，最后一维 5+nc)
+        int dim1 = output.size[1];
+        int dim2 = output.size[2];
+
+        // 判别依据：YOLOv8 的第二维(4+nc)通常 < 第三维(anchors)
+        //          YOLOv5 的第二维(anchors)通常 > 第三维(5+nc)
+        // 如果 dim2 > dim1，大概率是 YOLOv8 [1, 4+nc, anchors]
+        // 如果 dim1 > dim2，大概率是 YOLOv5 [1, anchors, 5+nc]
+        if (dim2 > dim1) {
+            // YOLOv8: [1, 4+nc, anchors]
+            int numClasses = dim1 - 4;
+            if (numClasses > 0) {
+                result = postprocessYoloV8(output, numClasses);
+            }
+        } else {
+            // YOLOv5: [1, anchors, 5+nc]
+            int numClasses = dim2 - 5;
+            if (numClasses > 0) {
+                result = postprocessYoloV5(output, numClasses);
+            }
+        }
+
     } else if (output.dims == 4) {
         result["output_shape"] = QString("%1x%2x%3x%4")
             .arg(output.size[0]).arg(output.size[1])
@@ -167,6 +216,7 @@ QJsonObject InferenceEngine::postprocess(const cv::Mat& output, const cv::Mat& p
         result["category"] = "detection_output";
         result["confidence"] = 0.0;
         result["note"] = "raw_tensor_output";
+        result["model_type"] = "unknown";
         result["pass"] = false;
     }
 
@@ -191,10 +241,33 @@ bool InferenceEngine::runOpenCVDNN(const cv::Mat& blob, cv::Mat& output) {
 }
 
 bool InferenceEngine::runONNXRuntime(const cv::Mat& input, cv::Mat& output) {
+#ifdef HAS_ONNX_RUNTIME
+    // ONNX Runtime 实现
+    // 注意：当前为占位实现，实际集成需要：
+    // 1. 链接 onnxruntime 库
+    // 2. 创建 Ort::Env 和 Ort::Session
+    // 3. 创建输入 tensor
+    // 4. 运行推理
+    // 5. 转换输出为 cv::Mat
+
+    QElapsedTimer timer;
+    timer.start();
+
+    try {
+        // TODO: 实现 ONNX Runtime 推理
+        // 当前为占位，实际集成时替换
+        Logger::warn("ONNX Runtime backend not yet implemented - using OpenCV DNN as fallback");
+        return runOpenCVDNN(input, output);
+    } catch (const std::exception& e) {
+        Logger::error(QString("ONNX Runtime error: %1").arg(e.what()));
+        return false;
+    }
+#else
     Q_UNUSED(input)
     Q_UNUSED(output)
-    Logger::warn("ONNX Runtime backend not yet integrated — using OpenCV DNN as fallback");
+    Logger::warn("ONNX Runtime backend not compiled - using OpenCV DNN as fallback");
     return false;
+#endif
 }
 
 bool InferenceEngine::infer(const cv::Mat& input, cv::Mat& output, QJsonObject& result) {
@@ -206,6 +279,19 @@ bool InferenceEngine::infer(const cv::Mat& input, cv::Mat& output, QJsonObject& 
     if (input.empty()) {
         Logger::warn("Inference attempted with empty input");
         return false;
+    }
+
+    // === 第二层缓存：推理结果缓存查询（InferenceCache）===
+    QString resultCacheKey;
+    if (m_resultCache) {
+        qint64 modelMtime = QFileInfo(m_modelPath).lastModified().toMSecsSinceEpoch();
+        resultCacheKey = InferenceCache::generateKey(
+            m_modelPath, modelMtime, m_inputSize, m_confThreshold, input);
+        if (m_resultCache->lookup(resultCacheKey, result)) {
+            output = cv::Mat();  // 缓存命中，无 raw output
+            emit inferenceCompleted(true);
+            return true;
+        }
     }
 
     QElapsedTimer totalTimer;
@@ -222,6 +308,12 @@ bool InferenceEngine::infer(const cv::Mat& input, cv::Mat& output, QJsonObject& 
     }
 
     if (!ok) {
+        // 将最后一次错误信息写入 result，供上游算子/UI 展示
+        if (m_lastError.hasError && !m_lastError.errorMessage.isEmpty()) {
+            result["error"] = m_lastError.errorMessage;
+        } else {
+            result["error"] = QStringLiteral("推理执行失败");
+        }
         emit inferenceCompleted(false);
         return false;
     }
@@ -236,6 +328,14 @@ bool InferenceEngine::infer(const cv::Mat& input, cv::Mat& output, QJsonObject& 
     result["postprocess_ms"] = m_lastMetrics.postprocessMs;
     result["backend"] = availableBackends().value(m_backend);
     result["status"] = "success";
+
+    // 上报推理延迟到监控器
+    QDV::TrainingInferenceMonitor::instance()->recordInferenceLatency(m_lastMetrics.totalMs);
+
+    // === 第二层缓存：推理结果写入（InferenceCache）===
+    if (m_resultCache && !resultCacheKey.isEmpty()) {
+        m_resultCache->insert(resultCacheKey, result);
+    }
 
     emit inferenceCompleted(true);
     return true;
@@ -344,6 +444,220 @@ QList<Prediction> InferenceEngine::extractTopK(const cv::Mat& softmax, int k) {
     return topPredictions;
 }
 
+QJsonObject InferenceEngine::postprocessYoloV8(const cv::Mat& output, int numClasses) {
+    // YOLOv8 输出格式：[1, 4+nc, anchors]
+    // 前 4 维是 bbox（cx, cy, w, h），已是像素坐标（无需解码 anchor）
+    // 后 nc 维是类别概率（已就绪，无需 sigmoid）
+    // 转置为 [anchors, 4+nc] 方便逐行处理
+    cv::Mat transposed;
+    cv::transpose(output.reshape(1, output.size[1]), transposed);
+    // transposed: [anchors, 4+nc]
+
+    int numAnchors = transposed.rows;
+    std::vector<cv::Rect2d> boxes;
+    std::vector<double> scores;
+    std::vector<int> classIds;
+    double maxConfidence = 0.0;
+
+    for (int i = 0; i < numAnchors; ++i) {
+        float* row = transposed.ptr<float>(i);
+        float cx = row[0];
+        float cy = row[1];
+        float w = row[2];
+        float h = row[3];
+
+        // 找最大类别概率
+        float maxScore = 0.0f;
+        int maxClassId = 0;
+        for (int c = 0; c < numClasses; ++c) {
+            float score = row[4 + c];
+            if (score > maxScore) {
+                maxScore = score;
+                maxClassId = c;
+            }
+        }
+
+        if (maxScore > maxConfidence) {
+            maxConfidence = maxScore;
+        }
+
+        // 置信度过滤
+        if (maxScore >= m_confThreshold) {
+            cv::Rect2d box(cx - w / 2.0, cy - h / 2.0, w, h);
+            boxes.push_back(box);
+            scores.push_back(maxScore);
+            classIds.push_back(maxClassId);
+        }
+    }
+
+    // NMS 抑制重复框
+    std::vector<int> indices = nms(boxes, scores, m_iouThreshold);
+
+    // 构建结果 JSON
+    QJsonObject result;
+    result["model_type"] = "yolov8";
+    result["num_detections"] = static_cast<int>(indices.size());
+    result["max_confidence"] = formatConfidence(maxConfidence);
+
+    QJsonArray detections;
+    for (int idx : indices) {
+        QJsonObject det;
+        det["class_id"] = classIds[idx];
+        det["confidence"] = formatConfidence(scores[idx]);
+        det["cx"] = boxes[idx].x + boxes[idx].width / 2.0;
+        det["cy"] = boxes[idx].y + boxes[idx].height / 2.0;
+        det["w"] = boxes[idx].width;
+        det["h"] = boxes[idx].height;
+
+        // 类别名（有标签则用标签，否则用 Class_<id>）
+        if (classIds[idx] >= 0 && classIds[idx] < m_categoryLabels.size()) {
+            det["class_name"] = m_categoryLabels[classIds[idx]];
+        } else {
+            det["class_name"] = QString("Class_%1").arg(classIds[idx]);
+        }
+
+        detections.append(det);
+    }
+    result["detections"] = detections;
+    result["pass"] = !indices.empty();
+
+    return result;
+}
+
+QJsonObject InferenceEngine::postprocessYoloV5(const cv::Mat& output, int numClasses) {
+    // YOLOv5 输出格式：[1, anchors, 5+nc]
+    // 每行：[cx, cy, w, h, obj_conf, cls_conf_0, cls_conf_1, ...]
+    // 最终置信度 = sigmoid(obj_conf) * sigmoid(cls_conf)
+    // bbox 已是像素坐标
+    cv::Mat mat = output.reshape(1, output.size[1]);
+    // mat: [anchors, 5+nc]
+
+    int numAnchors = mat.rows;
+    std::vector<cv::Rect2d> boxes;
+    std::vector<double> scores;
+    std::vector<int> classIds;
+    double maxConfidence = 0.0;
+
+    auto sigmoid = [](float x) {
+        return 1.0f / (1.0f + std::exp(-x));
+    };
+
+    for (int i = 0; i < numAnchors; ++i) {
+        float* row = mat.ptr<float>(i);
+        float cx = row[0];
+        float cy = row[1];
+        float w = row[2];
+        float h = row[3];
+        float objConf = sigmoid(row[4]);
+
+        // 找最大类别概率
+        float maxClsScore = 0.0f;
+        int maxClassId = 0;
+        for (int c = 0; c < numClasses; ++c) {
+            float clsScore = sigmoid(row[5 + c]);
+            if (clsScore > maxClsScore) {
+                maxClsScore = clsScore;
+                maxClassId = c;
+            }
+        }
+
+        float finalScore = objConf * maxClsScore;
+        if (finalScore > maxConfidence) {
+            maxConfidence = finalScore;
+        }
+
+        // 置信度过滤
+        if (finalScore >= m_confThreshold) {
+            cv::Rect2d box(cx - w / 2.0, cy - h / 2.0, w, h);
+            boxes.push_back(box);
+            scores.push_back(finalScore);
+            classIds.push_back(maxClassId);
+        }
+    }
+
+    // NMS 抑制重复框
+    std::vector<int> indices = nms(boxes, scores, m_iouThreshold);
+
+    // 构建结果 JSON（格式与 YOLOv8 一致）
+    QJsonObject result;
+    result["model_type"] = "yolov5";
+    result["num_detections"] = static_cast<int>(indices.size());
+    result["max_confidence"] = formatConfidence(maxConfidence);
+
+    QJsonArray detections;
+    for (int idx : indices) {
+        QJsonObject det;
+        det["class_id"] = classIds[idx];
+        det["confidence"] = formatConfidence(scores[idx]);
+        det["cx"] = boxes[idx].x + boxes[idx].width / 2.0;
+        det["cy"] = boxes[idx].y + boxes[idx].height / 2.0;
+        det["w"] = boxes[idx].width;
+        det["h"] = boxes[idx].height;
+
+        if (classIds[idx] >= 0 && classIds[idx] < m_categoryLabels.size()) {
+            det["class_name"] = m_categoryLabels[classIds[idx]];
+        } else {
+            det["class_name"] = QString("Class_%1").arg(classIds[idx]);
+        }
+
+        detections.append(det);
+    }
+    result["detections"] = detections;
+    result["pass"] = !indices.empty();
+
+    return result;
+}
+
+double InferenceEngine::computeIoU(const cv::Rect2d& a, const cv::Rect2d& b) {
+    // 计算两个矩形的交并比（IoU）
+    double interX1 = std::max(a.x, b.x);
+    double interY1 = std::max(a.y, b.y);
+    double interX2 = std::min(a.x + a.width, b.x + b.width);
+    double interY2 = std::min(a.y + a.height, b.y + b.height);
+
+    double interW = std::max(0.0, interX2 - interX1);
+    double interH = std::max(0.0, interY2 - interY1);
+    double interArea = interW * interH;
+
+    double aArea = a.width * a.height;
+    double bArea = b.width * b.height;
+    double unionArea = aArea + bArea - interArea;
+
+    if (unionArea <= 0.0) return 0.0;
+    return interArea / unionArea;
+}
+
+std::vector<int> InferenceEngine::nms(const std::vector<cv::Rect2d>& boxes,
+                                       const std::vector<double>& scores,
+                                       double iouThreshold) {
+    // 非极大值抑制：按分数降序保留，抑制 IoU 超过阈值的重复框
+    std::vector<int> indices;
+    if (boxes.empty()) return indices;
+
+    // 按分数降序排序索引
+    std::vector<int> order(scores.size());
+    for (size_t i = 0; i < scores.size(); ++i) order[i] = static_cast<int>(i);
+    std::sort(order.begin(), order.end(),
+              [&scores](int a, int b) { return scores[a] > scores[b]; });
+
+    std::vector<bool> suppressed(scores.size(), false);
+    for (size_t i = 0; i < order.size(); ++i) {
+        int idx = order[i];
+        if (suppressed[idx]) continue;
+        indices.push_back(idx);
+
+        for (size_t j = i + 1; j < order.size(); ++j) {
+            int idx2 = order[j];
+            if (suppressed[idx2]) continue;
+            if (computeIoU(boxes[idx], boxes[idx2]) > iouThreshold) {
+                suppressed[idx2] = true;
+            }
+        }
+    }
+
+    return indices;
+}
+
 RecognitionResult InferenceEngine::inferWithResult(const cv::Mat& input, const QString& imageId) {
     RecognitionResult result;
     result.imageId = imageId;
@@ -399,6 +713,243 @@ RecognitionResult InferenceEngine::inferWithResult(const cv::Mat& input, const Q
     if (m_inferenceMode == SingleMode) {
         m_inferenceCache.insert(cacheKey, new RecognitionResult(result));
     }
+
+    return result;
+}
+
+// ===== v5.4.0: 检测/分割推理接口实现 =====
+
+bool InferenceEngine::detect(const cv::Mat& input, double confThreshold, double iouThreshold,
+                              QJsonObject& result) {
+    if (!m_modelLoaded) {
+        m_lastError.set(2001, "ModelNotLoaded", "模型未加载，请先调用 loadModel()");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+    if (input.empty()) {
+        m_lastError.set(2002, "EmptyInput", "输入图像为空");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+
+    m_confThreshold = confThreshold;
+    m_iouThreshold = iouThreshold;
+
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
+    // 预处理
+    QElapsedTimer preTimer;
+    preTimer.start();
+    cv::Mat blob = cv::dnn::blobFromImage(input, m_scale, cv::Size(m_inputSize.width(), m_inputSize.height()), m_mean, m_swapRB, false, CV_32F);
+    // std 归一化（如果配置了）
+    if (m_std[0] != 1.0 || m_std[1] != 1.0 || m_std[2] != 1.0) {
+        // blobFromImage 已做 (pixel - mean) * scale，这里再除以 std
+        cv::Mat channels[3];
+        cv::split(blob, channels);
+        for (int c = 0; c < 3; ++c) {
+            channels[c] /= m_std[c];
+        }
+        cv::merge(channels, 3, blob);
+    }
+    m_lastMetrics.preprocessMs = preTimer.elapsed();
+
+    // 推理
+    QElapsedTimer inferTimer;
+    inferTimer.start();
+    cv::Mat output;
+    if (!runOpenCVDNN(blob, output)) {
+        m_lastError.set(2003, "InferenceFailed", "OpenCV DNN 推理失败");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+    m_lastMetrics.inferenceMs = inferTimer.elapsed();
+
+    // 后处理（自动识别 YOLOv5/v8 格式）
+    QElapsedTimer postTimer;
+    postTimer.start();
+    int numClasses = m_categoryLabels.size();
+    if (numClasses == 0) numClasses = 80;  // COCO 默认 80 类
+
+    // 根据输出形状判断 YOLO 版本
+    // YOLOv8: [1, 4+nc, anchors]  -- dims=3, size[1]=4+nc
+    // YOLOv5: [1, anchors, 5+nc]  -- dims=3, size[2]=5+nc
+    if (output.dims == 3) {
+        if (output.size[1] == 4 + numClasses) {
+            // YOLOv8 格式
+            result = postprocessYoloV8(output, numClasses);
+        } else if (output.size[2] == 5 + numClasses) {
+            // YOLOv5 格式
+            result = postprocessYoloV5(output, numClasses);
+        } else {
+            // 未知格式，尝试 YOLOv5 兜底
+            result = postprocessYoloV5(output, numClasses);
+        }
+    } else if (output.dims == 2) {
+        // 分类输出误用 detect，返回空检测结果
+        QJsonArray emptyArr;
+        result["detections"] = emptyArr;
+        result["numDetections"] = 0;
+        result["warning"] = "模型输出为 2D（分类格式），无检测结果";
+    } else {
+        QJsonArray emptyArr;
+        result["detections"] = emptyArr;
+        result["numDetections"] = 0;
+        result["warning"] = QString("未知输出维度: %1").arg(output.dims);
+    }
+
+    m_lastMetrics.postprocessMs = postTimer.elapsed();
+    m_lastMetrics.totalMs = totalTimer.elapsed();
+    m_lastMetrics.backend = "OpenCV_DNN";
+
+    emit inferenceCompleted(true);
+    return true;
+}
+
+bool InferenceEngine::segment(const cv::Mat& input, cv::Mat& mask, cv::Mat& overlay,
+                               QJsonObject& result) {
+    if (!m_modelLoaded) {
+        m_lastError.set(2001, "ModelNotLoaded", "模型未加载，请先调用 loadModel()");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+    if (input.empty()) {
+        m_lastError.set(2002, "EmptyInput", "输入图像为空");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
+    // 预处理
+    QElapsedTimer preTimer;
+    preTimer.start();
+    cv::Mat blob = cv::dnn::blobFromImage(input, m_scale, cv::Size(m_inputSize.width(), m_inputSize.height()), m_mean, m_swapRB, false, CV_32F);
+    if (m_std[0] != 1.0 || m_std[1] != 1.0 || m_std[2] != 1.0) {
+        cv::Mat channels[3];
+        cv::split(blob, channels);
+        for (int c = 0; c < 3; ++c) {
+            channels[c] /= m_std[c];
+        }
+        cv::merge(channels, 3, blob);
+    }
+    m_lastMetrics.preprocessMs = preTimer.elapsed();
+
+    // 推理
+    QElapsedTimer inferTimer;
+    inferTimer.start();
+    cv::Mat output;
+    if (!runOpenCVDNN(blob, output)) {
+        m_lastError.set(2003, "InferenceFailed", "OpenCV DNN 推理失败");
+        emit inferenceError(m_lastError.errorCode, m_lastError.errorType, m_lastError.errorMessage);
+        return false;
+    }
+    m_lastMetrics.inferenceMs = inferTimer.elapsed();
+
+    // 后处理
+    QElapsedTimer postTimer;
+    postTimer.start();
+    result = postprocessSegment(output, mask, overlay, input);
+    m_lastMetrics.postprocessMs = postTimer.elapsed();
+
+    m_lastMetrics.totalMs = totalTimer.elapsed();
+    m_lastMetrics.backend = "OpenCV_DNN";
+
+    emit inferenceCompleted(true);
+    return true;
+}
+
+QJsonObject InferenceEngine::postprocessSegment(const cv::Mat& output, cv::Mat& mask, cv::Mat& overlay,
+                                                  const cv::Mat& originalInput) {
+    QJsonObject result;
+
+    // 分割模型输出通常是 [1, numClasses, H, W] 或 [1, 1, H, W]
+    // 对每个像素取 argmax 得到类别索引
+    cv::Mat resizedOutput;
+
+    if (output.dims == 4) {
+        // [1, C, H, W] 格式
+        int numClasses = output.size[1];
+        int outH = output.size[2];
+        int outW = output.size[3];
+
+        // 重塑为 [C, H*W] 便于 argmax
+        cv::Mat reshaped = output.reshape(1, numClasses);
+        cv::Mat argmax = cv::Mat::zeros(outH, outW, CV_8UC1);
+
+        for (int y = 0; y < outH; ++y) {
+            for (int x = 0; x < outW; ++x) {
+                int maxIdx = 0;
+                float maxVal = -1e30f;
+                for (int c = 0; c < numClasses; ++c) {
+                    float val = reshaped.at<float>(c, y * outW + x);
+                    if (val > maxVal) {
+                        maxVal = val;
+                        maxIdx = c;
+                    }
+                }
+                argmax.at<uchar>(y, x) = static_cast<uchar>(maxIdx);
+            }
+        }
+
+        // 调整到原始图像尺寸
+        cv::resize(argmax, mask, originalInput.size(), 0, 0, cv::INTER_NEAREST);
+    } else if (output.dims == 3) {
+        // [1, H, W] 格式（单通道分割）
+        int outH = output.size[1];
+        int outW = output.size[2];
+        cv::Mat single = cv::Mat(outH, outW, CV_32FC1);
+        for (int y = 0; y < outH; ++y) {
+            for (int x = 0; x < outW; ++x) {
+                single.at<float>(y, x) = output.at<float>(0, y, x);
+            }
+        }
+        single.convertTo(single, CV_8UC1, 1.0);
+        cv::resize(single, mask, originalInput.size(), 0, 0, cv::INTER_NEAREST);
+    } else {
+        // 未知格式，返回空掩膜
+        mask = cv::Mat::zeros(originalInput.size(), CV_8UC1);
+        result["warning"] = QString("未知分割输出维度: %1").arg(output.dims);
+    }
+
+    // 生成彩色叠加图
+    overlay = originalInput.clone();
+    if (!mask.empty()) {
+        // 为每个类别生成随机颜色
+        int numClasses = 21;  // VOC 默认 21 类
+        cv::Mat coloredMask = cv::Mat::zeros(mask.size(), CV_8UC3);
+        for (int i = 0; i < numClasses; ++i) {
+            cv::Vec3b color(
+                static_cast<uchar>((i * 50) % 256),
+                static_cast<uchar>((i * 100 + 50) % 256),
+                static_cast<uchar>((i * 150 + 100) % 256)
+            );
+            cv::Mat classMask = (mask == i);
+            coloredMask.setTo(color, classMask);
+        }
+
+        // 半透明叠加
+        cv::addWeighted(overlay, 0.6, coloredMask, 0.4, 0, overlay);
+    }
+
+    // 统计各类别像素数
+    QJsonObject classStats;
+    if (!mask.empty()) {
+        for (int i = 0; i < 21; ++i) {
+            int count = cv::countNonZero(mask == i);
+            if (count > 0) {
+                QString label = (i < m_categoryLabels.size())
+                    ? m_categoryLabels[i]
+                    : QString("class_%1").arg(i);
+                classStats[label] = count;
+            }
+        }
+    }
+
+    result["classStats"] = classStats;
+    result["maskWidth"] = mask.cols;
+    result["maskHeight"] = mask.rows;
 
     return result;
 }

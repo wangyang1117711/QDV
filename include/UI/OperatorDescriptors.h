@@ -49,6 +49,14 @@ struct ParamSpec {
     QString      help;          ///< 帮助气泡文本
     QString      unit;          ///< 单位（"px" "ms" "%"）
 
+    // v2.0 阶段二 Task 6：AI 算子参数支持提示词库 Enum
+    // 非空时（如 "textPrompts"/"categoryLabels"），UI 下拉从 PromptLibrary 取值
+    // 含义：标记该 String/Vector 类型参数的取值来源是共享提示词库
+    //   - UI 层据此渲染"目标类型多选下拉"（builtin 12 类 + custom + recent）
+    //   - 多选后用 " . " 拼接为提示词串填入参数值
+    //   - 空字符串=普通参数（默认，向后兼容）
+    QString      promptLibrarySource;  ///< 提示词库源标记（"textPrompts"/"categoryLabels" 等，空=普通参数）
+
     /// 序列化为 QVariantMap（QML 端 JS 友好）
     QVariantMap toMap() const;
     /// 从 QVariantMap 反序列化（QML 端回传用）
@@ -65,6 +73,17 @@ struct OperatorMeta {
     QString             description; ///< 简要描述（帮助气泡用）
     QList<ParamSpec>    params;      ///< 参数列表
     QList<QVariantMap>  outputs;     ///< v3.0.0：输出参数列表，每项 {name, cnName, typeName, desc, color}
+                                     ///< v5.4.0 升级（AI 分类输出扩展）：
+                                     ///<   - defaultEnabled (bool, 默认 true)：该输出是否默认启用
+                                     ///<     单目标必填项（classId/className/confidence）为 true；
+                                     ///<     多目标专属项（classArray/confidenceArray）为 false
+                                     ///<   - multiTargetOnly (bool, 默认 false)：是否仅多目标场景下可用
+                                     ///<     true 表示该项仅在多目标检测场景下输出，单目标场景应隐藏
+                                     ///< 输出项配置增强（spec：editor-output-connection-optimization）：
+                                     ///<   - group (string, 默认取 typeName)：输出项分组名，用于分类展示
+                                     ///<   - alias (string, 默认取 cnName)：输出项别名，用于显示/重命名
+                                     ///<   - priority (int, 默认 100)：冲突消歧优先级，越小越优先
+                                     ///<   以上字段在 OperatorMeta::toMap/fromMap 中统一归一化，缺失回退默认值
 
     /// 序列化为 QVariantMap（QML 端 JS 友好）
     QVariantMap toMap() const;

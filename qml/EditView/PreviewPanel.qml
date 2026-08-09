@@ -44,6 +44,11 @@ Rectangle {
     property real dragStartOffsetX: 0
     property real dragStartOffsetY: 0
 
+    // === 分屏对比模式 ===
+    property bool splitModeEnabled: false      // 分屏模式开关
+    property string splitBeforePath: ""        // before 图像路径（file:/// URL）
+    property string splitAfterPath: ""         // after 图像路径（file:/// URL）
+
     // === 信号 ===
     signal pinToggled()
     signal requestHide()
@@ -63,7 +68,18 @@ Rectangle {
             if (nodeId === root.currentPreviewNodeId && success) {
                 root.currentImagePath = outputPath
                 root.refreshImage()
+                // 同步分屏 after 路径（after 即当前预览输出）
+                if (root.splitModeEnabled && outputPath) {
+                    root.splitAfterPath = "file:///" + outputPath.replace(/\\/g, "/")
+                }
             }
+        }
+        function onSnapshotAdded() {
+            root.updateSplitPaths()
+        }
+        function onSnapshotsCleared() {
+            root.splitBeforePath = ""
+            root.splitAfterPath = ""
         }
     }
 
@@ -155,6 +171,21 @@ Rectangle {
         root.refreshImage()
     }
 
+    // === 更新分屏对比路径（从最新 Snapshot 获取 before/after）===
+    function updateSplitPaths() {
+        if (!bridge || !bridge.previewManager) return
+        var beforePath = bridge.previewManager.latestSnapshotBeforePath()
+        var afterPath = bridge.previewManager.latestSnapshotAfterPath()
+        // before 路径：来自最新快照的 before 图像
+        root.splitBeforePath = beforePath ? "file:///" + beforePath.replace(/\\/g, "/") : ""
+        // after 路径：优先用快照 after，回退到当前预览输出
+        if (afterPath) {
+            root.splitAfterPath = "file:///" + afterPath.replace(/\\/g, "/")
+        } else if (root.currentImagePath) {
+            root.splitAfterPath = root.currentImagePath
+        }
+    }
+
     // === 主布局 ===
     ColumnLayout {
         anchors.fill: parent
@@ -224,6 +255,25 @@ Rectangle {
                     onClicked: root.fitToWindow()
                 }
 
+                // 分屏对比切换按钮
+                Button {
+                    text: "分屏"
+                    checkable: true
+                    checked: root.splitModeEnabled
+                    Layout.preferredWidth: 48
+                    Layout.preferredHeight: 24
+                    font.pixelSize: Tok.DesignTokens.fontSizeSm
+                    ToolTip.text: "前后对比分屏视图"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
+                    onClicked: {
+                        root.splitModeEnabled = !root.splitModeEnabled
+                        if (root.splitModeEnabled) {
+                            root.updateSplitPaths()
+                        }
+                    }
+                }
+
                 // 缩放比例显示
                 Label {
                     text: (root.zoomFactor * 100).toFixed(0) + "%"
@@ -290,7 +340,7 @@ Rectangle {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: false  // v5.3：禁用异步加载，避免后台线程纹理与 QRhi 跨实例
                 cache: false
-                visible: source !== "" && status === Image.Ready
+                visible: source !== "" && status === Image.Ready && !root.splitModeEnabled
                 anchors.centerIn: parent
 
                 // 缩放变换
@@ -309,7 +359,7 @@ Rectangle {
             // 占位提示（无图像时）
             Label {
                 anchors.centerIn: parent
-                visible: root.currentImagePath === ""
+                visible: root.currentImagePath === "" && !root.splitModeEnabled
                 text: root.currentPreviewNodeId === "" ? "请选择算子节点" : "等待预览执行..."
                 color: Tok.DesignTokens.textTertiary
                 font.pixelSize: Tok.DesignTokens.fontSizeLg
@@ -318,7 +368,7 @@ Rectangle {
             // 加载中提示
             Label {
                 anchors.centerIn: parent
-                visible: root.currentImagePath !== "" && previewImage.status === Image.Loading
+                visible: root.currentImagePath !== "" && previewImage.status === Image.Loading && !root.splitModeEnabled
                 text: "加载中..."
                 color: Tok.DesignTokens.textSecondary
                 font.pixelSize: Tok.DesignTokens.fontSizeBase
@@ -327,6 +377,7 @@ Rectangle {
             // 滚轮缩放
             MouseArea {
                 anchors.fill: parent
+                visible: !root.splitModeEnabled
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 hoverEnabled: true
                 onWheel: function(wheel) {
@@ -363,6 +414,7 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 anchors.rightMargin: Tok.DesignTokens.space2
                 anchors.bottomMargin: Tok.DesignTokens.space2
+                visible: !root.splitModeEnabled
                 width: infoRow.implicitWidth + Tok.DesignTokens.space4
                 height: infoRow.implicitHeight + Tok.DesignTokens.space2
                 color: Tok.DesignTokens.bgSurface
@@ -389,6 +441,112 @@ Rectangle {
                         text: (root.imageInfo.channels || 0) + "ch"
                         color: Tok.DesignTokens.textTertiary
                         font.pixelSize: Tok.DesignTokens.fontSizeXs
+                    }
+                }
+            }
+
+            // === 分屏对比视图（左 before / 右 after）===
+            Rectangle {
+                id: splitViewContainer
+                anchors.fill: parent
+                visible: root.splitModeEnabled
+                color: Tok.DesignTokens.bgCanvas
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 1
+
+                    // 左侧：before 图像
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        color: Tok.DesignTokens.bgCanvas
+                        clip: true
+
+                        Image {
+                            id: beforeImage
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: false
+                            cache: false
+                            source: root.splitBeforePath
+                            visible: source !== "" && status === Image.Ready
+                        }
+
+                        // Before 标签
+                        Label {
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.margins: Tok.DesignTokens.space2
+                            text: "Before"
+                            color: Tok.DesignTokens.textSecondary
+                            font.pixelSize: Tok.DesignTokens.fontSizeSm
+                            padding: 4
+                            background: Rectangle {
+                                color: Tok.DesignTokens.bgSurface
+                                opacity: 0.7
+                                radius: Tok.DesignTokens.radiusSm
+                            }
+                        }
+
+                        // 无 before 图像提示
+                        Label {
+                            anchors.centerIn: parent
+                            visible: root.splitBeforePath === "" || beforeImage.status !== Image.Ready
+                            text: "无 Before 图像"
+                            color: Tok.DesignTokens.textTertiary
+                            font.pixelSize: Tok.DesignTokens.fontSizeBase
+                        }
+                    }
+
+                    // 中间分隔线
+                    Rectangle {
+                        Layout.preferredWidth: 2
+                        Layout.fillHeight: true
+                        color: Tok.DesignTokens.borderDefault
+                    }
+
+                    // 右侧：after 图像
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        color: Tok.DesignTokens.bgCanvas
+                        clip: true
+
+                        Image {
+                            id: afterImage
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: false
+                            cache: false
+                            source: root.splitAfterPath
+                            visible: source !== "" && status === Image.Ready
+                        }
+
+                        // After 标签
+                        Label {
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.margins: Tok.DesignTokens.space2
+                            text: "After"
+                            color: Tok.DesignTokens.accentPrimary
+                            font.pixelSize: Tok.DesignTokens.fontSizeSm
+                            padding: 4
+                            background: Rectangle {
+                                color: Tok.DesignTokens.bgSurface
+                                opacity: 0.7
+                                radius: Tok.DesignTokens.radiusSm
+                            }
+                        }
+
+                        // 无 after 图像提示
+                        Label {
+                            anchors.centerIn: parent
+                            visible: root.splitAfterPath === "" || afterImage.status !== Image.Ready
+                            text: "无 After 图像"
+                            color: Tok.DesignTokens.textTertiary
+                            font.pixelSize: Tok.DesignTokens.fontSizeBase
+                        }
                     }
                 }
             }

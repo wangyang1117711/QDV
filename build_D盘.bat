@@ -10,8 +10,8 @@ echo ========================================
 echo.
 
 REM 设置 Qt 环境
-set QTDIR=D:\Qt\6.5.0\mingw_64
-set PATH=%QTDIR%\bin;D:\Qt\Tools\mingw1120_64\bin;%PATH%
+set QTDIR=D:\Qt_new\6.11.1\mingw_64
+set PATH=%QTDIR%\bin;D:\Qt_new\Tools\mingw1310_64\bin;%PATH%
 set CMAKE_PREFIX_PATH=%QTDIR%
 
 REM 检查 Qt 是否存在
@@ -19,7 +19,7 @@ if not exist "%QTDIR%\bin\qmake.exe" (
     echo.
     echo [错误] Qt6 未找到！
     echo.
-    echo 请确保已将 Qt 安装到 D:\Qt\6.5.0\mingw_64
+    echo 请确保已将 Qt 安装到 D:\Qt_new\6.11.1\mingw_64
     echo 或运行: qmake --version
     echo.
     echo 安装指南: D:\Qt\Qt6_D盘安装指南.md
@@ -55,7 +55,7 @@ echo 配置 CMake
 echo ========================================
 cmake .. -G "MinGW Makefiles" ^
     -DCMAKE_BUILD_TYPE=Release ^
-    -DCMAKE_PREFIX_PATH="D:/Qt/6.5.0/mingw_64"
+    -DCMAKE_PREFIX_PATH="D:/Qt_new/6.11.1/mingw_64"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

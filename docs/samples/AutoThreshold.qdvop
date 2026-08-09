@@ -1,0 +1,118 @@
+{
+  "type": "AutoThreshold",
+  "kind": "config",
+  "cnName": "自动阈值分割",
+  "category": "图像分割",
+  "subGroup": "阈值分割",
+  "iconPath": "qrc:/icons/threshold.svg",
+  "description": "基于双峰直方图自动选择阈值的二值化算子，支持自动/手动两种模式，可输出分割区域与二值图像",
+  "version": "1.0.0",
+  "status": "published",
+  "author": "QDV Sample",
+  "tags": ["自动", "阈值", "分割"],
+  "inputs": [
+    {
+      "name": "image",
+      "cnName": "输入图像",
+      "type": "Image",
+      "desc": "待分割的灰度或彩色图像",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "region",
+      "cnName": "分割区域",
+      "type": "Region",
+      "desc": "阈值化后的二值区域",
+      "color": "#FFA726",
+      "defaultEnabled": true,
+      "multiTargetOnly": false
+    },
+    {
+      "name": "binaryImage",
+      "cnName": "二值图像",
+      "type": "Image",
+      "desc": "阈值化后的二值图像",
+      "color": "#69F0AE",
+      "defaultEnabled": true,
+      "multiTargetOnly": false
+    }
+  ],
+  "params": [
+    {
+      "name": "mode",
+      "cnName": "阈值模式",
+      "type": 2,
+      "defaultValue": "auto",
+      "options": ["自动", "手动"],
+      "optionKeys": ["auto", "manual"],
+      "help": "自动模式基于双峰直方图选择阈值；手动模式使用指定阈值",
+      "unit": ""
+    },
+    {
+      "name": "manualThreshold",
+      "cnName": "手动阈值",
+      "type": 1,
+      "defaultValue": 128.0,
+      "minValue": 0.0,
+      "maxValue": 255.0,
+      "step": 1.0,
+      "options": [],
+      "optionKeys": [],
+      "help": "手动模式下使用的阈值（0-255）",
+      "unit": ""
+    },
+    {
+      "name": "maxValue",
+      "cnName": "最大值",
+      "type": 1,
+      "defaultValue": 255.0,
+      "minValue": 0.0,
+      "maxValue": 255.0,
+      "step": 1.0,
+      "options": [],
+      "optionKeys": [],
+      "help": "二值化后的最大像素值",
+      "unit": ""
+    },
+    {
+      "name": "invert",
+      "cnName": "反转结果",
+      "type": 3,
+      "defaultValue": false,
+      "options": [],
+      "optionKeys": [],
+      "help": "勾选后反转黑白（类似 BINARY_INV）",
+      "unit": ""
+    },
+    {
+      "name": "description",
+      "cnName": "备注",
+      "type": 4,
+      "defaultValue": "",
+      "options": [],
+      "optionKeys": [],
+      "help": "该算子的用途说明（可选）",
+      "unit": ""
+    }
+  ],
+  "dependencies": [],
+  "implementation": {
+    "recipe": ["Threshold"],
+    "script": "",
+    "library": "",
+    "entry": ""
+  },
+  "permission": {
+    "owner": "user",
+    "roles": {}
+  },
+  "tests": {
+    "sampleInput": "",
+    "expectedOutput": "",
+    "tolerance": 0.0,
+    "metrics": []
+  },
+  "doc": "自动阈值分割算子 v1.0.0\n\n用法：\n1. 连接输入图像\n2. 选择阈值模式（自动/手动）\n3. 手动模式下设置阈值\n4. 可选反转结果\n\n输出：\n- region: 分割区域（用于后续轮廓分析等）\n- binaryImage: 二值图像（用于可视化）"
+}

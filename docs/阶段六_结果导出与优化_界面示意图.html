@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>阶段六 Task 14-15 界面示意图 - 结果导出与优化</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif; background: #f5f5f5; color: #222; padding: 24px; }
+  h1 { font-size: 22px; color: #1a237e; margin-bottom: 8px; }
+  .subtitle { color: #555; margin-bottom: 24px; font-size: 13px; }
+  .section { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .section h2 { font-size: 16px; color: #283593; margin-bottom: 12px; border-left: 4px solid #3f51b5; padding-left: 8px; }
+  .section h3 { font-size: 14px; color: #444; margin: 12px 0 6px; }
+
+  /* ===== 主视图工具栏 ===== */
+  .view-frame { border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
+  .banner { background: #FFF8E1; color: #5D4037; padding: 8px 12px; text-align: center; font-size: 12px; border-bottom: 1px solid #FFB300; }
+  .toolbar { display: flex; align-items: center; padding: 8px 12px; background: #fafafa; border-bottom: 1px solid #ddd; gap: 6px; flex-wrap: wrap; }
+  .btn { padding: 5px 12px; border: 1px solid #bbb; background: #fff; border-radius: 3px; font-size: 12px; cursor: pointer; }
+  .btn:hover { background: #f0f0f0; }
+  .btn-new { border-color: #4caf50; background: #e8f5e9; color: #2e7d32; font-weight: bold; }
+  .btn-export { border-color: #ff9800; background: #fff3e0; color: #e65100; font-weight: bold; }
+  .progress { flex: 1; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; min-width: 120px; }
+  .progress-fill { height: 100%; background: #4caf50; width: 65%; }
+  .status { font-size: 12px; color: #555; min-width: 180px; }
+  .splitter { display: flex; height: 240px; }
+  .pane { padding: 8px; border-right: 1px solid #ddd; overflow: auto; font-size: 11px; }
+  .pane-left { width: 240px; background: #fcfcfc; }
+  .pane-mid { flex: 1; background: #fff; }
+  .pane-right { width: 200px; background: #fcfcfc; border-right: none; }
+  .pane h4 { font-size: 12px; color: #666; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+  .field { margin-bottom: 6px; }
+  .field-label { color: #888; font-size: 10px; }
+  .field-val { background: #f5f5f5; padding: 3px 6px; border-radius: 2px; font-size: 11px; }
+  .legend { font-size: 11px; color: #888; margin-top: 8px; }
+  .legend .new-tag { color: #2e7d32; font-weight: bold; }
+  .legend .export-tag { color: #e65100; font-weight: bold; }
+
+  /* ===== 导出对话框 ===== */
+  .dialog-mask { background: rgba(0,0,0,0.3); padding: 30px; }
+  .dialog { background: #fff; border-radius: 6px; max-width: 560px; margin: 0 auto; box-shadow: 0 8px 24px rgba(0,0,0,0.2); overflow: hidden; }
+  .dialog-header { background: #3f51b5; color: #fff; padding: 10px 16px; font-size: 14px; font-weight: bold; }
+  .dialog-body { padding: 16px; }
+  .dialog-info { background: #f5f5f5; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #555; margin-bottom: 14px; line-height: 1.6; }
+  .dialog-info b { color: #1a237e; }
+  .group { border: 1px solid #ddd; border-radius: 4px; padding: 12px; margin-bottom: 12px; }
+  .group-title { font-size: 13px; font-weight: bold; color: #333; margin-bottom: 8px; }
+  .radio-row { display: flex; align-items: flex-start; padding: 5px 0; font-size: 12px; line-height: 1.5; }
+  .radio-row input { margin-right: 8px; margin-top: 2px; }
+  .radio-row.selected { color: #1a237e; }
+  .radio-row .desc { color: #777; font-size: 11px; }
+  .img-format-row { display: flex; align-items: center; margin-top: 8px; padding-left: 24px; font-size: 12px; }
+  .img-format-row select { padding: 2px 6px; margin-left: 6px; border: 1px solid #bbb; border-radius: 2px; }
+  .img-format-row.disabled { color: #aaa; }
+  .path-row { display: flex; align-items: center; gap: 6px; }
+  .path-input { flex: 1; padding: 5px 8px; border: 1px solid #bbb; border-radius: 3px; font-size: 12px; background: #fafafa; }
+  .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid #eee; background: #fafafa; }
+  .btn-primary { background: #3f51b5; color: #fff; border: none; padding: 6px 16px; border-radius: 3px; font-size: 12px; cursor: pointer; }
+  .btn-secondary { background: #fff; color: #555; border: 1px solid #bbb; padding: 6px 16px; border-radius: 3px; font-size: 12px; cursor: pointer; }
+
+  /* ===== 缓存流程图 ===== */
+  .flow { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 0; flex-wrap: wrap; }
+  .flow-node { padding: 10px 14px; border: 1px solid #bbb; border-radius: 4px; font-size: 12px; background: #fff; text-align: center; min-width: 90px; }
+  .flow-node.start { background: #e3f2fd; border-color: #2196f3; color: #0d47a1; }
+  .flow-node.cache { background: #fff3e0; border-color: #ff9800; color: #e65100; }
+  .flow-node.infer { background: #fce4ec; border-color: #e91e63; color: #880e4f; }
+  .flow-node.hit { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; font-weight: bold; }
+  .flow-arrow { color: #888; font-size: 18px; }
+  .flow-label { font-size: 10px; color: #888; margin-top: 4px; }
+  .cache-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px; }
+  .cache-table th, .cache-table td { border: 1px solid #ddd; padding: 5px 8px; text-align: left; }
+  .cache-table th { background: #f5f5f5; color: #555; }
+  .cache-table code { background: #f0f0f0; padding: 1px 4px; border-radius: 2px; color: #c62828; font-size: 10px; }
+
+  .note { background: #fffde7; border-left: 3px solid #fbc02d; padding: 8px 12px; font-size: 11px; color: #5d4037; margin-top: 8px; }
+  .file-list { font-size: 11px; color: #555; line-height: 1.8; }
+  .file-list code { background: #eceff1; padding: 1px 6px; border-radius: 2px; color: #263238; }
+</style>
+</head>
+<body>
+
+<h1>阶段六 Task 14-15：结果导出与优化 — 界面示意图</h1>
+<div class="subtitle">spec v2 · 阶段六 · 2026-08-04 · 改动文件：ResultExportDialog / InferenceCache / ZeroShotDetectView / ZeroShotDetectTool</div>
+
+<!-- ===== 1. ZeroShotDetectView 工具栏变动 ===== -->
+<div class="section">
+  <h2>1. ZeroShotDetectView 工具栏变动（新增"批量推理"与"导出结果"按钮）</h2>
+  <div class="view-frame">
+    <div class="banner">💡 生产链路请使用 ZeroShotDetect 算子（在方案编辑中拖入），本 tab 用于模型调试/批量评估</div>
+    <div class="toolbar">
+      <button class="btn">加载图像</button>
+      <button class="btn">批量目录</button>
+      <button class="btn btn-new">+ 批量推理</button>
+      <button class="btn">停止</button>
+      <button class="btn btn-export">⬇ 导出结果</button>
+      <div class="progress"><div class="progress-fill"></div></div>
+      <div class="status">批量推理中: 6/10 张...</div>
+    </div>
+    <div class="splitter">
+      <div class="pane pane-left">
+        <h4>ZeroShotPanel 配置</h4>
+        <div class="field"><div class="field-label">模型类型</div><div class="field-val">AnomalyCLIP</div></div>
+        <div class="field"><div class="field-label">目标类型（多选）</div><div class="field-val">✔ scratch · ✔ dent</div></div>
+        <div class="field"><div class="field-label">提示词</div><div class="field-val">scratch . dent</div></div>
+        <div class="field"><div class="field-label">异常阈值</div><div class="field-val">0.50</div></div>
+        <div class="field"><div class="field-label">检测阈值</div><div class="field-val">0.25</div></div>
+        <div class="field"><div class="field-label">具体模型</div><div class="field-val">anomalyclip.onnx (本地)</div></div>
+      </div>
+      <div class="pane pane-mid">
+        <h4>ZeroShotResultPanel 结果展示</h4>
+        <div class="field">
+          <div style="display:flex;gap:16px;">
+            <div style="width:120px;height:120px;border-radius:50%;border:10px solid #4ec9b0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#dcdcaa;">0.32</div>
+            <div style="flex:1;">
+              <div class="field"><div class="field-label">分类</div><div class="field-val">scratch</div></div>
+              <div class="field"><div class="field-label">置信度</div><div class="field-val">0.87</div></div>
+              <div class="field"><div class="field-label">检测框</div><div class="field-val">3 个</div></div>
+              <div class="field"><div class="field-label">耗时</div><div class="field-val">127 ms</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="pane pane-right">
+        <h4>模型注意事项</h4>
+        <div style="font-size:10px;color:#777;line-height:1.6;">
+          <b>AnomalyCLIP</b><br>
+          <i>零样本异常检测</i><br><br>
+          <b>注意事项</b>
+          <ul style="padding-left:14px;"><li>需提供正常样本对照</li><li>阈值建议 0.3-0.6</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span class="new-tag">绿色</span> = Task 15 新增"批量推理"按钮（选目录后立即触发 inferBatchAsync）；
+    <span class="export-tag">橙色</span> = Task 14 新增"导出结果"按钮（弹出对话框，需先有单图推理结果）。
+  </div>
+</div>
+
+<!-- ===== 2. ResultExportDialog 对话框 ===== -->
+<div class="section">
+  <h2>2. ResultExportDialog 导出对话框（三格式选择 + 路径选择）</h2>
+  <div class="dialog-mask">
+    <div class="dialog">
+      <div class="dialog-header">导出检测结果</div>
+      <div class="dialog-body">
+        <div class="dialog-info">
+          图像: <b>sample_001.jpg</b><br>
+          检测框: <b>3</b> 个 &nbsp;|&nbsp; 模型: <b>AnomalyCLIP</b>
+        </div>
+
+        <div class="group">
+          <div class="group-title">导出格式</div>
+          <div class="radio-row selected">
+            <input type="radio" name="fmt" checked>
+            <div>
+              <div>JSON（含完整字段：图像路径/ROI/检测框/置信度/耗时/模型/时间戳）</div>
+            </div>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="fmt">
+            <div>
+              <div>CSV（每个检测框一行，便于表格软件打开）</div>
+            </div>
+          </div>
+          <div class="radio-row">
+            <input type="radio" name="fmt">
+            <div>
+              <div>图片叠加标注（在原图上绘制检测框+标签+ROI，保存为 PNG/JPG）</div>
+            </div>
+          </div>
+          <div class="img-format-row disabled">
+            图片格式：
+            <select disabled>
+              <option>PNG (.png)</option>
+              <option>JPEG (.jpg)</option>
+            </select>
+            <span style="margin-left:8px;color:#aaa;">（仅图片格式时启用）</span>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">输出路径</div>
+          <div class="path-row">
+            <input type="text" class="path-input" value="D:/QDVExports/zeroshot_result_20260804_153012.json">
+            <button class="btn">浏览...</button>
+          </div>
+          <div class="note">默认导出到 D:/QDVExports（D 盘，遵守 AGENTS.md 存储要求：少占 C 盘）</div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn-secondary">取消</button>
+        <button class="btn-primary">导出</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 3. 三种导出格式示例 ===== -->
+<div class="section">
+  <h2>3. 三种导出格式示例</h2>
+
+  <h3>3.1 JSON 格式（缩进输出）</h3>
+  <pre style="background:#263238;color:#eceff1;padding:12px;border-radius:4px;font-size:11px;overflow:auto;line-height:1.5;">
+{
+    "imagePath": "D:/images/sample_001.jpg",
+    "modelName": "AnomalyCLIP",
+    "elapsedMs": 127.0,
+    "timestamp": "2026-08-04T15:30:12",
+    "roi": { "type": "rect", "x": 100, "y": 50, "w": 400, "h": 300 },
+    "anomalyScore": 0.32,
+    "confidence": 0.87,
+    "category": "scratch",
+    "detections": [
+        { "cx": 280.5, "cy": 180.2, "w": 45.0, "h": 12.0, "confidence": 0.87, "classId": 0, "className": "scratch" },
+        { "cx": 410.0, "cy": 220.0, "w": 30.0, "h": 8.0,  "confidence": 0.72, "classId": 1, "className": "dent" }
+    ],
+    "numDetections": 2
+}</pre>
+
+  <h3>3.2 CSV 格式（含 UTF-8 BOM，Excel 兼容）</h3>
+  <pre style="background:#263238;color:#eceff1;padding:12px;border-radius:4px;font-size:11px;overflow:auto;line-height:1.5;">
+imagePath,classId,className,cx,cy,w,h,confidence,anomalyScore,elapsedMs,modelName
+D:/images/sample_001.jpg,0,scratch,280.5,180.2,45.0,12.0,0.87,0.32,127,AnomalyCLIP
+D:/images/sample_001.jpg,1,dent,410.0,220.0,30.0,8.0,0.72,0.32,127,AnomalyCLIP</pre>
+
+  <h3>3.3 图片叠加标注（PNG/JPG）</h3>
+  <div style="background:#eee;padding:16px;border-radius:4px;text-align:center;">
+    <svg width="320" height="200" viewBox="0 0 320 200" style="background:#fff;border:1px solid #ccc;">
+      <!-- 原图区域 -->
+      <rect x="20" y="20" width="280" height="160" fill="#f5f5f5" stroke="#999"/>
+      <!-- ROI 紫红色矩形 -->
+      <rect x="40" y="40" width="180" height="120" fill="none" stroke="#ff0080" stroke-width="2"/>
+      <text x="44" y="56" font-size="9" fill="#ff0080">ROI</text>
+      <!-- 检测框1 红色 -->
+      <rect x="80" y="70" width="50" height="14" fill="none" stroke="red" stroke-width="2"/>
+      <rect x="80" y="56" width="80" height="14" fill="red"/>
+      <text x="82" y="66" font-size="8" fill="white">scratch: 87.0%</text>
+      <!-- 检测框2 绿色 -->
+      <rect x="160" y="100" width="35" height="10" fill="none" stroke="green" stroke-width="2"/>
+      <rect x="160" y="86" width="70" height="14" fill="green"/>
+      <text x="162" y="96" font-size="8" fill="white">dent: 72.0%</text>
+    </svg>
+    <div style="font-size:11px;color:#666;margin-top:8px;">
+      检测框（按类别颜色：红/绿/蓝/黄/紫/青）+ 标签+置信度 &nbsp;|&nbsp; ROI（紫红色，矩形/多边形）
+    </div>
+  </div>
+</div>
+
+<!-- ===== 4. InferenceCache 缓存流程 ===== -->
+<div class="section">
+  <h2>4. InferenceCache 推理结果缓存流程（Task 15.2）</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:8px;">集成于 <code>ZeroShotDetectTool::execute()</code>，同图同参数重复执行场景显著加速。</p>
+  <div class="flow">
+    <div class="flow-node start">execute(input)</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node cache">计算缓存键<br><small>SHA-256(图)+提示词+<br>SHA-256(ROI)+模型类型+路径</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node cache">lookup()</div>
+    <span class="flow-arrow">→</span>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="flow-node hit">命中 ✓<br><small>直接返回缓存结果</small></div>
+      <div class="flow-node infer">未命中 ✗<br><small>zsu::Kit::infer()</small></div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:#888;margin:8px 0 12px;">
+    未命中路径：infer → insert(写入缓存) → 返回 &nbsp;|&nbsp; 命中路径：直接返回（跳过推理）
+  </div>
+
+  <h3>缓存键与值结构</h3>
+  <table class="cache-table">
+    <tr><th>维度</th><th>实现</th><th>说明</th></tr>
+    <tr><td>图像哈希</td><td><code>cv::imencode(".jpg") + QCryptographicHash::Sha256</code></td><td>JPG 编码比 PNG 快，对缓存键稳定性足够</td></tr>
+    <tr><td>提示词</td><td>原串拼接（如 "scratch . dent"）</td><td>提示词变化即视为不同输入</td></tr>
+    <tr><td>ROI 哈希</td><td><code>QJsonObject::fromVariantMap(roi) → SHA-256</code></td><td>矩形/多边形 ROI 均覆盖</td></tr>
+    <tr><td>模型类型+路径</td><td>原串拼接</td><td>模型切换/重训后自动失效</td></tr>
+    <tr><td>缓存值</td><td><code>ToolResult</code>（含 data/ports/score/overlayImage）</td><td>完整结果，命中时直接复用</td></tr>
+    <tr><td>容量策略</td><td><code>QCache</code> LRU，默认 100 条</td><td>超限自动淘汰最旧条目</td></tr>
+    <tr><td>线程安全</td><td><code>QMutex</code> 互斥</td><td>方案并行执行时安全</td></tr>
+    <tr><td>统计</td><td><code>hitCount()/missCount()</code></td><td>缓存命中率监控</td></tr>
+  </table>
+  <div class="note">
+    <b>与现有 <code>::InferenceCache</code>（include/AI/）的关系：</b> 两者命名空间不同（新类在 <code>QDV::</code>，旧类在全局作用域），可共存。<br>
+    新类按 spec 要求：<br>
+    ① 缓存键含提示词 + ROI 哈希（旧类不含）；<br>
+    ② 缓存值是 <code>ToolResult</code>（旧类是 <code>QJsonObject</code>），便于在 <code>ZeroShotDetectTool::execute</code> 直接复用；<br>
+    ③ 单例模式 + 默认 100 条（旧类非单例，默认 50 条）。
+  </div>
+</div>
+
+<!-- ===== 5. 改动文件清单 ===== -->
+<div class="section">
+  <h2>5. 改动文件清单</h2>
+  <div class="file-list">
+    <b>新增文件：</b><br>
+    • <code>include/UI/ResultExportDialog.h</code> — 导出对话框头（三格式选择 + 路径选择 + 数据导入接口）<br>
+    • <code>src/UI/ResultExportDialog.cpp</code> — 导出对话框实现（JSON/CSV/图片叠加标注三种导出 + drawAnnotations 绘制）<br>
+    • <code>include/Core/InferenceCache.h</code> — 推理缓存头（单例 + QCache + QMutex + 哈希策略）<br>
+    • <code>src/Core/InferenceCache.cpp</code> — 推理缓存实现（imageToHash/roiToHash/buildKey + lookup/insert）<br>
+    <br>
+    <b>修改文件：</b><br>
+    • <code>include/UI/ZeroShotDetectView.h</code> — 新增 m_exportBtn/m_batchInferBtn 成员 + onExportResultsRequested/onBatchInferRequested 槽 + m_lastResult/m_lastImage/m_hasLastResult 缓存<br>
+    • <code>src/UI/ZeroShotDetectView.cpp</code> — 工具栏添加两按钮 + 信号连接 + 导出/批量推理槽实现 + onInferenceCompleted 缓存最近结果<br>
+    • <code>src/Vision/ZeroShotDetectTool.cpp</code> — execute() 集成 InferenceCache lookup/insert，命中跳过推理<br>
+    • <code>src/Core/CMakeLists.txt</code> — 注册 InferenceCache.h/.cpp + 链接 OpenCV_LIBS<br>
+    • <code>src/UI/CMakeLists.txt</code> — 注册 ResultExportDialog.h/.cpp<br>
+    • <code>.trae/specs/add-target-region-detection-config/tasks.md</code> — Task 14-15 子任务打勾<br>
+    • <code>.trae/specs/add-target-region-detection-config/checklist.md</code> — F 小节验证点打勾
+  </div>
+  <div class="note" style="margin-top:12px;">
+    <b>编译验证：</b> Core / Vision / UI 三模块 <code>cmake --build build --target &lt;module&gt;</code> 全部通过（MinGW 13.1 + Qt 6.11.1 + OpenCV 4.13）。<br>
+    <b>向后兼容：</b> 未删除任何现有接口；旧 <code>::InferenceCache</code>（AI 模块）保留不动；ZeroShotDetectView 现有"批量目录"按钮保留。<br>
+    <b>存储遵守：</b> 导出默认路径 <code>D:/QDVExports</code>（D 盘，非 C 盘）。
+  </div>
+</div>
+
+</body>
+</html>

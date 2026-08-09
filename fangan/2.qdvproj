@@ -1,0 +1,301 @@
+{
+    "categories": {
+        "categories": [
+            {
+                "color": "#CCCCCC",
+                "createdAt": "2026-07-13T13:57:20",
+                "depth": 0,
+                "description": "",
+                "id": "cat_1_1b3819f0",
+                "isPublic": true,
+                "modifiedAt": "2026-07-13T13:57:20",
+                "name": "zipper",
+                "parentId": "",
+                "sampleImages": [
+                ]
+            },
+            {
+                "color": "#CCCCCC",
+                "createdAt": "2026-07-13T13:57:25",
+                "depth": 0,
+                "description": "",
+                "id": "cat_2_408814db",
+                "isPublic": true,
+                "modifiedAt": "2026-07-13T13:57:25",
+                "name": "pill",
+                "parentId": "",
+                "sampleImages": [
+                ]
+            }
+        ],
+        "exportTime": "2026-07-13T13:57:51",
+        "nextId": 3,
+        "version": "1.0"
+    },
+    "format": "qdv-training-project",
+    "history": [
+    ],
+    "images": {
+        "entries": [
+            {
+                "channels": 1,
+                "fileName": "000.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/000.png",
+                "fileSize": 408948,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/000.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "001.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/001.png",
+                "fileSize": 390450,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/001.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "002.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/002.png",
+                "fileSize": 396395,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/002.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "003.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/003.png",
+                "fileSize": 400121,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/003.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "004.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/004.png",
+                "fileSize": 402919,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/004.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "005.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/005.png",
+                "fileSize": 401557,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/005.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "006.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/006.png",
+                "fileSize": 385662,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/006.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "007.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/007.png",
+                "fileSize": 379731,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/007.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "008.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/008.png",
+                "fileSize": 395269,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/008.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "009.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/009.png",
+                "fileSize": 404413,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/009.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "010.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/010.png",
+                "fileSize": 387857,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/010.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "011.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/011.png",
+                "fileSize": 401522,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/011.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "012.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/012.png",
+                "fileSize": 410658,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/012.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "013.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/013.png",
+                "fileSize": 397288,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/013.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "014.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/014.png",
+                "fileSize": 394574,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/014.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "015.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/015.png",
+                "fileSize": 394767,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/015.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "016.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/016.png",
+                "fileSize": 397728,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/016.png",
+                "width": 1024
+            },
+            {
+                "channels": 1,
+                "fileName": "017.png",
+                "filePath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/017.png",
+                "fileSize": 399626,
+                "format": "PNG",
+                "height": 1024,
+                "isAnnotated": false,
+                "isSelected": false,
+                "label": "",
+                "originalPath": "E:/anchor/Trae/图像/mvtec_anomaly_detection/zipper/test/split_teeth/017.png",
+                "width": 1024
+            }
+        ]
+    },
+    "mode": "reference",
+    "project": {
+        "createdAt": "2026-07-13T13:56:46",
+        "description": "",
+        "modifiedAt": "2026-07-13T13:57:51",
+        "name": "",
+        "schemaVersion": 1
+    },
+    "training": {
+        "params": {
+            "batchSize": 8,
+            "learningRate": 0.001,
+            "modelType": "resnet18",
+            "numEpochs": 20,
+            "valSplit": 0.2
+        },
+        "state": {
+            "hasTrained": false,
+            "lastMetrics": {
+            },
+            "lastTrainedAt": "",
+            "onnxPath": ""
+        }
+    },
+    "version": "1.0"
+}

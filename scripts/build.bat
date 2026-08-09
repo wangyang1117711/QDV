@@ -1,5 +1,18 @@
 @echo off
-REM Q-DetectVision 构建脚本
+REM ======================================================================
+REM Q-DetectVision 构建脚本（Visual Studio 版本）
+REM ----------------------------------------------------------------------
+REM 注意：本脚本使用 "Visual Studio 17 2022" 生成器，与项目主推的
+REM       MinGW 工具链（Qt 6.11.1 + MinGW 13.1.0）不匹配。
+REM       仅作为 VS 构建的备用参考脚本保留，非主推构建方式。
+REM
+REM 主推构建脚本（MinGW 工具链）：
+REM   - build.ps1            （PowerShell，推荐）
+REM   - build_D盘.bat        （批处理）
+REM   - build_D盘.ps1        （PowerShell，D 盘 Qt）
+REM
+REM 如需使用本脚本，请确保已安装 Visual Studio 2022 及对应 Qt MSVC 版本。
+REM ======================================================================
 
 setlocal enabledelayedexpansion
 

@@ -21,8 +21,21 @@
         <!-- v4.0 快捷键面板 -->
         <file alias="ShortcutsPanel.qml">EditView/ShortcutsPanel.qml</file>
         <!-- v2.6.0 新增组件：预览窗口 + 变量管理 -->
-        <file alias="PreviewPanel.qml">EditView/PreviewPanel.qml</file>
-        <file alias="VariableManagerPanel.qml">EditView/VariableManagerPanel.qml</file>
-        <file alias="VarEditDialog.qml">EditView/VarEditDialog.qml</file>
+    <file alias="PreviewPanel.qml">EditView/PreviewPanel.qml</file>
+    <file alias="VariableManagerPanel.qml">EditView/VariableManagerPanel.qml</file>
+    <file alias="VarEditDialog.qml">EditView/VarEditDialog.qml</file>
+    <!-- 算子流程导出对话框 -->
+    <file alias="ExportDialog.qml">EditView/ExportDialog.qml</file>
+    <!-- v2.7.0 O1a：算子导入对话框 + 已导入算子面板 -->
+    <file alias="OperatorImportDialog.qml">EditView/OperatorImportDialog.qml</file>
+    <file alias="ImportedOperatorsPanel.qml">EditView/ImportedOperatorsPanel.qml</file>
+    <!-- v2.8.0 算子帮助弹窗 -->
+    <file alias="OperatorHelpDialog.qml">EditView/OperatorHelpDialog.qml</file>
+    <!-- spec: editor-output-connection-optimization Task5：连接管理面板 -->
+    <file alias="ConnectionManagerPanel.qml">EditView/ConnectionManagerPanel.qml</file>
+    <!-- spec: editor-output-connection-optimization Task7：输入/输出项冲突指定面板 -->
+    <file alias="ConflictPanel.qml">EditView/ConflictPanel.qml</file>
+    <!-- spec: editor-output-connection-optimization Task10：智能算子推荐展示区 -->
+    <file alias="RecommendationPanel.qml">EditView/RecommendationPanel.qml</file>
     </qresource>
 </RCC>

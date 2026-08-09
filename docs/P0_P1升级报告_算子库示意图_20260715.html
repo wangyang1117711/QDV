@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV 算子库 P0/P1 升级 - 算子分类示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #f5f7fa;
+    color: #1f2937;
+    padding: 24px;
+    line-height: 1.55;
+  }
+  h1 {
+    color: #0f172a;
+    margin-bottom: 8px;
+    border-left: 5px solid #2563eb;
+    padding-left: 12px;
+  }
+  .subtitle { color: #6b7280; margin-bottom: 24px; font-size: 14px; }
+  .summary {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat-card {
+    background: white;
+    padding: 14px;
+    border-radius: 6px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .stat-card .num { font-size: 28px; font-weight: 700; color: #2563eb; }
+  .stat-card .lbl { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .category {
+    background: white;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-top: 4px solid #cbd5e1;
+  }
+  .category.p0 { border-top-color: #ef4444; }
+  .category.p1 { border-top-color: #f59e0b; }
+  .category.cleanup { border-top-color: #6b7280; }
+  .category.infra { border-top-color: #10b981; }
+  .cat-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cat-title { font-size: 17px; font-weight: 600; color: #1e293b; }
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #e5e7eb;
+    color: #374151;
+    font-weight: 600;
+  }
+  .tag.p0 { background: #fee2e2; color: #991b1b; }
+  .tag.p1 { background: #fef3c7; color: #92400e; }
+  .tag.new { background: #d1fae5; color: #065f46; }
+  .tag.cleanup { background: #e5e7eb; color: #4b5563; }
+  .tag.infra { background: #dbeafe; color: #1e40af; }
+  .ops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .op {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fafbfc;
+    transition: all 0.15s;
+  }
+  .op:hover { border-color: #2563eb; background: #eff6ff; }
+  .op-name {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .op-name .type {
+    font-family: Consolas, monospace;
+    color: #2563eb;
+    font-size: 12px;
+  }
+  .op-desc { font-size: 12px; color: #6b7280; }
+  .op.new { border-left: 3px solid #10b981; background: #f0fdf4; }
+  .op.removed { border-left: 3px solid #ef4444; background: #fef2f2; text-decoration: line-through; opacity: 0.7; }
+  .op.modified { border-left: 3px solid #f59e0b; background: #fffbeb; }
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-color {
+    width: 14px; height: 14px; border-radius: 3px;
+  }
+  .legend-color.new { background: #10b981; }
+  .legend-color.modified { background: #f59e0b; }
+  .legend-color.removed { background: #ef4444; }
+  .footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+    color: #6b7280;
+    font-size: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <h1>QDV 算子库 P0/P1 升级 - 算子分类示意图</h1>
+  <div class="subtitle">生成日期：2026-07-15 | 构建结果：✅ 全绿 (BUILD_EXIT_CODE=0)</div>
+
+  <div class="summary">
+    <div class="stat-card">
+      <div class="num">13</div>
+      <div class="lbl">新增真实可用算子</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">3</div>
+      <div class="lbl">清理幻影算子 (P0-1)</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">2</div>
+      <div class="lbl">扩展已有算子 (P0-3/P0-6a)</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">1</div>
+      <div class="lbl">typed ports 体系 (P1-3)</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color new"></div>新增算子</div>
+    <div class="legend-item"><div class="legend-color modified"></div>扩展/修改</div>
+    <div class="legend-item"><div class="legend-color removed"></div>已清理</div>
+  </div>
+
+  <!-- P0-1 清理 -->
+  <div class="category cleanup">
+    <div class="cat-header">
+      <span class="cat-title">P0-1 幻影算子清理</span>
+      <span class="tag cleanup">清理</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op removed">
+        <div class="op-name">Reconstruct3D</div>
+        <div class="op-desc">无实现，从 operators.json + Router 删除</div>
+      </div>
+      <div class="op removed">
+        <div class="op-name">BinocularDisparity</div>
+        <div class="op-desc">无实现，从 operators.json + Router 删除</div>
+      </div>
+      <div class="op removed">
+        <div class="op-name">SurfaceMatching</div>
+        <div class="op-desc">无实现，从 operators.json + Router 删除</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P0 标定与坐标 -->
+  <div class="category p0">
+    <div class="cat-header">
+      <span class="cat-title">P0 标定与坐标类（路由分类新增）</span>
+      <span class="tag p0">P0</span>
+      <span class="tag new">新增分类</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op new">
+        <div class="op-name">位置修正 <span class="type">PositionCorrect</span></div>
+        <div class="op-desc">P0-2 仿射变换矩阵算子（平移/旋转/缩放）</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">单位换算 <span class="type">UnitConvert</span></div>
+        <div class="op-desc">P0-3 px↔mm 单位换算（标定系数）</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">相机标定 <span class="type">CameraCalib</span></div>
+        <div class="op-desc">P0-5 张正友标定（cv::calibrateCamera）</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">手眼标定 <span class="type">HandEyeCalib</span></div>
+        <div class="op-desc">分类从「3D视觉」迁移到「标定与坐标」</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">机器人位姿 <span class="type">RobotPose</span></div>
+        <div class="op-desc">分类从「3D视觉」迁移到「标定与坐标」</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P0-4 几何测量扩展 -->
+  <div class="category p0">
+    <div class="cat-header">
+      <span class="cat-title">P0-3/P0-4 几何测量扩展</span>
+      <span class="tag p0">P0</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op new">
+        <div class="op-name">卡尺测量 <span class="type">Caliper</span></div>
+        <div class="op-desc">P0-4 双卡尺亚像素边缘测量</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">几何测量 <span class="type">GeometryMeasure</span></div>
+        <div class="op-desc">P0-3 扩展：outputUnit 参数（px/mm）</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">点到点距离 <span class="type">DistancePp</span></div>
+        <div class="op-desc">P0-3 扩展：outputUnit 参数 + ports 输出</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P0-6 高级匹配检测 -->
+  <div class="category p0">
+    <div class="cat-header">
+      <span class="cat-title">P0-6 高级匹配与检测类</span>
+      <span class="tag p0">P0</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op modified">
+        <div class="op-name">形状匹配 <span class="type">FindShapeModel</span></div>
+        <div class="op-desc">P0-6a 各向异性 ScaleX/ScaleY 尺度搜索</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">轮廓匹配 <span class="type">ContourMatch</span></div>
+        <div class="op-desc">P0-6b 基于 Hu 矩的抗形变轮廓匹配</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">颜色比对 <span class="type">ColorMatch</span></div>
+        <div class="op-desc">P0-6c 多色彩空间（HSV/RGB/Lab）直方图比对</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">端到端OCR <span class="type">DLOCR</span></div>
+        <div class="op-desc">P0-6d 文本检测（OpenCV dnn/MSER）+ 现有 OCR</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">光源控制 <span class="type">LightControl</span></div>
+        <div class="op-desc">P0-6e 复用 IOController（无硬件时降级）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P1-3 typed ports 基础设施 -->
+  <div class="category infra">
+    <div class="cat-header">
+      <span class="cat-title">P1-3 typed ports 类型化数据端口（基础设施）</span>
+      <span class="tag infra">基础设施</span>
+      <span class="tag p1">P1</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op modified">
+        <div class="op-name">VisionTool 基类</div>
+        <div class="op-desc">增加 PortType/PortDescriptor + outputPorts/inputPorts 虚方法</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">ToolResult</div>
+        <div class="op-desc">增加 QVariantMap ports 字段（非图像 typed 数据通道）</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">EditViewBridge</div>
+        <div class="op-desc">connectNodes 增加端口类型校验 + getOperatorPorts 查询</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">PortDescriptor.cpp</div>
+        <div class="op-desc">typeName/compatible/toMap + 兼容规则（Any 通配）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P1-4 流程控制 -->
+  <div class="category p1">
+    <div class="cat-header">
+      <span class="cat-title">P1-4 流程控制类</span>
+      <span class="tag p1">P1</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op new">
+        <div class="op-name">循环遍历 <span class="type">Loop</span></div>
+        <div class="op-desc">P1-4a 多 ROI/多目标遍历执行</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">Python脚本 <span class="type">Script</span></div>
+        <div class="op-desc">P1-4b 嵌入 CPython（D盘 Python314）+ AST 白名单</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">变量运算 <span class="type">Variable</span></div>
+        <div class="op-desc">P1-4c 数值/字符串运算 + 格式化</div>
+      </div>
+      <div class="op modified">
+        <div class="op-name">分支控制 <span class="type">BranchControl</span></div>
+        <div class="op-desc">P1-4c 扩展：ge/le/ne/contains/startswith/endswith/in</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P1-5 缺陷检测 -->
+  <div class="category p1">
+    <div class="cat-header">
+      <span class="cat-title">P1-5 表面缺陷检测类</span>
+      <span class="tag p1">P1</span>
+    </div>
+    <div class="ops-grid">
+      <div class="op new">
+        <div class="op-name">表面缺陷检测 <span class="type">SurfaceDefect</span></div>
+        <div class="op-desc">P1-5a 模板差分 + 形态约束 + 灵敏度调节</div>
+      </div>
+      <div class="op new">
+        <div class="op-name">轮廓比对 <span class="type">ContourCompare</span></div>
+        <div class="op-desc">P1-5b 实测轮廓 vs 标准轮廓偏差判定（matchShapes）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    QDV 算子库 P0/P1 升级完成 | 编译产物：QDetectVision.exe + python314.dll + QDV_tests.exe
+  </div>
+</body>
+</html>

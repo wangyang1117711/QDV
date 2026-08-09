@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV 算子帮助 — 界面示意图</title>
+<style>
+  :root{
+    --bgCanvas:#121212; --bgPanel:#1A1A1A; --bgSurface:#242424; --bgHover:#2F2F2F; --bgHeader:#1F1F1F;
+    --textPrimary:#FFFFFF; --textSecondary:#C8C8C8; --textTertiary:#9E9E9E; --textDisabled:#6E6E6E;
+    --accentPrimary:#7C4DFF; --accentPrimaryHover:#9D7BFF; --accentSuccess:#69F0AE; --accentWarning:#FFD740;
+    --accentInfo:#448AFF; --borderDefault:#3D3D3D;
+    --cat:#FFB74D; /* 图像采集橙 */
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Microsoft YaHei UI","PingFang SC",sans-serif;background:var(--bgCanvas);color:var(--textPrimary);padding:24px;}
+  h1{font-size:18px;margin-bottom:6px;}
+  .sub{color:var(--textTertiary);font-size:12px;margin-bottom:20px;}
+  .mono{font-family:"Cascadia Code",Consolas,monospace;}
+  .stage{position:relative;background:var(--bgCanvas);border:1px solid var(--borderDefault);border-radius:8px;height:560px;overflow:hidden;background-image:linear-gradient(var(--bgSurface) 1px,transparent 1px),linear-gradient(90deg,var(--bgSurface) 1px,transparent 1px);background-size:24px 24px;background-position:-1px -1px;}
+  .stage::after{content:"画布区 (Canvas) · 网格背景";position:absolute;top:10px;left:12px;color:var(--textDisabled);font-size:11px;}
+
+  /* ===== 节点卡片 ===== */
+  .node{position:absolute;top:120px;left:90px;width:180px;height:64px;background:var(--bgSurface);border:2px solid var(--cat);border-radius:4px;box-shadow:0 0 12px rgba(124,77,255,.25);}
+  .node .glow{position:absolute;inset:-3px;border:2px solid rgba(124,77,255,.25);border-radius:6px;pointer-events:none;}
+  .node .ttl{position:absolute;top:8px;left:10px;font-size:13px;font-weight:700;letter-spacing:.2px;}
+  .node .sub-ttl{position:absolute;top:30px;left:10px;font-size:12px;color:var(--textSecondary);}
+  .node .port{position:absolute;width:8px;height:8px;border-radius:50%;border:1px solid var(--bgCanvas);top:50%;transform:translateY(-50%);}
+  .node .pin{left:-4px;background:var(--accentWarning);}
+  .node .pout{right:-4px;background:var(--accentSuccess);}
+
+  /* "?" 帮助按钮 */
+  .qbtn{position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;background:#6E6E6E;border:1px solid var(--bgCanvas);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;cursor:pointer;transition:background .15s;}
+  .qbtn:hover{background:var(--textTertiary);}
+  .qbtn-label{position:absolute;top:6px;right:26px;color:var(--accentPrimaryHover);font-size:10px;white-space:nowrap;}
+
+  .node-hover{left:300px;}
+  .node-hover .qbtn{background:var(--textTertiary);}
+
+  /* ===== 弹窗 ===== */
+  .mask{position:absolute;inset:0;background:rgba(0,0,0,.55);}
+  .dialog{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:540px;height:560px;background:var(--bgPanel);border:1px solid var(--accentPrimary);border-radius:6px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  .dlg-header{height:40px;background:var(--bgHeader);display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--cat);}
+  .dlg-title{font-size:16px;font-weight:700;}
+  .dlg-type{font-size:12px;color:var(--textTertiary);}
+  .spacer{flex:1;}
+  .close{width:32px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--textTertiary);font-size:18px;cursor:pointer;background:none;border:none;}
+  .dlg-body{flex:1;overflow-y:auto;padding:8px 0;}
+  .sec{padding:0 16px;margin-bottom:16px;}
+  .sec-h{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+  .sec-bar{width:3px;height:16px;border-radius:1.5px;}
+  .sec-name{font-size:14px;font-weight:700;}
+  .sec-p{font-size:13px;color:var(--textSecondary);line-height:1.5;}
+
+  /* 参数卡片 */
+  .param{background:var(--bgSurface);border:1px solid var(--borderDefault);border-radius:4px;padding:10px;margin-bottom:8px;}
+  .param-r1{display:flex;align-items:center;gap:8px;}
+  .param-name{font-size:13px;font-weight:700;}
+  .param-cn{font-size:12px;color:var(--textSecondary);}
+  .badge{margin-left:auto;background:rgba(124,77,255,.4);color:var(--accentPrimaryHover);font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;}
+  .param-r2{font-size:11px;color:var(--textTertiary);margin-top:4px;gap:10px;display:flex;}
+  .param-help{font-size:12px;color:var(--textSecondary);margin-top:4px;line-height:1.5;}
+
+  .caveat{display:flex;gap:8px;margin-bottom:6px;}
+  .caveat .b{color:var(--accentWarning);font-weight:700;}
+  .caveat .t{font-size:12px;color:var(--textSecondary);line-height:1.5;}
+
+  .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:12px;background:var(--bgSurface);border:1px solid var(--borderDefault);font-size:11px;color:var(--textSecondary);margin:0 6px 6px 0;cursor:pointer;}
+  .chip:hover{background:var(--bgHover);border-color:var(--accentPrimary);color:var(--accentPrimaryHover);}
+
+  .legend{margin-top:18px;display:flex;gap:18px;flex-wrap:wrap;color:var(--textTertiary);font-size:12px;}
+  .legend span b{color:var(--textSecondary);}
+</style>
+</head>
+<body>
+  <h1>QDV · 算子节点“?”按钮 与 帮助弹窗 — 界面示意图</h1>
+  <div class="sub">深色主题（与 DesignTokens 一致）· 节点右上角“?”仅在 hover/选中时显示 · 点击弹出完整说明</div>
+
+  <div class="stage">
+    <!-- 节点 1：未 hover（无 ? 按钮） -->
+    <div class="node" style="left:60px;">
+      <div class="ttl">读图</div>
+      <div class="sub-ttl mono">ReadImage</div>
+      <div class="port pin"></div><div class="port pout"></div>
+    </div>
+    <div style="position:absolute;top:190px;left:60px;color:var(--textDisabled);font-size:11px;">↑ 默认态：不显示“?”</div>
+
+    <!-- 节点 2：hover/选中态（显示 ? 按钮） -->
+    <div class="node node-hover">
+      <div class="glow"></div>
+      <div class="ttl">高斯滤波</div>
+      <div class="sub-ttl mono">GaussianSmooth</div>
+      <div class="port pin"></div><div class="port pout"></div>
+      <div class="qbtn-label">hover/选中时显示</div>
+      <div class="qbtn" title="点击查看算子说明">?</div>
+    </div>
+    <div style="position:absolute;top:190px;left:300px;color:var(--accentPrimaryHover);font-size:11px;">↑ hover/选中态：右上角出现“?”</div>
+
+    <!-- 弹窗 -->
+    <div class="mask"></div>
+    <div class="dialog">
+      <div class="dlg-header">
+        <div class="dot"></div>
+        <div class="dlg-title">高斯滤波</div>
+        <div class="dlg-type mono">GaussianSmooth</div>
+        <div class="spacer"></div>
+        <button class="close">×</button>
+      </div>
+      <div class="dlg-body">
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentPrimary);"></div><div class="sec-name">核心含义</div></div>
+          <div class="sec-p">对图像进行高斯低通滤波，抑制高频噪声与细节，实现整体平滑。</div>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentInfo);"></div><div class="sec-name">适用场景</div></div>
+          <div class="sec-p">去噪预处理、下采样前抗混叠、边缘检测前平滑。</div>
+        </div>
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentSuccess);"></div><div class="sec-name">功能描述</div></div>
+          <div class="sec-p">使用指定大小的二维高斯核与图像做卷积，核大小越大平滑越强。</div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentPrimary);"></div><div class="sec-name">参数详解</div></div>
+          <div class="param">
+            <div class="param-r1"><span class="param-name mono">kernelSize</span><span class="param-cn">· 核大小</span><span class="badge mono">Int</span></div>
+            <div class="param-r2 mono"><span>默认: 3</span><span>范围: [1, 31]</span></div>
+            <div class="param-help">高斯核边长，须为正奇数；越大平滑越强。</div>
+          </div>
+          <div class="param">
+            <div class="param-r1"><span class="param-name mono">sigma</span><span class="param-cn">· 标准差</span><span class="badge mono">Double</span></div>
+            <div class="param-r2 mono"><span>默认: 1.0</span><span>范围: [0, 10]</span><span>单位: px</span></div>
+            <div class="param-help">高斯分布标准差；为 0 时由核大小自动推算。</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentWarning);"></div><div class="sec-name">注意事项</div></div>
+          <div class="caveat"><span class="b">!</span><span class="t">核大小必须为正奇数，否则算子将报错。</span></div>
+          <div class="caveat"><span class="b">!</span><span class="t">sigma 过大会导致图像过度模糊，丢失边缘信息。</span></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-h"><div class="sec-bar" style="background:var(--accentPrimary);"></div><div class="sec-name">关联算子</div></div>
+          <div>
+            <span class="chip mono">MedianBlur</span>
+            <span class="chip mono">BilateralFilter</span>
+            <span class="chip mono">Canny</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><b>交互：</b>节点 hover 或选中 → 显示“?” → 点击打开弹窗</span>
+    <span><b>关闭：</b>Esc 键 / 点击遮罩 / 右上角 ×</span>
+    <span><b>关联算子：</b>点击标签可切换弹窗内容</span>
+    <span><b>空字段分区：</b>自动隐藏</span>
+  </div>
+</body>
+</html>

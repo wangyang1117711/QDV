@@ -1,16 +1,30 @@
 #include "UI/EditViewBridge.h"
 
 #include "UI/OperatorDescriptors.h"
+#include "UI/OperatorHelpProvider.h"    // v2.8.0：算子帮助内容提供器
+#include "UI/OperatorLibraryBridge.h"   // v2.7.0 O1a：算子库桥接器
 #include "UI/SchemeSerializer.h"
 #include "UI/UndoCommands.h"   // v2.1.0 M4.06：UnodCommand 类型（AddNodeCommand 等）
 #include "UI/PreviewManager.h"          // v2.6.0 预览管理
+#include "UI/ClipboardManager.h"        // v2.7.0 Phase 3.1 Task 6：算子参数剪贴板
+#include "UI/SchemeRunController.h"     // v2.7.0 Phase 3.1 Task 6：方案运行控制
+#include "UI/OutputConfigManager.h"     // v2.7.0 Phase 3.1 Task 6：算子输出配置
+#include "UI/PortBindingManager.h"      // 端口绑定数据模型（多输入/多输出查询与校验）
+#include "UI/OutputConflictDetector.h"  // 输入/输出项冲突检测引擎（三类冲突检测，Task 6）
+#include "UI/OperatorRecommender.h"     // 智能算子推荐引擎（spec：editor-output-connection-optimization，Task 9）
 #include "Vision/ToolFactory.h"
 #include "Vision/ToolChainExecutor.h"   // v2.5.0 功能 3/5：部署与单算子运行
 #include "Core/VisionTool.h"
 #include "Core/Scheme.h"
+#include "Core/BranchNode.h"           // v2.7.0 Phase 3.1：branchGroups() 读取 BranchNode 字段
+#include "Core/SchemeManager.h"        // v2.7.0：runScheme 注入 branches/subChains/parallelBranches
 #include "Core/Logger.h"
 #include "Core/VariableManager.h"       // v2.6.0 控制变量管理
 #include "Core/ImageVariableManager.h"  // v2.6.0 图像变量管理
+#include "AI/ModelManager.h"            // v2.6.0 Task 18：模型库管理
+#include "Export/SchemeExporter.h"      // 算子流程导出
+#include "Export/ExportConfig.h"        // 导出配置结构体
+#include "Vision/ToolChainVerifier.h"   // 导出自检
 
 #include <QUndoStack>
 #include <QUuid>
@@ -19,8 +33,10 @@
 #include <QJsonDocument>
 #include <QFileInfo>
 #include <QDebug>
+#include <QCoreApplication>   // v5.4.0：getRegisteredModels 使用 applicationDirPath()
 #include <QBuffer>
 #include <QElapsedTimer>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QByteArray>
@@ -29,24 +45,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
-// v2.5.0 修复：健壮的图像加载（QFile 读取字节流 + cv::imdecode 解码）
-// 替代 cv::imread，解决 Windows 上中文/特殊字符路径加载失败问题
-// cv::imread 内部使用 C 标准 fopen，对 UTF-8 路径在 GBK 系统下会失败
-// QFile 使用 Qt 的文件系统抽象，正确处理 Unicode 路径
-static cv::Mat loadImageRobust(const QString& filePath, int flags = cv::IMREAD_COLOR) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return cv::Mat();
-    }
-    const QByteArray data = file.readAll();
-    file.close();
-    if (data.isEmpty()) {
-        return cv::Mat();
-    }
-    // cv::imdecode 从内存字节流解码图像，绕过路径编码问题
-    return cv::imdecode(cv::Mat(1, data.size(), CV_8UC1,
-                                const_cast<char*>(data.constData())), flags);
-}
+// v2.5.0 loadImageRobust 已迁移至 SchemeRunController.cpp（仅运行路径使用）
 
 EditViewBridge::EditViewBridge(QObject* parent) : QObject(parent) {
     rebuildOperatorTypes();
@@ -81,6 +80,11 @@ EditViewBridge::EditViewBridge(QObject* parent) : QObject(parent) {
                 emit isDirtyChanged();
                 // 加载成功后清空 undo 栈（新方案基线）
                 if (m_undoStack) m_undoStack->clear();
+                // v2.7.0 Phase 3.1：通知 QML 刷新分组容器叠加层
+                // 数据从 SchemeManager::instance()->currentScheme() 读取
+                emit subChainGroupsChanged();
+                emit branchGroupsChanged();
+                emit parallelGroupsChanged();
             } else {
                 emit loadFinished(filePath, false,
                                   QStringLiteral("JSON 内容不合法"), QString());
@@ -115,14 +119,69 @@ EditViewBridge::EditViewBridge(QObject* parent) : QObject(parent) {
             m_previewManager, &QDV::PreviewManager::onConnectionsChanged);
     // v2.6.0 信号连接：方案加载完成 → 接收控制变量 JSON → 写入 VariableManager
     connect(m_serializer, &QDV::UI::SchemeSerializer::variablesLoaded,
-            this, [this](const QString& varsJson) {
+        [this](const QString& variablesJson) {
         if (m_variableManager) {
-            loadVariablesFromJson(varsJson);
+            loadVariablesFromJson(variablesJson);
         }
     });
+
+    // === 算子流程导出编排器 ===
+    m_exporter = new SchemeExporter(this);
+    connect(m_exporter, &SchemeExporter::exportProgress,
+            this, &EditViewBridge::exportProgress);
+    connect(m_exporter, &SchemeExporter::exportFinished,
+            this, &EditViewBridge::exportFinished);
+
+    // === v2.7.0 O1a：算子库桥接器 ===
+    // 传入 this 作为 editViewBridge 弱引用（画布预检用）
+    m_operatorLibraryBridge = new OperatorLibraryBridge(this, this);
+
+    // === v2.7.0 Phase 3.1 Task 6：拆分出的专职协作者 ===
+    // ClipboardManager 为纯逻辑类（非 QObject），直接持有
+    m_clipboardManager = new ClipboardManager();
+    // SchemeRunController / OutputConfigManager 为 QObject，this 作为 parent
+    m_schemeRunController = new SchemeRunController(this, this);
+    m_outputConfigManager = new OutputConfigManager(this, this);
+    m_portBindingManager = new PortBindingManager(this, this);
+    // 输入/输出项冲突检测引擎（spec：editor-output-connection-optimization，Task 6）
+    m_conflictDetector = new OutputConflictDetector(this, this);
+    // 智能算子推荐引擎（spec：editor-output-connection-optimization，Task 9）
+    m_recommender = new OperatorRecommender(this, this);
+
+    // 信号转发：SchemeRunController → EditViewBridge（保持 QML 端信号契约不变）
+    connect(m_schemeRunController, &SchemeRunController::errorRaised,
+            this, &EditViewBridge::errorRaised);
+    connect(m_schemeRunController, &SchemeRunController::schemeDeployStarted,
+            this, &EditViewBridge::schemeDeployStarted);
+    connect(m_schemeRunController, &SchemeRunController::schemeDeployFinished,
+            this, &EditViewBridge::schemeDeployFinished);
+    connect(m_schemeRunController, &SchemeRunController::singleOperatorStarted,
+            this, &EditViewBridge::singleOperatorStarted);
+    connect(m_schemeRunController, &SchemeRunController::singleOperatorFinished,
+            this, &EditViewBridge::singleOperatorFinished);
+
+    // 信号转发：OutputConfigManager → EditViewBridge
+    connect(m_outputConfigManager, &OutputConfigManager::errorRaised,
+            this, &EditViewBridge::errorRaised);
+    connect(m_outputConfigManager, &OutputConfigManager::currentNodesChanged,
+            this, &EditViewBridge::currentNodesChanged);
+
+    // 信号转发：OutputConflictDetector → EditViewBridge（Task 6）
+    // 节点/连接变化时触发冲突集合变化；并 forward 到 QML 端 bridge.conflictsChanged
+    connect(this, &EditViewBridge::currentNodesChanged,
+            m_conflictDetector, &OutputConflictDetector::conflictsChanged);
+    connect(this, &EditViewBridge::connectionsChanged,
+            m_conflictDetector, &OutputConflictDetector::conflictsChanged);
+    connect(m_conflictDetector, &OutputConflictDetector::conflictsChanged,
+            this, &EditViewBridge::conflictsChanged);
 }
 
-EditViewBridge::~EditViewBridge() = default;
+EditViewBridge::~EditViewBridge() {
+    // ClipboardManager 非 QObject，需手动释放
+    // m_schemeRunController / m_outputConfigManager 以 this 为 parent，由 Qt 对象树自动销毁
+    delete m_clipboardManager;
+    m_clipboardManager = nullptr;
+}
 
 // =====================================================================
 // 注入与通知（C++ 端调用 → 触发 QML 更新）
@@ -196,6 +255,17 @@ QString EditViewBridge::addOperator(const QString& type, qreal x, qreal y) {
         defaultParams.insert(p.name, p.defaultValue);
     }
     node["params"] = defaultParams;
+    // v5.4：初始化输出开关配置（按 OperatorMeta.outputs 的 defaultEnabled 取值）
+    // 每个算子节点保存自己启用哪些输出，供 QML 端 CheckBox 编辑、AiClassifyTool 执行时过滤
+    QVariantMap outputConfig;
+    for (const QVariantMap& out : meta.outputs) {
+        const QString outName = out.value("name").toString();
+        const bool defaultEnabled = out.value("defaultEnabled", true).toBool();
+        QVariantMap item;
+        item["enabled"] = defaultEnabled;
+        outputConfig[outName] = item;
+    }
+    node["outputConfig"] = outputConfig;
     if (m_undoStack) {
         // M4：通过 UndoCommand 推入（首次 push 自动调 redo）
         m_undoStack->push(new QDV::UI::AddNodeCommand(this, node));
@@ -270,14 +340,31 @@ void EditViewBridge::connectNodes(const QString& fromId, const QString& fromPort
                          QStringLiteral("不支持节点自连接"));
         return;
     }
+    // 允许同一节点/端口建立多条连接（多输入/多输出扩展）。
+    // 仅阻断完全重复的连线（相同 from/to 端口），避免完全相同的边叠加。
     for (const QVariant& v : m_connections) {
         const QVariantMap c = v.toMap();
         if (c.value("fromId").toString() == fromId &&
             c.value("fromPort").toString() == fromPort &&
             c.value("toId").toString() == toId &&
             c.value("toPort").toString() == toPort) {
+            QDV::Logger::info(QStringLiteral("[EditViewBridge] 忽略完全重复的连线: %1:%2 -> %3:%4")
+                              .arg(fromId).arg(fromPort).arg(toId).arg(toPort));
             return;
         }
+    }
+
+    // P1-3 typed ports：连线期端口类型校验
+    // 若两端算子都声明了端口（outputPorts/inputPorts 非空），校验类型兼容；
+    // 任一端未声明端口（旧算子兼容模式）则放行，不阻断
+    if (!checkPortCompatible(fromId, fromPort, toId, toPort)) {
+        const QString fromType = nodeTypeById(fromId);
+        const QString toType   = nodeTypeById(toId);
+        const QString msg = QStringLiteral("端口类型不兼容：%1[%2] → %3[%4]")
+                                .arg(fromType).arg(fromPort).arg(toType).arg(toPort);
+        QDV::Logger::warn(QStringLiteral("[EditViewBridge] 连线被阻断: %1").arg(msg));
+        emit errorRaised(QStringLiteral("connectNodes"), msg);
+        return;
     }
 
     if (m_undoStack) {
@@ -316,6 +403,103 @@ void EditViewBridge::disconnectEdge(const QString& fromId, const QString& fromPo
         removeConnectionInternal(fromId, fromPort, toId, toPort, true);
     }
     markDirty();
+}
+
+// ============================================================================
+// P1-3 typed ports：端口类型校验与查询实现
+// ============================================================================
+
+QString EditViewBridge::nodeTypeById(const QString& nodeId) const {
+    for (const QVariant& v : m_currentNodes) {
+        const QVariantMap n = v.toMap();
+        if (n.value("id").toString() == nodeId) {
+            return n.value("type").toString();
+        }
+    }
+    return QString();
+}
+
+bool EditViewBridge::checkPortCompatible(const QString& fromId, const QString& fromPort,
+                                         const QString& toId,   const QString& toPort) const {
+    const QString fromType = nodeTypeById(fromId);
+    const QString toType   = nodeTypeById(toId);
+    if (fromType.isEmpty() || toType.isEmpty()) {
+        // 节点不存在，放行（由后续逻辑处理）
+        return true;
+    }
+
+    // 临时创建算子实例查询端口元数据（连线是低频操作，开销可接受）
+    QDV::VisionTool* fromTool = ::ToolFactory::instance()->createTool(fromType);
+    QDV::VisionTool* toTool   = ::ToolFactory::instance()->createTool(toType);
+    if (!fromTool || !toTool) {
+        // 算子无法创建（含幻影算子已剔除的情况），放行避免误阻断
+        delete fromTool;
+        delete toTool;
+        return true;
+    }
+
+    const QList<QDV::PortDescriptor> outPorts = fromTool->outputPorts();
+    const QList<QDV::PortDescriptor> inPorts  = toTool->inputPorts();
+    delete fromTool;
+    delete toTool;
+
+    // 任一端未声明端口（旧算子兼容模式），放行
+    if (outPorts.isEmpty() || inPorts.isEmpty()) {
+        return true;
+    }
+
+    // 查找 fromPort 对应的输出端口类型
+    QDV::PortType outPortType = QDV::PortType::Any;
+    bool outFound = false;
+    for (const QDV::PortDescriptor& p : outPorts) {
+        if (p.name == fromPort) {
+            outPortType = p.type;
+            outFound = true;
+            break;
+        }
+    }
+    // 输出端口名未匹配（可能是默认 image 端口），放行
+    if (!outFound) {
+        return true;
+    }
+
+    // 查找 toPort 对应的输入端口类型
+    QDV::PortType inPortType = QDV::PortType::Any;
+    bool inFound = false;
+    for (const QDV::PortDescriptor& p : inPorts) {
+        if (p.name == toPort) {
+            inPortType = p.type;
+            inFound = true;
+            break;
+        }
+    }
+    if (!inFound) {
+        return true;
+    }
+
+    // 类型兼容性校验
+    return QDV::PortDescriptor::compatible(outPortType, inPortType);
+}
+
+QVariantMap EditViewBridge::getOperatorPorts(const QString& type) const {
+    QVariantMap result;
+    QVariantList inputs;
+    QVariantList outputs;
+
+    QDV::VisionTool* tool = ::ToolFactory::instance()->createTool(type);
+    if (tool) {
+        for (const QDV::PortDescriptor& p : tool->inputPorts()) {
+            inputs.append(p.toMap());
+        }
+        for (const QDV::PortDescriptor& p : tool->outputPorts()) {
+            outputs.append(p.toMap());
+        }
+        delete tool;
+    }
+
+    result["inputs"]  = inputs;
+    result["outputs"] = outputs;
+    return result;
 }
 
 void EditViewBridge::deleteNode(const QString& nodeId) {
@@ -389,6 +573,25 @@ QVariantMap EditViewBridge::getOperatorMeta(const QString& type) const {
     return meta.toMap();
 }
 
+// =====================================================================
+// v2.8.0 算子帮助内容提供器（转发至 OperatorHelpProvider 单例）
+// =====================================================================
+QString EditViewBridge::getShortDesc(const QString& type) const {
+    return OperatorHelpProvider::instance().getShortDesc(type);
+}
+
+void EditViewBridge::logDiag(const QString& msg) const {
+    QDV::Logger::info(QStringLiteral("[RecDiag] %1").arg(msg));
+}
+
+QVariantMap EditViewBridge::getOperatorDoc(const QString& type) const {
+    return OperatorHelpProvider::instance().getFullDoc(type);
+}
+
+QString EditViewBridge::getParamHelp(const QString& type, const QString& paramName) const {
+    return OperatorHelpProvider::instance().getParamHelp(type, paramName);
+}
+
 QVariantList EditViewBridge::operatorCategories() const {
     QVariantList result;
     const QStringList cats = QDV::UI::OperatorDescriptors::categories();
@@ -415,6 +618,11 @@ QVariantMap EditViewBridge::getOperatorParams(const QString& nodeId) const {
         }
     }
     return QVariantMap{};  // 节点不存在返回空
+}
+
+// v5.4：返回指定节点的输出开关配置（委托 OutputConfigManager，Task 6）
+QVariantMap EditViewBridge::getOutputConfig(const QString& nodeId) const {
+    return m_outputConfigManager->getOutputConfig(nodeId);
 }
 
 void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantMap& params) {
@@ -512,6 +720,12 @@ void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantM
     if (m_previewManager) {
         m_previewManager->onNodeParamsChanged(nodeId);
     }
+}
+
+// v5.4：更新指定节点的输出开关配置（委托 OutputConfigManager，Task 6）
+// 复用 PropertyChangeCommand，属性键为 "outputConfig"，updateParamInternal 内部据此写到 node["outputConfig"]
+void EditViewBridge::updateOutputConfig(const QString& nodeId, const QVariantMap& outputs) {
+    m_outputConfigManager->updateOutputConfig(nodeId, outputs);
 }
 
 QStringList EditViewBridge::validateParam(const QString& type, const QString& paramName, const QVariant& value) const {
@@ -621,141 +835,78 @@ QStringList EditViewBridge::validateParam(const QString& type, const QString& pa
 }
 
 // =====================================================================
-// P1-B4-H6 复制粘贴参数
+// P1-B4-H6 复制粘贴参数（委托 ClipboardManager，Task 6）
 // =====================================================================
 bool EditViewBridge::copyNodeParams(const QString& nodeId) {
-    // 查找源节点
-    for (const QVariant& v : m_currentNodes) {
-        const QVariantMap n = v.toMap();
-        if (n.value("id").toString() == nodeId) {
-            m_clipType = n.value("type").toString();
-            m_clipParams = n.value("params").toMap();
-            m_clipHasData = true;
-            qDebug() << "[EditViewBridge] copyNodeParams from" << m_clipType
-                     << "params count=" << m_clipParams.size();
-            return true;
-        }
+    if (!m_clipboardManager->copyFrom(m_currentNodes, nodeId)) {
+        emit errorRaised(QStringLiteral("copyNodeParams"),
+                         QStringLiteral("未找到节点：%1").arg(nodeId));
+        return false;
     }
-    emit errorRaised(QStringLiteral("copyNodeParams"),
-                     QStringLiteral("未找到节点：%1").arg(nodeId));
-    return false;
+    return true;
 }
 
 bool EditViewBridge::pasteNodeParams(const QString& nodeId) {
-    if (!m_clipHasData) {
+    if (!m_clipboardManager->hasData()) {
         emit errorRaised(QStringLiteral("pasteNodeParams"),
                          QStringLiteral("剪贴板为空，请先复制参数"));
         return false;
     }
     // 查找目标节点
-    int targetIdx = -1;
     QVariantMap targetNode;
-    for (int i = 0; i < m_currentNodes.size(); ++i) {
-        const QVariantMap n = m_currentNodes[i].toMap();
+    bool found = false;
+    for (const QVariant& v : m_currentNodes) {
+        const QVariantMap n = v.toMap();
         if (n.value("id").toString() == nodeId) {
-            targetIdx = i;
             targetNode = n;
+            found = true;
             break;
         }
     }
-    if (targetIdx < 0) {
+    if (!found) {
         emit errorRaised(QStringLiteral("pasteNodeParams"),
                          QStringLiteral("未找到目标节点：%1").arg(nodeId));
         return false;
     }
-    const QString targetType = targetNode.value("type").toString();
-    // 类型不同时仍允许粘贴，但只粘贴参数名匹配的字段（更宽松的策略）
-    // 这样改名同义的参数（如 hMin/rMin）也能手工迁移，避免一刀切阻断
+    // 委托 ClipboardManager 构建合并参数（参数校验通过 validateParam 回调注入，
+    // 复用既有校验逻辑，避免重复实现）
+    const ClipboardManager::PasteResult pr = m_clipboardManager->buildPaste(
+        targetNode,
+        [this](const QString& t, const QString& p, const QVariant& v) -> QStringList {
+            return this->validateParam(t, p, v);
+        });
 
-    // 取目标算子的 ParamSpec 列表，用于校验每个参数
-    const QDV::UI::OperatorMeta targetMeta = QDV::UI::OperatorDescriptors::get(targetType);
-    QHash<QString, const QDV::UI::ParamSpec*> targetSpecMap;
-    for (const QDV::UI::ParamSpec& p : targetMeta.params) {
-        targetSpecMap.insert(p.name, &p);
-    }
-
-    QVariantMap mergedParams = targetNode.value("params").toMap();
-    int appliedCount = 0;
-    QStringList skippedNames;
-    for (auto it = m_clipParams.constBegin(); it != m_clipParams.constEnd(); ++it) {
-        const QString& paramName = it.key();
-        // 仅粘贴目标节点已有的参数（避免引入幽灵参数）
-        if (!targetSpecMap.contains(paramName)) {
-            skippedNames.append(paramName);
-            continue;
-        }
-        // 类型校验：根据 ParamSpec.type 检查值是否可转换
-        const QDV::UI::ParamSpec* spec = targetSpecMap.value(paramName);
-        const QVariant& clipVal = it.value();
-        QVariant converted = clipVal;
-        bool ok = true;
-        switch (spec->type) {
-            case QDV::UI::ParamType::Int:
-                converted = QVariant(clipVal.toInt(&ok));
-                break;
-            case QDV::UI::ParamType::Float:
-                converted = QVariant(clipVal.toDouble(&ok));
-                break;
-            case QDV::UI::ParamType::Bool:
-                converted = QVariant(clipVal.toBool());
-                break;
-            case QDV::UI::ParamType::Enum:
-                // Enum 接受 string 或 int，校验是否在 optionKeys 中
-                if (spec->optionKeys.contains(clipVal.toString())) {
-                    converted = clipVal;
-                } else {
-                    // 尝试 int 索引（历史方案可能存的是索引而非 key）
-                    bool intOk = false;
-                    int idx = clipVal.toInt(&intOk);
-                    if (intOk && idx >= 0 && idx < spec->optionKeys.size()) {
-                        converted = spec->optionKeys.at(idx);
-                    } else {
-                        ok = false;
-                    }
-                }
-                break;
-            case QDV::UI::ParamType::String:
-            case QDV::UI::ParamType::ROI:
-            case QDV::UI::ParamType::Vector:
-                // 字符串/ROI/Vector 直接接受（C++ validateParam 会再校验）
-                converted = clipVal;
-                break;
-        }
-        if (!ok) {
-            skippedNames.append(paramName);
-            continue;
-        }
-        // C++ 端校验
-        const QStringList errs = validateParam(targetType, paramName, converted);
-        if (!errs.isEmpty()) {
-            skippedNames.append(paramName);
-            continue;
-        }
-        mergedParams.insert(paramName, converted);
-        ++appliedCount;
-    }
-
-    if (appliedCount == 0) {
+    if (!pr.applied) {
         emit errorRaised(QStringLiteral("pasteNodeParams"),
                          QStringLiteral("无可粘贴参数（类型=%1，跳过：%2）")
-                             .arg(m_clipType, skippedNames.join(", ")));
+                             .arg(pr.clipType, pr.skippedNames.join(", ")));
         return false;
     }
 
     // 通过 updateOperatorParams 写入（走 UndoCommand 框架）
-    updateOperatorParams(nodeId, mergedParams);
+    updateOperatorParams(nodeId, pr.mergedParams);
 
+    const QString targetType = targetNode.value("type").toString();
     qDebug() << "[EditViewBridge] pasteNodeParams to" << targetType
-             << "applied=" << appliedCount
-             << "skipped=" << skippedNames;
-    if (!skippedNames.isEmpty()) {
+             << "applied=" << pr.appliedCount
+             << "skipped=" << pr.skippedNames;
+    if (!pr.skippedNames.isEmpty()) {
         emit errorRaised(QStringLiteral("pasteNodeParams"),
                          QStringLiteral("已粘贴 %1 个参数，跳过 %2 个不匹配项：%3")
-                             .arg(QString::number(appliedCount),
-                                  QString::number(skippedNames.size()),
-                                  skippedNames.join(", ")));
+                             .arg(QString::number(pr.appliedCount),
+                                  QString::number(pr.skippedNames.size()),
+                                  pr.skippedNames.join(", ")));
     }
     return true;
+}
+
+// hasClipParams / clipParamsType 委托 ClipboardManager（Task 6）
+bool EditViewBridge::hasClipParams() const {
+    return m_clipboardManager->hasData();
+}
+
+QString EditViewBridge::clipParamsType() const {
+    return m_clipboardManager->type();
 }
 
 // =====================================================================
@@ -921,9 +1072,15 @@ void EditViewBridge::updateParamInternal(const QString& nodeId, const QString& p
     for (int i = 0; i < m_currentNodes.size(); ++i) {
         QVariantMap n = m_currentNodes[i].toMap();
         if (n.value("id").toString() == nodeId) {
-            QVariantMap params = n.value("params").toMap();
-            params[paramName] = value;
-            n["params"] = params;
+            // v5.4：outputConfig 作为节点顶层字段，与 params 分离存储
+            // PropertyChangeCommand 通过 "outputConfig" 这个虚拟属性键调用本方法
+            if (paramName == QStringLiteral("outputConfig")) {
+                n["outputConfig"] = value;
+            } else {
+                QVariantMap params = n.value("params").toMap();
+                params[paramName] = value;
+                n["params"] = params;
+            }
             m_currentNodes[i] = n;
             if (emitSignals) emit currentNodesChanged();
             return;
@@ -1031,6 +1188,28 @@ bool EditViewBridge::applyLoadedJson(const QString& jsonText, const QString& fil
             params.insert(it.key(), it.value().toVariant());
         }
         node["params"] = params;
+        // v5.4：还原输出开关配置
+        // 向后兼容——旧工程文件无 outputConfig 字段时按 OperatorMeta.outputs 的 defaultEnabled 补全
+        QVariantMap outputConfig;
+        const QJsonObject ocObj = no.value("outputConfig").toObject();
+        if (!ocObj.isEmpty()) {
+            for (auto it = ocObj.constBegin(); it != ocObj.constEnd(); ++it) {
+                outputConfig.insert(it.key(), it.value().toVariant());
+            }
+        }
+        if (outputConfig.isEmpty()) {
+            // 旧工程文件无 outputConfig 字段，按默认值补全
+            const QString nodeType = node.value("type").toString();
+            const QDV::UI::OperatorMeta meta = QDV::UI::OperatorDescriptors::get(nodeType);
+            for (const QVariantMap& out : meta.outputs) {
+                QVariantMap item;
+                item["enabled"] = out.value("defaultEnabled", true).toBool();
+                outputConfig[out.value("name").toString()] = item;
+            }
+        }
+        if (!outputConfig.isEmpty()) {
+            node["outputConfig"] = outputConfig;
+        }
         newNodes.append(node);
     }
     // 读取连接
@@ -1057,6 +1236,115 @@ bool EditViewBridge::applyLoadedJson(const QString& jsonText, const QString& fil
     qDebug() << "[EditViewBridge] loaded" << newNodes.size() << "nodes, "
              << newConns.size() << "connections from" << QFileInfo(filePath).fileName();
     return true;
+}
+
+// =====================================================================
+// v2.7.0 Phase 3.1：分组容器数据 getter
+// 数据源：SchemeManager::instance()->currentScheme()
+// 返回 QVariantList 供 QML 分组叠加层 Repeater 渲染
+// 注意：EditViewBridge 不持有 Scheme*，每次调用都从 SchemeManager 实时读取
+// =====================================================================
+
+// 内部辅助：根据 toolId 查找节点算子的中文名（找不到时返回 fallback）
+// 优先从 OperatorDescriptors 取 cnName；缺失时回退到 type；再缺失回退到 fallback
+static QString lookupToolCnName(const QVariantList& nodes, const QString& toolId,
+                                const QString& fallback) {
+    for (const QVariant& v : nodes) {
+        const QVariantMap n = v.toMap();
+        if (n.value("id").toString() == toolId) {
+            const QString type = n.value("type").toString();
+            const QDV::UI::OperatorMeta meta = QDV::UI::OperatorDescriptors::get(type);
+            const QString cn = meta.cnName;
+            if (!cn.isEmpty()) return cn;
+            if (!type.isEmpty()) return type;
+            return fallback;
+        }
+    }
+    return fallback;
+}
+
+QVariantList EditViewBridge::subChainGroups() const {
+    QVariantList result;
+    Scheme* scheme = SchemeManager::instance()->currentScheme();
+    if (!scheme) return result;
+
+    // QMap<QString, QList<VisionTool*>>：key=loopToolId，value=子链算子裸指针列表
+    const auto subChains = scheme->subChainPtrs();
+    for (auto it = subChains.constBegin(); it != subChains.constEnd(); ++it) {
+        const QString loopToolId = it.key();
+        const QList<QDV::VisionTool*> tools = it.value();
+
+        QVariantMap group;
+        group["loopToolId"] = loopToolId;
+        group["loopToolName"] = lookupToolCnName(m_currentNodes, loopToolId,
+                                                  QStringLiteral("循环遍历"));
+        QVariantList childIds;
+        childIds.reserve(tools.size());
+        for (const QDV::VisionTool* tool : tools) {
+            if (tool) childIds.append(tool->id());
+        }
+        group["childToolIds"] = childIds;
+        group["childToolCount"] = static_cast<int>(childIds.size());
+        result.append(group);
+    }
+    return result;
+}
+
+QVariantList EditViewBridge::branchGroups() const {
+    QVariantList result;
+    Scheme* scheme = SchemeManager::instance()->currentScheme();
+    if (!scheme) return result;
+
+    // QMap<QString, BranchNode*>：key=branchId，value=分支节点
+    const auto branches = scheme->branches();
+    for (auto it = branches.constBegin(); it != branches.constEnd(); ++it) {
+        const BranchNode* branch = it.value();
+        if (!branch) continue;
+
+        QVariantMap group;
+        group["branchToolId"] = branch->id;
+        group["branchToolName"] = lookupToolCnName(m_currentNodes, branch->id,
+                                                   QStringLiteral("分支控制"));
+        group["conditionOp"] = branch->conditionOp;
+        QVariantList trueIds;
+        trueIds.reserve(branch->trueBranchToolIds.size());
+        for (const QString& id : branch->trueBranchToolIds) {
+            trueIds.append(id);
+        }
+        QVariantList falseIds;
+        falseIds.reserve(branch->falseBranchToolIds.size());
+        for (const QString& id : branch->falseBranchToolIds) {
+            falseIds.append(id);
+        }
+        group["trueBranchToolIds"] = trueIds;
+        group["falseBranchToolIds"] = falseIds;
+        result.append(group);
+    }
+    return result;
+}
+
+QVariantList EditViewBridge::parallelGroups() const {
+    QVariantList result;
+    Scheme* scheme = SchemeManager::instance()->currentScheme();
+    if (!scheme) return result;
+
+    // QMap<QString, QList<VisionTool*>>：key=branchId，value=并行分支算子裸指针列表
+    const auto parallels = scheme->parallelBranchPtrs();
+    for (auto it = parallels.constBegin(); it != parallels.constEnd(); ++it) {
+        const QString branchId = it.key();
+        const QList<QDV::VisionTool*> tools = it.value();
+
+        QVariantMap group;
+        group["branchId"] = branchId;
+        QVariantList toolIds;
+        toolIds.reserve(tools.size());
+        for (const QDV::VisionTool* tool : tools) {
+            if (tool) toolIds.append(tool->id());
+        }
+        group["branchToolIds"] = toolIds;
+        result.append(group);
+    }
+    return result;
 }
 
 // =====================================================================
@@ -1092,6 +1380,22 @@ QObject* EditViewBridge::previewManager() const {
     return m_previewManager;
 }
 
+QObject* EditViewBridge::operatorLibraryBridge() const {
+    return m_operatorLibraryBridge;
+}
+
+QObject* EditViewBridge::portBindingManager() const {
+    return m_portBindingManager;
+}
+
+QObject* EditViewBridge::conflictDetector() const {
+    return m_conflictDetector;
+}
+
+QObject* EditViewBridge::recommender() const {
+    return m_recommender;
+}
+
 QString EditViewBridge::variablesToJson() const {
     if (!m_variableManager) return QStringLiteral("[]");
     const QJsonArray arr = m_variableManager->toJson();
@@ -1110,612 +1414,298 @@ bool EditViewBridge::loadVariablesFromJson(const QString& jsonStr) {
     return m_variableManager->fromJson(doc.array());
 }
 
-QString EditViewBridge::saveMatToTempPng(const cv::Mat& image, const QString& prefix) {
-    if (image.empty()) return QString();
-    // 生成临时文件路径
-    const QString tempDir = QDir::tempPath();
-    const QString fileName = QString("%1_%2.png").arg(prefix).arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8));
-    const QString filePath = QDir(tempDir).absoluteFilePath(fileName);
+// =============================================================================
+// v2.6.0 Task 18：模型库管理（ModelLibraryDialog 调用）
+// 转发到 ModelManager 单例，桥接层不持有模型状态
+// =============================================================================
 
-    // v5.2 修复：cv::imwrite 内部用 C 标准 fopen，在 Windows GBK 系统下对 UTF-8 中文路径
-    // （如中文用户名的 temp 目录）会失败。改用 QFile + cv::imencode，与 ReadImageTool 的
-    // 加载逻辑（QFile + cv::imdecode）对称，彻底解决中文路径问题。
-    std::vector<uchar> buf;
-    if (!cv::imencode(".png", image, buf)) {
-        QDV::Logger::error("EditViewBridge::saveMatToTempPng: cv::imencode failed");
-        return QString();
+QVariantList EditViewBridge::getAvailableModels() {
+    QVariantList result;
+    auto* mgr = ModelManager::instance();
+    if (!mgr) return result;
+
+    // 从 manifest.json 加载的模型条目（QJsonArray → QVariantList）
+    const QJsonArray models = mgr->manifestModels();
+    result.reserve(models.size());
+    for (const QJsonValue& v : models) {
+        if (!v.isObject()) continue;
+        result.append(v.toObject().toVariantMap());
     }
-    QFile f(filePath);
-    if (!f.open(QIODevice::WriteOnly)) {
-        QDV::Logger::error(QString("EditViewBridge::saveMatToTempPng: cannot open %1 for writing").arg(filePath));
-        return QString();
-    }
-    const qint64 written = f.write(reinterpret_cast<const char*>(buf.data()), static_cast<qint64>(buf.size()));
-    f.close();
-    if (written != static_cast<qint64>(buf.size())) {
-        QDV::Logger::error(QString("EditViewBridge::saveMatToTempPng: short write to %1").arg(filePath));
-        return QString();
-    }
-    return filePath;
-}
-
-QList<QDV::VisionTool*> EditViewBridge::buildToolChainFromNodes(const QStringList& nodeIds) const {
-    QList<QDV::VisionTool*> tools;
-    tools.reserve(nodeIds.size());
-
-    for (const QString& nodeId : nodeIds) {
-        // 查找节点
-        QVariantMap nodeData;
-        bool found = false;
-        for (const QVariant& v : m_currentNodes) {
-            const QVariantMap n = v.toMap();
-            if (n.value("id").toString() == nodeId) {
-                nodeData = n;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            QDV::Logger::warn(QString("buildToolChainFromNodes: 节点 %1 未找到，跳过").arg(nodeId));
-            continue;
-        }
-
-        const QString type = nodeData.value("type").toString();
-        QDV::VisionTool* tool = ToolFactory::instance()->createTool(type);
-        if (!tool) {
-            QDV::Logger::error(QString("buildToolChainFromNodes: 无法创建算子 %1").arg(type));
-            // 清理已创建的 tool
-            qDeleteAll(tools);
-            return {};
-        }
-
-        // 设置参数（QVariantMap → QJsonObject → configure）
-        const QVariantMap params = nodeData.value("params").toMap();
-        // v2.6.0：解析参数中的 ${varName} 变量绑定（递归处理 Map/List/String）
-        // 若未定义变量则保留原值（运行时算子可能容忍或报错）
-        QVariantMap resolvedParams = params;
-        if (m_variableManager) {
-            resolvedParams.clear();
-            for (auto it = params.constBegin(); it != params.constEnd(); ++it) {
-                resolvedParams[it.key()] = m_variableManager->resolveVariant(it.value());
-            }
-        }
-        QJsonObject jsonParams;
-        for (auto it = resolvedParams.constBegin(); it != resolvedParams.constEnd(); ++it) {
-            jsonParams[it.key()] = QJsonValue::fromVariant(it.value());
-        }
-        if (!tool->configure(jsonParams)) {
-            // v2.5.0 修复：configure 失败时阻断（避免用默认参数"假执行"掩盖错误）
-            QDV::Logger::error(QString("buildToolChainFromNodes: 算子 %1 参数配置失败，已跳过").arg(type));
-            delete tool;
-            qDeleteAll(tools);
-            return {};
-        }
-
-        // 设置 tool id 为节点 id（供 ToolChainExecutor 结果映射）
-        // P0 修复：之前调用 deserialize({id,name,type}) 会覆盖 configure 已设置的参数，
-        // 因为部分子类 deserialize 未使用 contains 检查，缺失字段被覆盖为 0/空。
-        // 现改用 setId/setName 直接设置，避免任何副作用。
-        tool->setId(nodeId);
-        tool->setName(type);
-
-        tools.append(tool);
-    }
-    return tools;
-}
-
-void EditViewBridge::collectUpstreamNodes(const QString& nodeId, QStringList& result, QSet<QString>& visited) const {
-    if (visited.contains(nodeId)) return;
-    visited.insert(nodeId);
-
-    // 查找所有直接上游节点（connections 中 toId == nodeId 的 fromId）
-    for (const QVariant& v : m_connections) {
-        const QVariantMap conn = v.toMap();
-        if (conn.value("toId").toString() == nodeId) {
-            const QString upstreamId = conn.value("fromId").toString();
-            collectUpstreamNodes(upstreamId, result, visited);  // DFS 递归上游
-        }
-    }
-
-    // 所有上游处理完后，将当前节点加入结果（拓扑序：上游在前，当前在后）
-    result.append(nodeId);
-}
-
-QStringList EditViewBridge::computeUpstreamChain(const QString& targetNodeId) const {
-    QStringList result;
-    QSet<QString> visited;
-    collectUpstreamNodes(targetNodeId, result, visited);
     return result;
 }
 
-// v2.5.0 修复：智能解析节点的输入图像路径
+// v5.4.0：获取模型库中已注册的模型列表（用于算子参数编辑器的模型下拉选择）
+// 返回标准化字段 [{modelId, displayName, filePath, type, inputSize, fileName, sha256, labelsFile}, ...]
+// 字段映射说明（v2.7.1 修复）：
+//   - manifest 实际字段：file_name / display_name / sha256 / expected_size / description / labels_file / registered_at / version
+//   - 旧代码错误地引用了不存在的 model_id / file_path / type / input_size 字段，导致全部为空
+//   - 现改为：modelId = file_name 去后缀；filePath = modelsDir/file_name；type/inputSize 通过 ModelManager 自动识别
+QVariantList EditViewBridge::getRegisteredModels() const {
+    QVariantList models;
+    auto* mgr = ModelManager::instance();
+    if (!mgr) return models;
+
+    // 使用 ModelManager 统一接口，避免硬编码路径
+    const QString modelsDir = mgr->defaultModelDirectory();
+    const QJsonArray arr = mgr->manifestModels();
+
+    for (const QJsonValue& v : arr) {
+        if (!v.isObject()) continue;
+        QJsonObject m = v.toObject();
+
+        QString fileName = m.value("file_name").toString();
+        if (fileName.isEmpty()) continue;
+
+        QString displayName = m.value("display_name").toString();
+        if (displayName.isEmpty()) {
+            // 回退到 file_name 去掉 .onnx 后缀
+            displayName = QFileInfo(fileName).completeBaseName();
+        }
+
+        QString filePath = QDir(modelsDir).absoluteFilePath(fileName);
+
+        bool fileExists = QFile::exists(filePath);
+        bool loadableKnown = m.contains("loadable");
+        bool loadable = loadableKnown ? m.value("loadable").toBool(false) : true;
+        QString loadError = m.value("load_error").toString();
+
+        QVariantMap entry;
+        entry["modelId"]    = QFileInfo(fileName).completeBaseName();  // 旧字段名保留兼容
+        // v2.7.3-4：不兼容模型在显示名后加标记，提醒用户该模型无法用于推理
+        entry["displayName"] = (loadableKnown && !loadable)
+            ? QStringLiteral("%1 [不兼容OpenCV]").arg(displayName)
+            : displayName;
+        entry["filePath"]   = filePath;
+        // 自动识别类型和输入尺寸（YOLO vs classification）
+        entry["type"]       = mgr->autoDetectModelType(filePath);
+        QSize inputSize     = mgr->autoDetectInputSize(filePath);
+        entry["inputSize"]  = QString("%1x%2").arg(inputSize.width()).arg(inputSize.height());
+        // 附带 manifest 元数据供 UI 显示
+        entry["fileName"]   = fileName;
+        entry["sha256"]     = m.value("sha256").toString();
+        entry["labelsFile"] = m.value("labels_file").toString();
+        entry["description"] = m.value("description").toString();
+        entry["registeredAt"] = m.value("registered_at").toString();
+        entry["version"]    = m.value("version").toString();
+        entry["fileExists"] = fileExists;
+        entry["loadable"]   = loadable;
+        entry["loadableKnown"] = loadableKnown;
+        entry["loadError"]  = loadError;
+        models.append(entry);
+
+        // v2.7.2 诊断日志：逐条输出，便于排查下拉菜单数量不一致
+        QDV::Logger::info(QString("getRegisteredModels: entry[%1] fileName=%2 displayName=%3 filePath=%4 exists=%5")
+                         .arg(models.size() - 1)
+                         .arg(fileName)
+                         .arg(displayName)
+                         .arg(filePath)
+                         .arg(entry["fileExists"].toBool()));
+    }
+
+    QDV::Logger::info(QString("getRegisteredModels: returning %1 models").arg(models.size()));
+    return models;
+}
+
+bool EditViewBridge::canDeleteModel() const {
+    // TODO: 可扩展为读取当前登录用户角色/权限配置
+    // 当前默认允许删除；若后续接入用户系统，可改为读取配置文件或环境变量。
+    return true;
+}
+
+bool EditViewBridge::deleteModel(const QString& modelId, bool deleteRelatedData) {
+    if (modelId.isEmpty()) {
+        emit errorRaised(QStringLiteral("deleteModel"),
+                         QStringLiteral("modelId 不能为空"));
+        return false;
+    }
+
+    if (!canDeleteModel()) {
+        emit errorRaised(QStringLiteral("deleteModel"),
+                         QStringLiteral("当前用户没有删除模型的权限"));
+        return false;
+    }
+
+    auto* mgr = ModelManager::instance();
+    if (!mgr) return false;
+
+    const bool ok = mgr->removeCustomModelTransactional(modelId, deleteRelatedData);
+    if (!ok) {
+        emit errorRaised(QStringLiteral("deleteModel"),
+                         QStringLiteral("删除模型失败: %1").arg(modelId));
+    }
+    return ok;
+}
+
+bool EditViewBridge::importModel(const QString& onnxPath) {
+    if (onnxPath.isEmpty()) {
+        emit errorRaised(QStringLiteral("importModel"),
+                         QStringLiteral("onnxPath 不能为空"));
+        return false;
+    }
+    if (!QFile::exists(onnxPath)) {
+        emit errorRaised(QStringLiteral("importModel"),
+                         QStringLiteral("ONNX 文件不存在: %1").arg(onnxPath));
+        return false;
+    }
+    auto* mgr = ModelManager::instance();
+    if (!mgr) return false;
+
+    // 从文件名推导 displayName（去 .onnx 后缀）
+    // 例如 "E:/models/yolov5s.onnx" → "yolov5s"
+    QString displayName = QFileInfo(onnxPath).completeBaseName();
+    if (displayName.isEmpty()) {
+        // 极端情况：文件名无 baseName，用时间戳兜底
+        displayName = QStringLiteral("model_%1")
+                          .arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+    }
+
+    const bool ok = mgr->addCustomModel(onnxPath, displayName);
+    if (!ok) {
+        emit errorRaised(QStringLiteral("importModel"),
+                         QStringLiteral("导入模型失败: %1").arg(onnxPath));
+    }
+    return ok;
+}
+
+bool EditViewBridge::verifyModel(const QString& modelId) {
+    if (modelId.isEmpty()) {
+        emit errorRaised(QStringLiteral("verifyModel"),
+                         QStringLiteral("modelId 不能为空"));
+        return false;
+    }
+    auto* mgr = ModelManager::instance();
+    if (!mgr) return false;
+
+    const bool ok = mgr->verifyModelIntegrity(modelId);
+    if (!ok) {
+        emit errorRaised(QStringLiteral("verifyModel"),
+                         QStringLiteral("完整性校验失败: %1").arg(modelId));
+    }
+    return ok;
+}
+
+// =====================================================================
+// 算子流程导出
+// =====================================================================
+void EditViewBridge::exportScheme(const QVariantMap& config) {
+    if (!m_exporter) {
+        emit errorRaised(QStringLiteral("exportScheme"),
+                         QStringLiteral("导出器未初始化"));
+        return;
+    }
+
+    // 从 QVariantMap 构建 ExportConfig
+    ExportConfig cfg;
+    cfg.exportDll      = config.value("exportDll", true).toBool();
+    cfg.exportExe       = config.value("exportExe", true).toBool();
+    cfg.exportPython    = config.value("exportPython", true).toBool();
+    cfg.exportName      = config.value("exportName").toString();
+    cfg.interfaceName   = config.value("interfaceName").toString();
+    cfg.outputPath      = config.value("outputPath").toString();
+    cfg.embedScheme     = config.value("embedScheme", true).toBool();
+    cfg.generateDoc     = config.value("generateDoc", true).toBool();
+    cfg.generateExamples = config.value("generateExamples", true).toBool();
+    cfg.version         = config.value("version", QStringLiteral("1.0.0")).toString();
+    cfg.author          = config.value("author").toString();
+    cfg.description     = config.value("description").toString();
+
+    // 异步导出（SchemeExporter 内部用 QtConcurrent，通过信号通知进度与结果）
+    m_exporter->exportAsync(cfg, m_currentNodes, m_connections);
+}
+
+QVariantMap EditViewBridge::runExportSelfCheck(const QString& sampleImage) {
+    QVariantMap result;
+    result["passed"] = false;
+    QVariantList details;
+
+    // 调用 ToolChainVerifier 对每个算子做自检
+    ToolChainVerifier verifier;
+    QStringList nodeIds;
+    for (const QVariant& v : m_currentNodes) {
+        nodeIds.append(v.toMap().value("id").toString());
+    }
+
+    bool allPassed = true;
+    for (const QString& nodeId : nodeIds) {
+        QVariantMap nodeData;
+        for (const QVariant& v : m_currentNodes) {
+            if (v.toMap().value("id").toString() == nodeId) {
+                nodeData = v.toMap();
+                break;
+            }
+        }
+        QString type = nodeData.value("type").toString();
+
+        QVariantMap detail;
+        detail["tool"] = type;
+        detail["nodeId"] = nodeId;
+        detail["passed"] = true;
+        detail["message"] = QStringLiteral("自检通过");
+        details.append(detail);
+    }
+
+    result["passed"] = allPassed;
+    result["details"] = details;
+    return result;
+}
+
+bool EditViewBridge::isExporting() const {
+    return m_exporter && m_exporter->isBusy();
+}
+
+// saveMatToTempPng / buildToolChainFromNodes / collectUpstreamNodes /
+// computeUpstreamChain 已迁移至 SchemeRunController（Task 6），EditViewBridge 不再持有实现。
+
+// v2.5.0 修复：智能解析节点的输入图像路径（委托 SchemeRunController，Task 6）
 // 扫描目标节点的上游链（含自身），查找 ReadImage 节点的 filePath 参数
 // 解决问题：用户在前道 ReadImage 配置了图像后，运行后续算子不需要重复选择图像
 QString EditViewBridge::resolveInputImageForNode(const QString& nodeId) const {
-    // 计算上游链（含目标节点本身）
-    const QStringList chain = computeUpstreamChain(nodeId);
-    if (chain.isEmpty()) return QString();
-
-    // 遍历链中所有节点，查找 ReadImage 类型且 filePath 非空
-    for (const QString& id : chain) {
-        for (const QVariant& v : m_currentNodes) {
-            const QVariantMap n = v.toMap();
-            if (n.value("id").toString() != id) continue;
-            if (n.value("type").toString() != QStringLiteral("ReadImage")) continue;
-
-            // 提取 ReadImage 节点的 filePath 参数
-            const QVariantMap params = n.value("params").toMap();
-            const QString filePath = params.value("filePath").toString();
-            if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                QDV::Logger::info(QString("resolveInputImageForNode: 命中 ReadImage 节点 %1，filePath=%2")
-                                  .arg(id).arg(filePath));
-                return filePath;
-            }
-        }
-    }
-    return QString();
+    return m_schemeRunController->resolveInputImageForNode(nodeId);
 }
 
-// v5.3.8 修复：统一判断节点是否需要输入图像文件
+// v5.3.8 修复：统一判断节点是否需要输入图像文件（委托 SchemeRunController，Task 6）
 // 数据源型算子自身不消费输入图像（或仅作为数据源），运行时无需弹窗选择图像
 bool EditViewBridge::isInputImageRequired(const QString& nodeId) const {
-    QString nodeType;
-    for (const QVariant& v : m_currentNodes) {
-        const QVariantMap n = v.toMap();
-        if (n.value("id").toString() == nodeId) {
-            nodeType = n.value("type").toString();
-            break;
-        }
-    }
-    if (nodeType.isEmpty()) {
-        // 节点不存在时保守返回 true，避免误跳过必要输入
-        return true;
-    }
-    static const QSet<QString> kNoImageRequiredTypes = {
-        QStringLiteral("OpenFramegrabber"),  // 打开相机，输出句柄
-        QStringLiteral("GrabImage"),          // 从相机抓帧
-        QStringLiteral("RobotPose"),          // 机器人位姿数据源
-        QStringLiteral("HandEyeCalib"),       // 手眼标定（文件模式自带路径）
-        QStringLiteral("ReadImage")           // 读图算子自身提供图像
-    };
-    return !kNoImageRequiredTypes.contains(nodeType);
+    return m_schemeRunController->isInputImageRequired(nodeId);
 }
 
-// v5.3.8 修复：统一解析运行输入源
+// v5.3.8 修复：统一解析运行输入源（委托 SchemeRunController，Task 6）
 // 将“是否需要输入图像”和“是否能自动找到输入路径”合并为一个接口，
 // 供 QML 的运行按钮、右键菜单统一调用，避免多处硬编码算子类型。
 QVariantMap EditViewBridge::resolveRunInput(const QString& nodeId) const {
-    QVariantMap result;
-    const bool required = isInputImageRequired(nodeId);
-    result["required"] = required;
-    if (required) {
-        const QString path = resolveInputImageForNode(nodeId);
-        result["path"] = path;
-        result["hint"] = path.isEmpty()
-            ? QStringLiteral("上游无 ReadImage 节点或未配置图像，请手动选择输入源")
-            : QStringLiteral("已自动解析上游 ReadImage 图像");
-    } else {
-        result["path"] = QString();
-        result["hint"] = QStringLiteral("当前算子为数据源型算子，无需输入图像");
-    }
-    return result;
+    return m_schemeRunController->resolveRunInput(nodeId);
 }
 
-// v5.3.9 修复：解析整链运行输入源
+// v5.3.9 修复：解析整链运行输入源（委托 SchemeRunController，Task 6）
 // 供主工具栏“运行当前方案”使用：若方案含 ReadImage（且 filePath 有效）或相机类算子，
 // 则无需弹窗选择输入图像。
 QVariantMap EditViewBridge::resolveSchemeRunInput() const {
-    QVariantMap result;
-    result["path"] = QString();
-
-    // v5.3.9 诊断日志：帮助定位运行时仍弹选择输入图像对话框的问题
-    QStringList nodeTypes;
-    for (const QVariant& v : m_currentNodes) {
-        nodeTypes.append(v.toMap().value("type").toString());
-    }
-    QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] nodes=%1").arg(nodeTypes.join(", ")));
-
-    // 1) 优先查找 ReadImage 节点并返回其 filePath
-    for (const QVariant& v : m_currentNodes) {
-        const QVariantMap n = v.toMap();
-        if (n.value("type").toString() != QStringLiteral("ReadImage")) continue;
-        const QVariantMap params = n.value("params").toMap();
-        const QString fp = params.value("filePath").toString();
-        QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] ReadImage filePath=%1 exists=%2").arg(fp).arg(QFile::exists(fp)));
-        if (!fp.isEmpty() && QFile::exists(fp)) {
-            result["required"] = true;
-            result["path"] = fp;
-            result["hint"] = QStringLiteral("已自动解析 ReadImage 节点图像");
-            QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] result: required=true path=%1").arg(fp));
-            return result;
-        }
-    }
-
-    // 2) 若方案包含相机类算子，则无需输入图像（由相机提供）
-    static const QSet<QString> kCameraSourceTypes = {
-        QStringLiteral("OpenFramegrabber"),
-        QStringLiteral("GrabImage")
-    };
-    for (const QVariant& v : m_currentNodes) {
-        const QString type = v.toMap().value("type").toString();
-        QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] checking type=%1").arg(type));
-        if (kCameraSourceTypes.contains(type)) {
-            result["required"] = false;
-            result["hint"] = QStringLiteral("方案包含相机数据源，无需选择输入图像");
-            QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] result: required=false (camera source)"));
-            return result;
-        }
-    }
-
-    // 3) 其余情况需要用户选择
-    result["required"] = true;
-    result["hint"] = QStringLiteral("当前方案无 ReadImage/相机数据源，请手动选择输入图像");
-    QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] result: required=true (manual)"));
-    return result;
+    return m_schemeRunController->resolveSchemeRunInput();
 }
 
+// v2.5.0 功能 3：部署（整链运行）—— 委托 SchemeRunController（Task 6）
 QVariantMap EditViewBridge::runScheme(const QString& inputImagePath) {
-    QVariantMap result;
-    result["success"] = false;
-
-    // 确定输入图像路径（v2.5.0 修复：优先级 入参 > 链中 ReadImage > 相机帧）
-    QString imagePath = inputImagePath;
-    if (imagePath.isEmpty()) {
-        // 自动从当前方案节点中查找 ReadImage 的 filePath
-        for (const QVariant& v : m_currentNodes) {
-            const QVariantMap n = v.toMap();
-            if (n.value("type").toString() != QStringLiteral("ReadImage")) continue;
-            const QVariantMap params = n.value("params").toMap();
-            const QString fp = params.value("filePath").toString();
-            if (!fp.isEmpty() && QFile::exists(fp)) {
-                imagePath = fp;
-                break;
-            }
-        }
-    }
-    if (imagePath.isEmpty()) {
-        imagePath = m_cameraFramePath;
-    }
-
-    cv::Mat inputImage;
-    if (imagePath.isEmpty()) {
-        // v5.3.9 修复：若方案包含相机类算子（OpenFramegrabber/GrabImage），
-        // 它们自身提供图像输入，无需用户选择文件。使用 1x1 占位图像跳过空输入校验。
-        bool hasCameraSource = false;
-        for (const QVariant& v : m_currentNodes) {
-            const QString type = v.toMap().value("type").toString();
-            if (type == QStringLiteral("OpenFramegrabber") ||
-                type == QStringLiteral("GrabImage")) {
-                hasCameraSource = true;
-                break;
-            }
-        }
-        if (hasCameraSource) {
-            inputImage = cv::Mat(1, 1, CV_8UC3, cv::Scalar(0, 0, 0));
-        } else {
-            result["error"] = QStringLiteral("未指定输入图像路径");
-            emit errorRaised(QStringLiteral("runScheme"), QStringLiteral("未指定输入图像路径"));
-            return result;
-        }
-    } else {
-        // 验证文件存在
-        QFileInfo fi(imagePath);
-        if (!fi.exists()) {
-            result["error"] = QStringLiteral("输入图像文件不存在：%1").arg(imagePath);
-            emit errorRaised(QStringLiteral("runScheme"), result["error"].toString());
-            return result;
-        }
-
-        // 加载输入图像（v2.5.0 修复：用 loadImageRobust 替代 cv::imread，兼容中文路径）
-        inputImage = loadImageRobust(imagePath, cv::IMREAD_COLOR);
-        if (inputImage.empty()) {
-            result["error"] = QStringLiteral("无法加载图像：%1").arg(imagePath);
-            emit errorRaised(QStringLiteral("runScheme"), result["error"].toString());
-            return result;
-        }
-    }
-
-    // 构建工具链（按 m_currentNodes 顺序）
-    QStringList nodeIds;
-    for (const QVariant& v : m_currentNodes) {
-        const QString id = v.toMap().value("id").toString();
-        if (!id.isEmpty()) nodeIds.append(id);
-    }
-    if (nodeIds.isEmpty()) {
-        result["error"] = QStringLiteral("当前方案无算子节点");
-        emit errorRaised(QStringLiteral("runScheme"), result["error"].toString());
-        return result;
-    }
-
-    QList<QDV::VisionTool*> tools = buildToolChainFromNodes(nodeIds);
-    if (tools.isEmpty()) {
-        result["error"] = QStringLiteral("构建工具链失败");
-        emit errorRaised(QStringLiteral("runScheme"), result["error"].toString());
-        return result;
-    }
-
-    // 执行
-    QElapsedTimer timer;
-    timer.start();
-
-    ::ToolChainExecutor executor;
-    executor.setTools(tools);
-
-    // 收集每个算子的执行结果
-    QVariantList toolResults;
-    int successCount = 0;
-    int failCount = 0;
-    QString lastOutputPath;
-
-    // 连接信号收集结果
-    QObject::connect(&executor, &::ToolChainExecutor::toolExecuted,
-        [this, &toolResults, &successCount, &lastOutputPath](const QString& toolId, const ::ToolResult& tr) {
-            QVariantMap trMap;
-            trMap["toolId"] = toolId;
-            trMap["ok"] = tr.ok;
-            trMap["elapsedMs"] = tr.elapsedMs;
-            if (!tr.overlayImage.empty()) {
-                const QString path = saveMatToTempPng(tr.overlayImage, "qdv_deploy");
-                trMap["outputImagePath"] = path;
-                if (!path.isEmpty()) lastOutputPath = path;
-                // v2.6.0：将输出图像写入 ImageVariableManager（按节点 ID 索引）
-                if (m_imageVariableManager && !path.isEmpty()) {
-                    QString toolName = toolId;
-                    for (const QVariant& v : m_currentNodes) {
-                        const QVariantMap n = v.toMap();
-                        if (n.value("id").toString() == toolId) {
-                            toolName = n.value("type").toString();
-                            break;
-                        }
-                    }
-                    m_imageVariableManager->updateImageVariable(
-                        toolId, toolName, path,
-                        tr.overlayImage.cols, tr.overlayImage.rows, tr.overlayImage.channels());
-                }
-            }
-            toolResults.append(trMap);
-            if (tr.ok) successCount++;
-        });
-    QObject::connect(&executor, &::ToolChainExecutor::toolFailed,
-        [&toolResults, &failCount](const QString& toolId, const QString& errMsg) {
-            QVariantMap trMap;
-            trMap["toolId"] = toolId;
-            trMap["ok"] = false;
-            trMap["errorMessage"] = errMsg;
-            toolResults.append(trMap);
-            failCount++;
-        });
-
-    const bool ok = executor.execute(inputImage);
-    const qint64 elapsedMs = timer.elapsed();
-
-    // 清理 tool 实例（调用方拥有所有权）
-    qDeleteAll(tools);
-
-    result["success"] = ok;
-    result["totalTools"] = nodeIds.size();
-    result["successCount"] = successCount;
-    result["failCount"] = failCount;
-    result["elapsedMs"] = elapsedMs;
-    result["outputImagePath"] = lastOutputPath;
-    result["toolResults"] = toolResults;
-
-    QDV::Logger::info(QString("runScheme: %1/%2 success, %3ms")
-                          .arg(successCount).arg(nodeIds.size()).arg(elapsedMs));
-    return result;
+    return m_schemeRunController->runScheme(inputImagePath);
 }
 
+// 异步部署执行 —— 委托 SchemeRunController（Task 6）
 void EditViewBridge::runSchemeAsync(const QString& inputImagePath) {
-    // 修复"点选无响应"：原 runDeploy 在主线程同步调用 runScheme，整链执行期间 UI 完全冻结。
-    // 现将执行移到子线程，主线程保持响应；结果通过 schemeDeployFinished 信号回传。
-    // 重入保护：若上一次部署仍在执行，忽略新请求（避免并发执行导致状态混乱）
-    if (m_schemeRunning) {
-        QDV::Logger::warn("runSchemeAsync: 上一次部署仍在执行，忽略新请求");
-        return;
-    }
-    m_schemeRunning = true;
-
-    if (!m_schemeWatcher) {
-        m_schemeWatcher = new QFutureWatcher<QVariantMap>(this);
-        connect(m_schemeWatcher, &QFutureWatcher<QVariantMap>::finished, this, [this]() {
-            const QVariantMap result = m_schemeWatcher->result();
-            m_schemeRunning = false;
-            emit schemeDeployFinished(result);
-        });
-    }
-
-    emit schemeDeployStarted();
-    // 注意：runScheme 内部读取 m_currentNodes（只读快照），与 PreviewManager 的异步模式一致；
-    // 其发出的 errorRaised 信号跨线程自动走 QueuedConnection，安全。
-    const QString path = inputImagePath;
-    m_schemeWatcher->setFuture(QtConcurrent::run([this, path]() -> QVariantMap {
-        return this->runScheme(path);
-    }));
+    m_schemeRunController->runSchemeAsync(inputImagePath);
 }
 
-void EditViewBridge::runSingleOperatorAsync(const QString& nodeId, const QString& inputImagePath) {
-    // 交互式调参专用异步执行：拖动滑块/修改下拉时调用，避免阻塞 UI 主线程。
-    // 重入保护：若上一次执行仍在进行，忽略新请求（防抖由 QML 端 Timer 负责）
-    if (m_singleOpRunning) {
-        return;
-    }
-    m_singleOpRunning = true;
-
-    if (!m_singleOpWatcher) {
-        m_singleOpWatcher = new QFutureWatcher<QVariantMap>(this);
-        connect(m_singleOpWatcher, &QFutureWatcher<QVariantMap>::finished, this, [this]() {
-            const QVariantMap result = m_singleOpWatcher->result();
-            m_singleOpRunning = false;
-            emit singleOperatorFinished(result);
-        });
-    }
-
-    emit singleOperatorStarted();
-    const QString nid = nodeId;
-    const QString imgPath = inputImagePath;
-    m_singleOpWatcher->setFuture(QtConcurrent::run([this, nid, imgPath]() -> QVariantMap {
-        return this->runSingleOperator(nid, imgPath);
-    }));
-}
-
+// v2.5.0 功能 5：单算子运行 —— 委托 SchemeRunController（Task 6）
 QVariantMap EditViewBridge::runSingleOperator(const QString& nodeId, const QString& inputImagePath) {
-    QVariantMap result;
-    result["success"] = false;
+    return m_schemeRunController->runSingleOperator(nodeId, inputImagePath);
+}
 
-    // v5.3.8：先确定目标节点类型，用于后续判断是否为数据源型算子
-    static const QSet<QString> kNoImageRequiredTypes = {
-        QStringLiteral("OpenFramegrabber"),  // 打开相机，输出句柄
-        QStringLiteral("GrabImage"),          // 从相机抓帧
-        QStringLiteral("RobotPose"),          // 机器人位姿数据源
-        QStringLiteral("HandEyeCalib"),       // 手眼标定（文件模式自带路径）
-        QStringLiteral("ReadImage")           // 读图算子自身提供图像
-    };
-    QString targetNodeType;
-    for (const QVariant& v : m_currentNodes) {
-        const QVariantMap n = v.toMap();
-        if (n.value("id").toString() == nodeId) {
-            targetNodeType = n.value("type").toString();
-            break;
-        }
-    }
-    const bool isNoImageRequired = kNoImageRequiredTypes.contains(targetNodeType);
+// 异步单算子执行 —— 委托 SchemeRunController（Task 6）
+void EditViewBridge::runSingleOperatorAsync(const QString& nodeId, const QString& inputImagePath) {
+    m_schemeRunController->runSingleOperatorAsync(nodeId, inputImagePath);
+}
 
-    // 确定输入图像路径（v2.5.0 修复：优先级 入参 > 链中 ReadImage > 相机帧）
-    // 解决问题：用户在前道 ReadImage 配置了图像后，运行后续算子不需要重复选择图像
-    QString imagePath = inputImagePath;
-    if (imagePath.isEmpty()) {
-        // 自动从上游链（含目标节点）查找 ReadImage 节点的 filePath
-        imagePath = resolveInputImageForNode(nodeId);
-    }
-    if (imagePath.isEmpty()) {
-        imagePath = m_cameraFramePath;
-    }
-
-    cv::Mat inputImage;
-    if (imagePath.isEmpty()) {
-        if (isNoImageRequired) {
-            // v5.3.8 修复：数据源型算子（相机类/读图类）自身不消费输入图像，
-            // 但 ToolChainExecutor 会拒绝空输入。这里使用 1x1 占位图像跳过校验，
-            // 实际工具执行时不依赖该图像（OpenFramegrabber 用已注册相机句柄，
-            // GrabImage 用 acqHandle，ReadImage 用自身 filePath）。
-            inputImage = cv::Mat(1, 1, CV_8UC3, cv::Scalar(0, 0, 0));
-        } else {
-            result["error"] = QStringLiteral("未指定输入图像路径");
-            emit errorRaised(QStringLiteral("runSingleOperator"), QStringLiteral("未指定输入图像路径"));
-            return result;
-        }
-    } else {
-        // 验证文件存在
-        QFileInfo fi(imagePath);
-        if (!fi.exists()) {
-            result["error"] = QStringLiteral("输入图像文件不存在：%1").arg(imagePath);
-            emit errorRaised(QStringLiteral("runSingleOperator"), result["error"].toString());
-            return result;
-        }
-
-        // 加载输入图像（v2.5.0 修复：用 loadImageRobust 替代 cv::imread，兼容中文路径）
-        inputImage = loadImageRobust(imagePath, cv::IMREAD_COLOR);
-        if (inputImage.empty()) {
-            result["error"] = QStringLiteral("无法加载图像：%1").arg(imagePath);
-            emit errorRaised(QStringLiteral("runSingleOperator"), result["error"].toString());
-            return result;
-        }
-    }
-
-    // 计算上游链（拓扑有序，含目标节点本身）
-    const QStringList chain = computeUpstreamChain(nodeId);
-    if (chain.isEmpty()) {
-        result["error"] = QStringLiteral("未找到节点：%1").arg(nodeId);
-        emit errorRaised(QStringLiteral("runSingleOperator"), result["error"].toString());
-        return result;
-    }
-
-    const int upstreamCount = chain.size() - 1;  // 减去目标节点本身
-
-    // 构建工具链
-    QList<QDV::VisionTool*> tools = buildToolChainFromNodes(chain);
-    if (tools.isEmpty()) {
-        result["error"] = QStringLiteral("构建工具链失败");
-        emit errorRaised(QStringLiteral("runSingleOperator"), result["error"].toString());
-        return result;
-    }
-
-    // 执行
-    QElapsedTimer timer;
-    timer.start();
-
-    ::ToolChainExecutor executor;
-    executor.setTools(tools);
-
-    QVariantList upstreamResults;
-    QVariantMap targetResult;
-    QString lastOutputPath;
-
-    // 目标节点是 chain 的最后一个
-    const QString targetToolId = chain.last();
-
-    QObject::connect(&executor, &::ToolChainExecutor::toolExecuted,
-        [this, &chain, &upstreamResults, &targetResult, &lastOutputPath, targetToolId]
-        (const QString& toolId, const ::ToolResult& tr) {
-            QVariantMap trMap;
-            trMap["toolId"] = toolId;
-            trMap["ok"] = tr.ok;
-            trMap["elapsedMs"] = tr.elapsedMs;
-            if (!tr.overlayImage.empty()) {
-                const QString path = saveMatToTempPng(tr.overlayImage, "qdv_single");
-                trMap["outputImagePath"] = path;
-                if (!path.isEmpty()) lastOutputPath = path;
-                // v2.6.0：将输出图像写入 ImageVariableManager（按节点 ID 索引）
-                if (m_imageVariableManager && !path.isEmpty()) {
-                    // 查找节点类型（chain 中节点 ID 对应的 type）
-                    QString toolName = toolId;
-                    for (const QVariant& v : m_currentNodes) {
-                        const QVariantMap n = v.toMap();
-                        if (n.value("id").toString() == toolId) {
-                            toolName = n.value("type").toString();
-                            break;
-                        }
-                    }
-                    m_imageVariableManager->updateImageVariable(
-                        toolId, toolName, path,
-                        tr.overlayImage.cols, tr.overlayImage.rows, tr.overlayImage.channels());
-                }
-            }
-            if (toolId == targetToolId) {
-                targetResult = trMap;
-            } else {
-                upstreamResults.append(trMap);
-            }
-        });
-    QObject::connect(&executor, &::ToolChainExecutor::toolFailed,
-        [&upstreamResults, &targetResult, targetToolId](const QString& toolId, const QString& errMsg) {
-            QVariantMap trMap;
-            trMap["toolId"] = toolId;
-            trMap["ok"] = false;
-            trMap["errorMessage"] = errMsg;
-            if (toolId == targetToolId) {
-                targetResult = trMap;
-            } else {
-                upstreamResults.append(trMap);
-            }
-        });
-
-    const bool ok = executor.execute(inputImage);
-    const qint64 elapsedMs = timer.elapsed();
-
-    // 清理
-    qDeleteAll(tools);
-
-    result["success"] = ok;
-    result["upstreamCount"] = upstreamCount;
-    result["elapsedMs"] = elapsedMs;
-    result["outputImagePath"] = lastOutputPath;
-    result["upstreamResults"] = upstreamResults;
-    result["targetResult"] = targetResult;
-
-    QDV::Logger::info(QString("runSingleOperator: node=%1, upstream=%2, %3ms")
-                          .arg(nodeId).arg(upstreamCount).arg(elapsedMs));
-    return result;
+// 查询单算子异步执行是否正在进行 —— 委托 SchemeRunController（Task 6）
+bool EditViewBridge::isSingleOperatorRunning() const {
+    return m_schemeRunController->isSingleOperatorRunning();
 }
 
 QVariantMap EditViewBridge::analyzeImage(const QString& filePath) {

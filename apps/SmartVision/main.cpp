@@ -35,18 +35,205 @@
 #include <QFile>
 #include <QTextStream>
 #include <QCoreApplication>
+#include <QDateTime>
 
 #include <optional>
 
 #include "MainWindow.h"
 #include "AuthService.h"
 #include "Logger.h"
+#include "Core/PathValidator.h"  // S6 修复：路径校验
 #include "UI/OperatorDescriptors.h"
 #include "UI/AutoTestRunner.h"
 #include "OperatorSDK/OperatorManifest.h"  // Phase 2: 动态算子加载
 #include "Vision/ToolFactory.h"           // v5.3：注入推理引擎
 #include "AI/InferenceEngine.h"           // v5.3：AI 推理引擎
 #include "AI/InferenceEngineAdapter.h"    // v5.3：IInferenceEngine 适配器
+#include "OperatorLibrary/OperatorLibraryController.h"  // v2.7.0 O1a：算子库控制器
+
+// Windows 崩溃处理器：使用 Vectored Exception Handler 捕获所有线程的异常
+// 改进版：正确设置符号路径 + 生成 Minidump + 模块信息记录
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dbghelp.h>
+#include <shlwapi.h>
+#include <psapi.h>
+
+// 生成 Minidump 文件，供后续用 WinDbg/VS 分析完整调用栈
+static void writeMinidump(EXCEPTION_POINTERS* ep) {
+    // 确保目录存在
+    CreateDirectoryA("logs", nullptr);
+
+    char dumpPath[MAX_PATH];
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    snprintf(dumpPath, MAX_PATH, "logs/crash_%04d%02d%02d_%02d%02d%02d.dmp",
+             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+    HANDLE hFile = CreateFileA(dumpPath, GENERIC_WRITE, 0, nullptr,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) return;
+
+    MINIDUMP_EXCEPTION_INFORMATION mei;
+    mei.ThreadId = GetCurrentThreadId();
+    mei.ExceptionPointers = ep;
+    mei.ClientPointers = FALSE;
+
+    // MiniDumpWithFullMemory 包含完整堆内存，文件较大但信息最全
+    // MiniDumpNormal + MiniDumpWithThreadInfo + MiniDumpWithModuleHeaders 兼顾大小和信息量
+    DWORD flags = MiniDumpNormal
+                | MiniDumpWithThreadInfo
+                | MiniDumpWithModuleHeaders
+                | MiniDumpWithIndirectlyReferencedMemory;
+
+    MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile,
+                      static_cast<MINIDUMP_TYPE>(flags), &mei, nullptr, nullptr);
+    CloseHandle(hFile);
+
+    fprintf(stderr, "Minidump written to: %s\n", dumpPath);
+    fflush(stderr);
+}
+
+LONG WINAPI crashHandler(EXCEPTION_POINTERS* ep) {
+    // 只处理真正的崩溃异常，不处理正常的信号
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_STACK_OVERFLOW ||
+        code == EXCEPTION_ILLEGAL_INSTRUCTION || code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED ||
+        code == EXCEPTION_DATATYPE_MISALIGNMENT || code == EXCEPTION_IN_PAGE_ERROR ||
+        code == EXCEPTION_INT_DIVIDE_BY_ZERO) {
+
+        const char* reason = "Unknown";
+        switch (code) {
+            case EXCEPTION_ACCESS_VIOLATION:         reason = "ACCESS_VIOLATION (0xC0000005)"; break;
+            case EXCEPTION_STACK_OVERFLOW:           reason = "STACK_OVERFLOW (0xC00000FD)"; break;
+            case EXCEPTION_ILLEGAL_INSTRUCTION:      reason = "ILLEGAL_INSTRUCTION (0xC000001D)"; break;
+            case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:    reason = "ARRAY_BOUNDS_EXCEEDED (0xC000008C)"; break;
+            case EXCEPTION_DATATYPE_MISALIGNMENT:    reason = "DATATYPE_MISALIGNMENT (0x80000002)"; break;
+            case EXCEPTION_IN_PAGE_ERROR:            reason = "IN_PAGE_ERROR (0xC0000006)"; break;
+            case EXCEPTION_INT_DIVIDE_BY_ZERO:       reason = "DIVIDE_BY_ZERO (0xC0000094)"; break;
+            default: break;
+        }
+
+        // 获取当前线程 ID
+        DWORD tid = GetCurrentThreadId();
+
+        QString crashLog = QString("===== CRASH DETECTED =====\n"
+                                   "Time: %1\n"
+                                   "Thread ID: 0x%2\n"
+                                   "Exception Code: 0x%3 (%4)\n"
+                                   "Exception Address: 0x%5\n"
+                                   "===========================")
+            .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"))
+            .arg(tid, 8, 16, QChar('0'))
+            .arg(code, 8, 16, QChar('0'))
+            .arg(reason)
+            .arg(reinterpret_cast<quintptr>(ep->ExceptionRecord->ExceptionAddress), 0, 16);
+
+        // 生成 Minidump（供 WinDbg 离线分析）
+        writeMinidump(ep);
+
+        // 捕获调用堆栈 - 改进符号解析
+        // 关键修复：不再使用 SYMOPT_DEFERRED_LOADS，改为立即加载符号
+        // 并设置正确的符号搜索路径（exe 目录 + build 目录）
+        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEBUG);
+        SymInitialize(GetCurrentProcess(), nullptr, FALSE);
+
+        // 设置符号搜索路径：exe 目录 + 当前工作目录 + build 目录
+        wchar_t exePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        PathRemoveFileSpecW(exePath);
+        QString symPath = QString::fromWCharArray(exePath) + ";.;..\\build";
+        SymSetSearchPathW(GetCurrentProcess(), symPath.toStdWString().c_str());
+
+        // 枚举已加载模块，强制加载符号
+        // 这解决了 SYMOPT_DEFERRED_LOADS 导致崩溃时符号尚未加载的问题
+        {
+            HANDLE hProcess = GetCurrentProcess();
+            HMODULE hMods[1024];
+            DWORD cbNeeded = 0;
+            if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded)) {
+                DWORD count = cbNeeded / sizeof(HMODULE);
+                for (DWORD i = 0; i < count; ++i) {
+                    wchar_t modPath[MAX_PATH];
+                    if (GetModuleFileNameW(hMods[i], modPath, MAX_PATH)) {
+                        SymLoadModuleExW(hProcess, hMods[i], nullptr, modPath,
+                                         0, 0, nullptr, 0);
+                    }
+                }
+            }
+        }
+
+        void* stack[62];
+        USHORT frames = CaptureStackBackTrace(0, 62, stack, nullptr);
+
+        QString stackTrace = "\nCall Stack:";
+        for (USHORT i = 0; i < frames; ++i) {
+            DWORD64 address = reinterpret_cast<DWORD64>(stack[i]);
+
+            // 获取模块名
+            HMODULE hMod = nullptr;
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                              reinterpret_cast<LPCWSTR>(address), &hMod);
+            wchar_t modName[MAX_PATH] = {0};
+            if (hMod) {
+                GetModuleBaseNameW(GetCurrentProcess(), hMod, modName, MAX_PATH);
+            }
+
+            DWORD64 symDisplacement = 0;
+            char symbolBuffer[sizeof(SYMBOL_INFO) + 512];
+            PSYMBOL_INFO symbol = reinterpret_cast<PSYMBOL_INFO>(symbolBuffer);
+            symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+            symbol->MaxNameLen = 512;
+
+            QString frameInfo;
+            if (SymFromAddr(GetCurrentProcess(), address, &symDisplacement, symbol)) {
+                IMAGEHLP_LINE64 line;
+                line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+                DWORD lineDisplacement = 0;
+                if (SymGetLineFromAddr64(GetCurrentProcess(), address, &lineDisplacement, &line)) {
+                    frameInfo = QString("\n  #%1 [%2] %3+0x%4 @ %5:%6 (addr=0x%7)")
+                        .arg(i)
+                        .arg(QString::fromWCharArray(modName))
+                        .arg(QString::fromLocal8Bit(symbol->Name))
+                        .arg(symDisplacement, 0, 16)
+                        .arg(QString::fromLocal8Bit(line.FileName))
+                        .arg(line.LineNumber)
+                        .arg(address, 0, 16);
+                } else {
+                    frameInfo = QString("\n  #%1 [%2] %3+0x%4 (addr=0x%5)")
+                        .arg(i)
+                        .arg(QString::fromWCharArray(modName))
+                        .arg(QString::fromLocal8Bit(symbol->Name))
+                        .arg(symDisplacement, 0, 16)
+                        .arg(address, 0, 16);
+                }
+            } else {
+                frameInfo = QString("\n  #%1 [%2] <unknown> (addr=0x%3)")
+                    .arg(i)
+                    .arg(QString::fromWCharArray(modName))
+                    .arg(address, 0, 16);
+            }
+            stackTrace += frameInfo;
+        }
+
+        // 写入文件
+        QFile crashFile("logs/crash_dump.log");
+        if (crashFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            QTextStream stream(&crashFile);
+            stream << crashLog << stackTrace << "\n\n";
+            crashFile.close();
+        }
+
+        // 输出到 stderr
+        fprintf(stderr, "%s\n%s\n", crashLog.toLocal8Bit().constData(), stackTrace.toLocal8Bit().constData());
+        fflush(stderr);
+
+        SymCleanup(GetCurrentProcess());
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif // Q_OS_WIN
 
 using namespace QDV;
 
@@ -71,20 +258,32 @@ struct CommandLineArgs {
 // =====================================================================
 namespace LoginIsolation {
 
-// 编译期默认：当前版本登录功能被禁用
-// 恢复登录：将此值改为 true，并按文件顶部"恢复步骤"修改 main()
-constexpr bool kLoginEnabled = false;
+// S2 修复：登录功能默认启用（原值 false 导致整个登录模块被绕过）
+// 安全要求：生产构建必须强制启用登录，不允许通过环境变量绕过
+constexpr bool kLoginEnabled = true;
 
 /// 决定当前进程是否启用登录功能。
 /// 优先级：环境变量 QDV_FORCE_LOGIN > 编译期常量 kLoginEnabled
-///   * QDV_FORCE_LOGIN=1 / true / yes → 强制启用
-///   * QDV_FORCE_LOGIN=0 / false / no  → 强制禁用
-///   * 未设置                          → 使用 kLoginEnabled
+///
+/// S2 修复：环境变量 bypass 逻辑仅在调试构建（QT_DEBUG）下生效，
+///         生产构建（Release）始终强制启用登录，忽略任何环境变量。
+///   * 调试构建：
+///     - QDV_FORCE_LOGIN=1 / true / yes → 强制启用
+///     - QDV_FORCE_LOGIN=0 / false / no  → 强制禁用（仅供本地调试）
+///     - 未设置                          → 使用 kLoginEnabled（默认 true）
+///   * 生产构建：始终返回 true，忽略环境变量
 inline bool isLoginActive() {
+#ifdef QT_DEBUG
+    // 仅调试构建允许环境变量覆盖，便于自动化测试与本地开发
     const QByteArray env = qgetenv("QDV_FORCE_LOGIN").toLower().trimmed();
     if (env == "1" || env == "true" || env == "yes") return true;
     if (env == "0" || env == "false" || env == "no") return false;
     return kLoginEnabled;
+#else
+    // S2 修复：生产构建强制启用登录，环境变量 bypass 失效
+    Q_UNUSED(kLoginEnabled)
+    return true;
+#endif
 }
 
 /// 启动 banner：打印登录功能当前状态到日志。
@@ -185,7 +384,7 @@ void safeLoggerShutdown() noexcept {
 struct LoggerGuard {
     LoggerGuard() {
         QDir().mkdir("logs");
-        Logger::info("Q-DetectVision v1.0 starting...");
+        Logger::info("Q-DetectVision v2.0-0809 starting...");
     }
     ~LoggerGuard() { safeLoggerShutdown(); }
     LoggerGuard(const LoggerGuard&)            = delete;
@@ -195,6 +394,19 @@ struct LoggerGuard {
 } // namespace
 
 int main(int argc, char *argv[]) {
+    // 注册 Windows VEH 崩溃处理器：捕获所有线程的段错误等异常，写入 logs/crash_dump.log
+    // 使用 Vectored Exception Handler 而非 SetUnhandledExceptionFilter，
+    // 因为后者无法捕获非主线程的异常（Qt6Widgets.dll 的崩溃可能在工作线程）
+#ifdef Q_OS_WIN
+    AddVectoredExceptionHandler(1 /*第一个被调用*/, crashHandler);
+
+    // 修复终端中文乱码：Windows 控制台默认 GBK（代码页 936），
+    // 而 ZeroShotKit 等模块用 std::printf 以 UTF-8 输出中文日志，
+    // 不切换代码页会显示为乱码。这里统一将控制台输入/输出代码页切到 UTF-8。
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+
     // 让 QML 控件走基础样式（避免 Universal/Fusion 主题对自定义颜色造成覆盖）
     qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
 
@@ -215,6 +427,7 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     app.setApplicationName("QDetectVision");
     app.setOrganizationName("QDV");
+    app.setApplicationVersion("V2.0-0809");
 
     // 解析命令行（一次性遍历，避免重复扫描 argv）
     const CommandLineArgs args = parseCommandLine(argc, argv);
@@ -245,35 +458,66 @@ int main(int argc, char *argv[]) {
     // Phase 2: 加载动态算子扩展（bin/operators/*.dll）
     // 扫描 exe 同级 operators/ 目录下的所有 .dll，通过 OperatorPluginLoader 加载并注册
     {
-        QString pluginDir = QCoreApplication::applicationDirPath() + "/operators";
-        QDir().mkpath(pluginDir);
-        QDir dir(pluginDir);
-        QStringList filters; filters << "*.dll";
-        for (const QFileInfo& fi : dir.entryInfoList(filters)) {
-            QString err;
-            QDV::OperatorManifest manifest;
-            // 先用 loadPlugin 获取 manifest 元数据（type/cnName/category/params 等）
-            if (!QDV::loadPlugin(fi.absoluteFilePath(), manifest, &err)) {
-                Logger::warn(QString("Failed to load plugin manifest: %1 (%2)")
-                                 .arg(fi.absoluteFilePath(), err));
-                continue;
+        // S6 修复：清理插件目录路径，防止路径穿越
+        QString pluginDir = QDV::PathValidator::sanitize(
+            QCoreApplication::applicationDirPath() + "/operators");
+        if (pluginDir.isEmpty()) {
+            Logger::error("Plugin directory path invalid after sanitize, skipping plugin load");
+        } else {
+            QDir().mkpath(pluginDir);
+            QDir dir(pluginDir);
+            QStringList filters; filters << "*.dll";
+            // S6 修复：白名单根目录 = 清理后的 pluginDir，确保所有加载的 DLL 都在该目录内
+            const QStringList allowedRoots = { pluginDir };
+            for (const QFileInfo& fi : dir.entryInfoList(filters)) {
+                // S6 修复：校验每个 DLL 路径都在 operators/ 目录内（防穿越）
+                const QString dllPath = QDV::PathValidator::sanitize(fi.absoluteFilePath());
+                if (dllPath.isEmpty() ||
+                    !QDV::PathValidator::isWithinAllowedDir(dllPath, allowedRoots)) {
+                    Logger::warn(QString("Plugin path rejected by PathValidator (traversal detected): %1")
+                                     .arg(fi.absoluteFilePath()));
+                    continue;
+                }
+                QString err;
+                QDV::OperatorManifest manifest;
+                // 先用 loadPlugin 获取 manifest 元数据（type/cnName/category/params 等）
+                if (!QDV::loadPlugin(dllPath, manifest, &err)) {
+                    Logger::warn(QString("Failed to load plugin manifest: %1 (%2)")
+                                     .arg(dllPath, err));
+                    continue;
+                }
+                // 再用 loadAndRegister 注册算子创建器到 IOperatorRegistry（供 ToolFactory 使用）
+                if (QDV::loadAndRegister(dllPath, &err)) {
+                    // 同时注册到 OperatorDescriptors 供 UI 显示
+                    QDV::UI::OperatorMeta om;
+                    om.type = manifest.type;
+                    om.cnName = manifest.cnName;
+                    om.category = manifest.category;
+                    om.iconPath = manifest.iconPath;
+                    om.description = manifest.description;
+                    om.params = manifest.params;
+                    QDV::UI::OperatorDescriptors::registerExternalOperator(om);
+                    Logger::info(QString("Loaded plugin: %1").arg(manifest.type));
+                } else {
+                    Logger::warn(QString("Failed to register plugin: %1 (%2)")
+                                     .arg(dllPath, err));
+                }
             }
-            // 再用 loadAndRegister 注册算子创建器到 IOperatorRegistry（供 ToolFactory 使用）
-            if (QDV::loadAndRegister(fi.absoluteFilePath(), &err)) {
-                // 同时注册到 OperatorDescriptors 供 UI 显示
-                QDV::UI::OperatorMeta om;
-                om.type = manifest.type;
-                om.cnName = manifest.cnName;
-                om.category = manifest.category;
-                om.iconPath = manifest.iconPath;
-                om.description = manifest.description;
-                om.params = manifest.params;
-                QDV::UI::OperatorDescriptors::registerExternalOperator(om);
-                Logger::info(QString("Loaded plugin: %1").arg(manifest.type));
-            } else {
-                Logger::warn(QString("Failed to register plugin: %1 (%2)")
-                                 .arg(fi.absoluteFilePath(), err));
-            }
+        }
+    }
+
+    // v2.7.0 O1a：初始化算子库控制器（扫描 config/operators_imported/*.qdvop）
+    // 必须在 EditViewBridge 创建之前完成（Bridge 构造时 connect Controller 信号）
+    {
+        // S6 修复：清理算子库目录路径，防止路径穿越
+        const QString operatorsPath = QDV::PathValidator::sanitize(
+            QCoreApplication::applicationDirPath() + "/config/operators_imported");
+        const QString versionsPath = QDV::PathValidator::sanitize(
+            QCoreApplication::applicationDirPath() + "/config/operators_versions");
+        if (operatorsPath.isEmpty() || versionsPath.isEmpty()) {
+            Logger::error("Operator library path invalid after sanitize, skipping init");
+        } else {
+            QDV::OperatorLibrary::OperatorLibraryController::instance()->init(operatorsPath, versionsPath);
         }
     }
 

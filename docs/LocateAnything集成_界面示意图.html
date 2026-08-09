@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LocateAnything 集成 · 界面示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: #1e1e2e; color: #cdd6f4; padding: 20px; }
+  h1 { color: #89b4fa; margin-bottom: 8px; font-size: 22px; }
+  .sub { color: #a6adc8; font-size: 13px; margin-bottom: 24px; }
+  .section { background: #181825; border: 1px solid #313244; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+  .section h2 { color: #f9e2af; font-size: 16px; margin-bottom: 12px; border-left: 3px solid #f9e2af; padding-left: 8px; }
+  .section h3 { color: #94e2d5; font-size: 13px; margin: 10px 0 6px; }
+
+  /* 主窗口布局 */
+  .window { border: 1px solid #45475a; border-radius: 6px; overflow: hidden; background: #11111b; }
+  .titlebar { background: #313244; padding: 6px 12px; font-size: 12px; color: #a6adc8; display: flex; justify-content: space-between; }
+  .titlebar .tabs { display: flex; gap: 4px; }
+  .titlebar .tab { padding: 2px 10px; border-radius: 4px 4px 0 0; }
+  .titlebar .tab.active { background: #89b4fa; color: #11111b; font-weight: bold; }
+  .body { display: flex; min-height: 420px; }
+  .col { border-right: 1px solid #313244; padding: 10px; }
+  .col:last-child { border-right: none; }
+  .col-left { width: 240px; }
+  .col-mid { width: 380px; display: flex; flex-direction: column; }
+  .col-right { width: 240px; }
+
+  label { display: block; font-size: 11px; color: #a6adc8; margin: 8px 0 3px; }
+  select, input[type=text], input[type=number] {
+    width: 100%; background: #1e1e2e; border: 1px solid #45475a; color: #cdd6f4;
+    padding: 4px 6px; border-radius: 4px; font-size: 12px;
+  }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row input[type=range] { flex: 1; }
+  .val { width: 36px; text-align: right; font-size: 11px; color: #f9e2af; }
+  .btn { background: #313244; border: 1px solid #45475a; color: #cdd6f4; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+  .btn.primary { background: #89b4fa; color: #11111b; border-color: #89b4fa; font-weight: bold; }
+  .btn.warn { background: #f38ba8; color: #11111b; border-color: #f38ba8; }
+  .btn.ghost { background: transparent; }
+  .checkbox { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 6px 0; }
+
+  /* 图像区 */
+  .img-area { flex: 1; background: #0a0a12; border: 1px dashed #45475a; border-radius: 4px; margin-top: 8px; position: relative; display: flex; align-items: center; justify-content: center; color: #585b70; font-size: 12px; }
+  .img-area .scene { width: 100%; height: 100%; position: relative; }
+  .box { position: absolute; border: 2px solid; border-radius: 2px; }
+  .box .lbl { position: absolute; top: -16px; left: -2px; font-size: 10px; padding: 1px 4px; border-radius: 2px; white-space: nowrap; }
+  .toolbar { display: flex; gap: 6px; margin-top: 6px; }
+
+  /* 结果面板 */
+  .gauge { width: 100%; height: 60px; background: #1e1e2e; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .metric { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid #313244; }
+  .metric .k { color: #a6adc8; } .metric .v { color: #a6e3a1; }
+  .det-list { font-size: 11px; max-height: 140px; overflow: auto; }
+  .det-list .item { padding: 4px; border-bottom: 1px solid #313244; display: flex; justify-content: space-between; }
+
+  /* 禁用态 */
+  .disabled-overlay { color: #6c7086; }
+  .disabled-overlay select, .disabled-overlay input { opacity: 0.4; pointer-events: none; }
+  .diag { background: #f38ba8; color: #11111b; padding: 8px; border-radius: 4px; font-size: 11px; margin-top: 8px; }
+  .diag b { display: block; margin-bottom: 4px; }
+  .probe-list { font-size: 11px; margin-top: 6px; }
+  .probe-list .p { padding: 2px 0; display: flex; justify-content: space-between; }
+  .ok { color: #a6e3a1; } .fail { color: #f38ba8; } .pend { color: #f9e2af; }
+
+  /* 流水线 */
+  .pipeline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 10px; background: #11111b; border-radius: 6px; }
+  .stage { flex: 1; min-width: 120px; border: 1px solid #45475a; border-radius: 6px; padding: 10px; background: #1e1e2e; }
+  .stage .t { font-size: 12px; color: #89b4fa; font-weight: bold; margin-bottom: 4px; }
+  .stage .d { font-size: 10px; color: #a6adc8; line-height: 1.5; }
+  .arrow { color: #f9e2af; font-size: 18px; }
+  .preset-bar { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; font-size: 12px; }
+
+  .legend { font-size: 11px; color: #6c7086; margin-top: 8px; }
+  .note { background: #1e1e2e; border-left: 3px solid #89b4fa; padding: 8px 12px; font-size: 12px; color: #a6adc8; margin-top: 8px; border-radius: 0 4px 4px 0; }
+</style>
+</head>
+<body>
+
+<h1>LocateAnything 集成 · 界面示意图</h1>
+<div class="sub">QDetectVision · ZeroShotDetectView · 模型下拉新增 LocateAnything（开放词汇定位）｜ 本地 PyTorch 常驻进程 ｜ GPU≥8GB FP16</div>
+
+<!-- ============ 状态一：正常可用态 ============ -->
+<div class="section">
+  <h2>状态一 · 正常可用态（模型已加载，GPU 满足）</h2>
+  <div class="window">
+    <div class="titlebar">
+      <div class="tabs">
+        <div class="tab">编辑</div><div class="tab">检测</div><div class="tab">训练</div>
+        <div class="tab active">零样本检测</div><div class="tab">监控</div>
+      </div>
+      <div>QDetectVision v2.0</div>
+    </div>
+    <div class="body">
+      <!-- 左：配置面板 -->
+      <div class="col col-left">
+        <h3 style="margin-top:0">配置面板</h3>
+        <label>模型类型</label>
+        <select>
+          <option>AnomalyCLIP（异常检测）</option>
+          <option>GroundingDINO（开集检测·轻量）</option>
+          <option>MobileSAM（分割）</option>
+          <option selected>LocateAnything（开放词汇定位）</option>
+          <option>PatchCore（正常样本建模）</option>
+        </select>
+
+        <label>文本提示词（英文 . 分隔 / 自然语言）</label>
+        <input type="text" value="scratch . dent . stain">
+
+        <label>Box 阈值</label>
+        <div class="row">
+          <input type="range" min="0.1" max="0.9" step="0.05" value="0.25">
+          <span class="val">0.25</span>
+        </div>
+
+        <label>定位模式</label>
+        <div class="checkbox"><input type="checkbox" checked> 检测框（多目标）</div>
+        <div class="checkbox"><input type="checkbox"> 指代表达（单目标 REC）</div>
+        <div class="checkbox"><input type="checkbox"> 输出坐标点</div>
+
+        <label>模型路径 / HF 缓存</label>
+        <div class="row">
+          <input type="text" value="D:/models/LocateAnything-3B">
+          <button class="btn ghost">…</button>
+        </div>
+
+        <div class="checkbox" style="margin-top:10px"><input type="checkbox" checked> 人工复核</div>
+        <div class="checkbox"><input type="checkbox"> 稳定性推理（多次取众数）</div>
+
+        <div style="margin-top:10px">
+          <button class="btn primary">加载模型</button>
+          <button class="btn" style="margin-left:4px">模型注意</button>
+        </div>
+        <div style="margin-top:6px">
+          <button class="btn warn">开始推理</button>
+          <button class="btn ghost" style="margin-left:4px">取消</button>
+        </div>
+      </div>
+
+      <!-- 中：图像区 -->
+      <div class="col col-mid">
+        <h3 style="margin-top:0">图像与定位结果</h3>
+        <div class="img-area" style="min-height:300px">
+          <div class="scene">
+            <!-- 示意检测框 -->
+            <div class="box" style="left:18%;top:22%;width:24%;height:30%;border-color:#f38ba8">
+              <span class="lbl" style="background:#f38ba8;color:#11111b">scratch 0.92</span>
+            </div>
+            <div class="box" style="left:52%;top:48%;width:20%;height:22%;border-color:#f9e2af">
+              <span class="lbl" style="background:#f9e2af;color:#11111b">dent 0.81</span>
+            </div>
+            <div class="box" style="left:70%;top:18%;width:14%;height:16%;border-color:#a6e3a1">
+              <span class="lbl" style="background:#a6e3a1;color:#11111b">stain 0.74</span>
+            </div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button class="btn">打开图像</button>
+          <button class="btn">上一张</button>
+          <button class="btn">下一张</button>
+          <button class="btn">保存结果</button>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:#a6e3a1">● 服务在线 cuda:0</span>
+        </div>
+
+        <h3>三阶段流水线 Preset</h3>
+        <div class="preset-bar">
+          <select style="flex:1">
+            <option>— 单模型 —</option>
+            <option selected>异常 → 定位 → 分割（AnomalyCLIP→LocateAnything→MobileSAM）</option>
+            <option>异常 → 定位（仅框）</option>
+          </select>
+          <button class="btn">运行流水线</button>
+        </div>
+        <div class="pipeline">
+          <div class="stage"><div class="t">① AnomalyCLIP</div><div class="d">异常分数 0.87<br>异常热力图</div></div>
+          <span class="arrow">→</span>
+          <div class="stage"><div class="t">② LocateAnything</div><div class="d">提示词: scratch.dent.stain<br>3 框 · 180ms</div></div>
+          <span class="arrow">→</span>
+          <div class="stage"><div class="t">③ MobileSAM</div><div class="d">3 个掩码<br>框内精细分割</div></div>
+        </div>
+      </div>
+
+      <!-- 右：结果面板 -->
+      <div class="col col-right">
+        <h3 style="margin-top:0">结果</h3>
+        <div class="gauge"><span style="color:#a6e3a1;font-size:13px">推理成功 · 180ms</span></div>
+        <div class="metric"><span class="k">设备</span><span class="v">cuda:0</span></div>
+        <div class="metric"><span class="k">显存占用</span><span class="v">7.8 GB</span></div>
+        <div class="metric"><span class="k">检测框数</span><span class="v">3</span></div>
+        <div class="metric"><span class="k">后端</span><span class="v">PyTorch·FP16</span></div>
+
+        <h3>检测框列表</h3>
+        <div class="det-list">
+          <div class="item"><span>scratch</span><span class="ok">0.92</span></div>
+          <div class="item"><span>dent</span><span class="ok">0.81</span></div>
+          <div class="item"><span>stain</span><span class="ok">0.74</span></div>
+        </div>
+        <button class="btn" style="margin-top:8px;width:100%">导出 Bad Case</button>
+      </div>
+    </div>
+  </div>
+  <div class="note">说明：选中 LocateAnything 后，配置面板展示文本提示词 / Box 阈值 / 定位模式。图像区叠加检测框（颜色区分类别）。底部新增"三阶段流水线 Preset"，一键运行 异常→定位→分割。右上角"服务在线"指示 Python 常驻进程握手成功。</div>
+</div>
+
+<!-- ============ 状态二：配置不足禁用态 ============ -->
+<div class="section">
+  <h2>状态二 · 配置不足禁用态（GPU 不满足 / 依赖缺失 / 模型未下载）</h2>
+  <div class="window">
+    <div class="titlebar">
+      <div class="tabs">
+        <div class="tab">编辑</div><div class="tab">检测</div><div class="tab">训练</div>
+        <div class="tab active">零样本检测</div><div class="tab">监控</div>
+      </div>
+      <div>QDetectVision v2.0</div>
+    </div>
+    <div class="body">
+      <div class="col col-left disabled-overlay">
+        <h3 style="margin-top:0">配置面板</h3>
+        <label>模型类型</label>
+        <select>
+          <option>AnomalyCLIP（异常检测）</option>
+          <option>GroundingDINO（开集检测·轻量）</option>
+          <option>MobileSAM（分割）</option>
+          <option selected style="color:#6c7086">LocateAnything（开放词汇定位）⚠ 已禁用</option>
+          <option>PatchCore（正常样本建模）</option>
+        </select>
+
+        <div class="diag">
+          <b>⚠ LocateAnything 已禁用</b>
+          <div style="opacity:0.9">显存不足：当前 4.0 GB，需 ≥ 8 GB（FP16）</div>
+          <div class="probe-list">
+            <div class="p"><span>① Python 3.10+</span><span class="ok">✔</span></div>
+            <div class="p"><span>② torch / transformers</span><span class="ok">✔</span></div>
+            <div class="p"><span>③ CUDA 可用</span><span class="ok">✔</span></div>
+            <div class="p"><span>④ 显存 ≥ 8GB</span><span class="fail">✘ 4.0GB</span></div>
+            <div class="p"><span>⑤ 模型已下载</span><span class="ok">✔</span></div>
+            <div class="p"><span>⑥ 服务握手</span><span class="pend">— 未执行</span></div>
+          </div>
+        </div>
+
+        <label>文本提示词</label>
+        <input type="text" value="scratch . dent . stain" disabled>
+        <label>Box 阈值</label>
+        <div class="row"><input type="range" disabled><span class="val" style="color:#6c7086">0.25</span></div>
+
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn">重新诊断</button>
+          <button class="btn">切换 INT4 量化</button>
+          <button class="btn ghost">查看日志</button>
+        </div>
+        <div class="note" style="margin-top:8px;font-size:11px">建议：① 升级显卡至 ≥8GB 显存　② 切换 INT4 量化（约 4-6GB）　③ 改用 GroundingDINO 轻量方案</div>
+      </div>
+
+      <div class="col col-mid">
+        <h3 style="margin-top:0">图像与定位结果</h3>
+        <div class="img-area" style="min-height:300px;color:#6c7086">
+          模型未就绪，无法推理<br>请先解决配置问题
+        </div>
+        <div class="toolbar">
+          <button class="btn">打开图像</button>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:#f38ba8">● 服务离线</span>
+        </div>
+      </div>
+
+      <div class="col col-right">
+        <h3 style="margin-top:0">结果</h3>
+        <div class="gauge"><span style="color:#f38ba8;font-size:13px">服务不可用</span></div>
+        <div class="metric"><span class="k">设备</span><span class="v" style="color:#f38ba8">—</span></div>
+        <div class="metric"><span class="k">显存</span><span class="v" style="color:#f38ba8">4.0 / 8.0 GB</span></div>
+        <div class="metric"><span class="k">检测框数</span><span class="v" style="color:#6c7086">0</span></div>
+        <h3>诊断建议</h3>
+        <div class="det-list" style="color:#a6adc8">
+          <div class="item"><span>升级 GPU 显存</span><span class="fail">推荐</span></div>
+          <div class="item"><span>启用 INT4 量化</span><span class="pend">可选</span></div>
+          <div class="item"><span>改用 GroundingDINO</span><span class="ok">立即可用</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note">说明：配置探针任一失败 → 模型下拉项置灰 + 红色诊断条列出每项探针结果 + 给出可操作建议（重新诊断 / 切换 INT4 / 查看日志）。"开始推理"按钮在禁用态不可用。其余模型不受影响。</div>
+</div>
+
+<!-- ============ 状态三：三阶段流水线可视化 ============ -->
+<div class="section">
+  <h2>状态三 · 三阶段流水线（异常 → 定位 → 分割）可视化</h2>
+  <div class="window">
+    <div class="titlebar"><div>流水线运行：sample_001.jpg</div><div>耗时 1.2s</div></div>
+    <div class="body" style="flex-direction:column;min-height:auto">
+      <div class="pipeline" style="margin:12px">
+        <div class="stage">
+          <div class="t">① AnomalyCLIP · 异常检测</div>
+          <div class="d">输入: 原图<br>输出: anomalyScore=0.87, anomalyMap<br>耗时: 90ms<br>判定: <span class="fail">存在异常</span></div>
+        </div>
+        <span class="arrow">→</span>
+        <div class="stage">
+          <div class="t">② LocateAnything · 开放词汇定位</div>
+          <div class="d">输入: 原图 + 提示词(来自①异常类别)<br>输出: 3 框 [scratch/dent/stain]<br>耗时: 180ms · cuda:0<br>契约: boxes[]</div>
+        </div>
+        <span class="arrow">→</span>
+        <div class="stage">
+          <div class="t">③ MobileSAM · 分割</div>
+          <div class="d">输入: ②的每个框(prompt point)<br>输出: 3 个掩码<br>耗时: 240ms<br>契约: mask[]</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;padding:0 12px 12px">
+        <div style="flex:1;background:#11111b;border-radius:6px;padding:10px">
+          <h3 style="margin:0 0 6px">阶段① 异常热力图</h3>
+          <div class="img-area" style="min-height:120px;background:radial-gradient(circle at 40% 50%, #f38ba855, #11111b 70%)"></div>
+        </div>
+        <div style="flex:1;background:#11111b;border-radius:6px;padding:10px">
+          <h3 style="margin:0 0 6px">阶段② 定位框叠加</h3>
+          <div class="img-area" style="min-height:120px;position:relative">
+            <div class="box" style="left:15%;top:20%;width:30%;height:35%;border-color:#f38ba8"><span class="lbl" style="background:#f38ba8;color:#11111b">scratch 0.92</span></div>
+            <div class="box" style="left:55%;top:45%;width:25%;height:25%;border-color:#f9e2af"><span class="lbl" style="background:#f9e2af;color:#11111b">dent 0.81</span></div>
+          </div>
+        </div>
+        <div style="flex:1;background:#11111b;border-radius:6px;padding:10px">
+          <h3 style="margin:0 0 6px">阶段③ 分割掩码</h3>
+          <div class="img-area" style="min-height:120px;background:repeating-linear-gradient(45deg,#a6e3a155 0 10px,#11111b 10px 20px)"></div>
+        </div>
+      </div>
+      <div style="padding:0 12px 12px;display:flex;gap:8px">
+        <button class="btn primary">导出流水线报告</button>
+        <button class="btn">保存为 Preset</button>
+        <button class="btn ghost">查看轨迹 Trace</button>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#a6adc8">阶段间契约已由 Handoff Gateway 校验 ✔</span>
+      </div>
+    </div>
+  </div>
+  <div class="note">说明：三阶段串行执行，每阶段输出经 Handoff Gateway 契约校验后传入下一阶段（符合架构红线规则1）。阶段①的异常类别名自动作为阶段②的提示词；阶段②的框作为阶段③的 prompt。底部可导出报告/保存 Preset/查看 Trace（符合预发期轨迹比对要求）。</div>
+</div>
+
+<div class="legend">
+  图例：🟦 scratch(划痕) &nbsp; 🟨 dent(凹坑) &nbsp; 🟩 stain(污渍) &nbsp; ● 绿=在线/成功 &nbsp; ● 红=失败/离线 &nbsp; ● 黄=进行中/建议
+</div>
+
+</body>
+</html>

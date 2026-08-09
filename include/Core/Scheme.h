@@ -41,6 +41,24 @@ public:
     
     QMap<QString, BranchNode*> branches() const;
     void addBranch(std::unique_ptr<BranchNode> branch);
+
+    // === v2.7.0 子链管理 ===
+    /// 添加子链（LoopTool id → 子链算子列表，Scheme 接管所有权）
+    void addSubChain(const QString& loopToolId, std::vector<std::unique_ptr<QDV::VisionTool>> tools);
+    /// 移除子链
+    void removeSubChain(const QString& loopToolId);
+    /// 获取子链算子的裸指针列表（供 ToolChainExecutor 使用，NON-OWNING）
+    QMap<QString, QList<QDV::VisionTool*>> subChainPtrs() const;
+    /// 获取指定 LoopTool 的子链算子裸指针列表
+    QList<QDV::VisionTool*> subChainPtrs(const QString& loopToolId) const;
+
+    // === v2.7.0 并行分支管理 ===
+    /// 添加并行分支（分支起始 toolId → 分支算子列表，Scheme 接管所有权）
+    void addParallelBranch(const QString& branchId, std::vector<std::unique_ptr<QDV::VisionTool>> tools);
+    /// 移除并行分支
+    void removeParallelBranch(const QString& branchId);
+    /// 获取所有并行分支的裸指针映射（供 ToolChainExecutor 使用）
+    QMap<QString, QList<QDV::VisionTool*>> parallelBranchPtrs() const;
     
     CameraConfig* cameraConfig() const { return m_cameraConfig.get(); }
     void setCameraConfig(CameraConfig* config);
@@ -78,6 +96,13 @@ private:
     QString m_modified;
     std::vector<std::unique_ptr<QDV::VisionTool>> m_toolChain;
     std::map<QString, std::unique_ptr<BranchNode>> m_branches;
+    /// v2.7.0：子链存储（LoopTool id → 子链算子列表）
+    /// 子链算子由 Scheme 拥有（unique_ptr），在 Scheme 析构时自动释放
+    std::map<QString, std::vector<std::unique_ptr<QDV::VisionTool>>> m_subChains;
+
+    /// v2.7.0：并行分支存储（分支起始 toolId → 分支算子列表）
+    /// 并行分支算子由 Scheme 拥有
+    std::map<QString, std::vector<std::unique_ptr<QDV::VisionTool>>> m_parallelBranches;
     std::unique_ptr<CameraConfig> m_cameraConfig;
     std::unique_ptr<TriggerConfig> m_triggerConfig;
     std::unique_ptr<OutputConfig> m_outputConfig;

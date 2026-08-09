@@ -33,8 +33,8 @@
 // === QApplication 单例（UI 测试通用模式） ===
 static int argc = 0;
 static QApplication* app() {
-    static QApplication a(argc, nullptr);
-    return &a;
+    // 复用 test_main.cpp 中创建的全局 QApplication 实例
+    return qobject_cast<QApplication*>(QCoreApplication::instance());
 }
 inline void ensureApp() { app(); }
 

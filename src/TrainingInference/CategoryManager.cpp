@@ -349,6 +349,35 @@ bool CategoryManager::exportToJSON(const QString& filePath) {
     return false;
 }
 
+QJsonObject CategoryManager::exportToJsonObject() const {
+    QJsonArray arr;
+    for (auto it = m_categories.begin(); it != m_categories.end(); ++it) {
+        QJsonObject obj;
+        obj["id"] = it.value().id;
+        obj["name"] = it.value().name;
+        obj["parentId"] = it.value().parentId;
+        obj["color"] = it.value().color;
+        obj["description"] = it.value().description;
+        obj["isPublic"] = it.value().isPublic;
+        obj["depth"] = it.value().depth;
+        QJsonArray samples;
+        for (const QString& img : it.value().sampleImages) {
+            samples.append(img);
+        }
+        obj["sampleImages"] = samples;
+        obj["createdAt"] = it.value().createdAt.toString(Qt::ISODate);
+        obj["modifiedAt"] = it.value().modifiedAt.toString(Qt::ISODate);
+        arr.append(obj);
+    }
+
+    QJsonObject root;
+    root["version"] = "1.0";
+    root["exportTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["categories"] = arr;
+    root["nextId"] = m_nextId;
+    return root;
+}
+
 bool CategoryManager::exportToCSV(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
@@ -478,6 +507,92 @@ ImportResult CategoryManager::importFromJSON(const QString& filePath) {
         .arg(result.total).arg(result.imported).arg(result.skipped));
 
     return result;
+}
+
+ImportResult CategoryManager::importFromJsonObject(const QJsonObject& root) {
+    ImportResult result;
+
+    int fileNextId = root["nextId"].toInt(1);
+    if (fileNextId > m_nextId) m_nextId = fileNextId;
+
+    QJsonArray arr = root["categories"].toArray();
+    result.total = arr.size();
+
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        QString id = obj["id"].toString();
+        QString name = obj["name"].toString();
+        QString parentId = obj["parentId"].toString();
+
+        if (id.isEmpty() || name.isEmpty()) {
+            result.skipped++;
+            result.errors.append(QString::fromUtf8("第%1项: 缺少id或name字段，已跳过").arg(i + 1));
+            continue;
+        }
+
+        if (m_categories.contains(id)) {
+            result.skipped++;
+            result.errors.append(QString::fromUtf8("第%1项: ID已存在 (%2)，已跳过").arg(i + 1).arg(id));
+            continue;
+        }
+
+        QString nameErr = validateCategoryName(name);
+        if (!nameErr.isEmpty()) {
+            result.skipped++;
+            result.errors.append(QString::fromUtf8("第%1项: 名称无效 (%2)").arg(i + 1).arg(nameErr));
+            continue;
+        }
+
+        if (hasSiblingWithName(name, parentId)) {
+            name = name + " (2)";
+        }
+
+        QString color = obj["color"].toString("#CCCCCC");
+        if (!color.isEmpty()) {
+            QString colorErr = validateCategoryColor(color);
+            if (!colorErr.isEmpty()) color = "#CCCCCC";
+        }
+
+        int depth = obj["depth"].toInt(0);
+        if (depth > maxDepth()) {
+            result.skipped++;
+            result.errors.append(QString::fromUtf8("第%1项: 深度超限 (%2 > %3)，已跳过")
+                .arg(i + 1).arg(depth).arg(maxDepth()));
+            continue;
+        }
+
+        CategoryNode node;
+        node.id = id;
+        node.name = name;
+        node.parentId = parentId;
+        node.color = color;
+        node.description = obj["description"].toString();
+        node.isPublic = obj["isPublic"].toBool(true);
+        node.depth = depth;
+
+        QJsonArray samples = obj["sampleImages"].toArray();
+        for (int j = 0; j < samples.size() && j < 5; ++j) {
+            node.sampleImages.append(samples[j].toString());
+        }
+
+        node.createdAt = QDateTime::fromString(obj["createdAt"].toString(), Qt::ISODate);
+        if (!node.createdAt.isValid()) node.createdAt = QDateTime::currentDateTime();
+        node.modifiedAt = QDateTime::fromString(obj["modifiedAt"].toString(), Qt::ISODate);
+        if (!node.modifiedAt.isValid()) node.modifiedAt = QDateTime::currentDateTime();
+
+        m_categories[id] = node;
+        result.imported++;
+    }
+
+    Logger::info(QString("CategoryManager: JsonObject import - total:%1 imported:%2 skipped:%3")
+        .arg(result.total).arg(result.imported).arg(result.skipped));
+
+    return result;
+}
+
+void CategoryManager::clearCategories() {
+    m_categories.clear();
+    m_nextId = 1;
 }
 
 ImportResult CategoryManager::importFromCSV(const QString& filePath) {

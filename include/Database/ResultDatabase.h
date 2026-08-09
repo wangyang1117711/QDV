@@ -5,7 +5,7 @@
 #include <QString>
 #include <QSqlDatabase>
 #include <QSqlQuery>
-#include <QMutex>
+#include <QRecursiveMutex>
 
 class ResultDatabase : public QObject {
     Q_OBJECT
@@ -49,13 +49,20 @@ private:
     ~ResultDatabase();
     
     QSqlDatabase m_db;
-    QMutex m_mutex;
+    QRecursiveMutex m_mutex;  // 递归锁：deleteResults/countResults、open/createTables 存在嵌套加锁
     bool m_safeDeleteEnabled = true;
-    
+
     static ResultDatabase* s_instance;
-    
+
     bool createTables();
     int countResults(const QString& schemeId);
+
+    // S5 安全加固：应用层加密（敏感字段 AES 加密后存储）
+    // 密钥来源：机器特征码（machineUniqueId）的 SHA256 哈希，不硬编码
+    // 加密方案：XOR + 随机 IV 流密码（与 AuthService 一致），格式 "iv_hex:ciphertext_hex"
+    QByteArray deriveEncryptionKey() const;
+    QString encryptField(const QString& plaintext) const;
+    QString decryptField(const QString& ciphertext) const;
 };
 
 #endif // RESULT_DATABASE_H

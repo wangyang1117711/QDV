@@ -9,6 +9,9 @@
 #define QDV_DATA_DIR "@CMAKE_INSTALL_DATADIR@/QDetectVision"
 #define QDV_PLUGIN_DIR "@CMAKE_INSTALL_LIBDIR@/QDetectVision/plugins"
 
+// 导出功能：模板预编译产物目录（SchemeExporter 复制模板二进制的来源）
+#define QDV_TEMPLATE_BIN_DIR "@QDV_TEMPLATE_BIN_DIR@"
+
 #ifdef QDV_DEBUG
 #define QDV_DEBUG_BUILD 1
 #else

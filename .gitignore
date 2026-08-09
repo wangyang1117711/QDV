@@ -6,12 +6,22 @@
 # ===== 构建产物 =====
 build/
 build_*/
+*.zip
+QDetectVision-发布包/
 build_qt/
 build_mingw/
 build_new/
 build_new2/
 cmake-build-*/
 out/
+
+# ===== 代码覆盖率（Task 10: ENABLE_COVERAGE + gcov）=====
+build_coverage/
+*.gcda
+*.gcno
+*.gcov
+coverage_html/
+coverage_report.txt
 
 # ===== 第三方依赖 =====
 opencv_world4130.def

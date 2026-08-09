@@ -1,7 +1,10 @@
 #include "AI/TrainingBridge.h"
+#include "AI/ModelManager.h"
 #include "Core/Logger.h"
+#include "Monitoring/TrainingInferenceMonitor.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -71,13 +74,36 @@ QString TrainingBridge::generateDatasetManifest(
 
     for (auto it = groupedByLabel.begin(); it != groupedByLabel.end(); ++it) {
         const auto& pairs = it.value();
-        int valCount = qMax(1, static_cast<int>(pairs.size() * validationSplit));
+
+        // 每类至少保留 1 个训练样本；若样本过少，优先保证训练集。
+        const int minTrainPerClass = 1;
+        int maxValCount = qMax(0, pairs.size() - minTrainPerClass);
+        int valCount = static_cast<int>(pairs.size() * validationSplit);
+        // 样本过少时允许验证集为 0，优先保证每类至少有 1 个训练样本；
+        // 对于样本数>=2 的类别，至少保留 1 个验证样本以保证验证指标稳定。
+        valCount = qBound(0, valCount, maxValCount);
+        if (valCount == 0 && maxValCount > 0) {
+            valCount = 1;
+        }
+
+        // 样本过少时给出警告（小验证集会导致准确率大幅波动）
+        if (pairs.size() <= 2) {
+            QDV::Logger::warn(QString("[TrainingBridge] 类别 '%1' 样本数过少 (%2 张)，"
+                                       "验证集仅 %3 张，指标可能不稳定")
+                              .arg(it.key()).arg(pairs.size()).arg(valCount));
+        }
+
         QList<bool> isVal(pairs.size(), false);
         for (int i = 0; i < valCount; ++i) {
             isVal[i] = true;
         }
+
+        // 使用类别名+样本数生成确定性种子，保证同一数据集每次划分结果可复现，
+        // 避免不同训练 run 因随机性导致验证集组成变化。
+        quint32 seed = static_cast<quint32>(qHash(it.key()) ^ qHash(pairs.size()));
+        QRandomGenerator rng(seed);
         for (int i = pairs.size() - 1; i > 0; --i) {
-            int j = QRandomGenerator::global()->bounded(i + 1);
+            int j = rng.bounded(i + 1);
             std::swap(isVal[i], isVal[j]);
         }
 
@@ -189,6 +215,15 @@ void TrainingBridge::startTraining(
     m_heartbeatTimer->start();
 
     m_process->start(pythonPath, args);
+
+    // 通知监控器训练开始
+    TrainingProgressDetail startDetail;
+    startDetail.progress = 0.0;
+    startDetail.status = "running";
+    startDetail.epoch = 0;
+    startDetail.totalEpochs = numEpochs;
+    startDetail.elapsedSeconds = 0;
+    TrainingInferenceMonitor::instance()->recordTrainingProgress(startDetail);
 }
 
 void TrainingBridge::cancelTraining()
@@ -216,6 +251,10 @@ void TrainingBridge::cancelTraining()
         QVariantMap result;
         result["success"] = false;
         result["errorMessage"] = "训练被用户取消";
+
+        // 通知监控器训练已取消
+        TrainingInferenceMonitor::instance()->recordTrainingProgress(-1.0, "cancelled");
+
         emit trainingCompleted(result);
     }
 }
@@ -261,8 +300,10 @@ void TrainingBridge::onHeartbeatCheck()
 
     qint64 elapsed = m_lastOutputTime.elapsed();
 
-    // 如果30秒内没有收到任何输出，认为进程卡住
-    if (elapsed > 30000) {
+    // 心跳超时阈值：首帧输出可能因 CUDA 初始化/依赖加载耗时较长，
+    // 从 30s 放宽到 60s，减少误判（首次运行 import torch 常需 30-60s）
+    const qint64 kHeartbeatTimeoutMs = 60000;
+    if (elapsed > kHeartbeatTimeoutMs) {
         QString errMsg;
         if (!m_receivedAnyOutput) {
             // 从未收到任何输出 - 极有可能是 Python 启动失败（依赖加载卡死）
@@ -358,11 +399,31 @@ void TrainingBridge::parseAndEmitOutput(const QString& line)
         prog["elapsedSeconds"] = obj.value("elapsed_sec").toDouble();
         emit trainingProgress(prog);
 
-        QString logStr = QString("[Epoch %1/%2] Train Acc: %3%, Val Acc: %4%")
-            .arg(prog["epoch"].toInt()).arg(prog["totalEpochs"].toInt())
-            .arg(QString::number(prog["trainAccuracy"].toDouble() * 100, 'f', 1))
-            .arg(QString::number(prog["valAccuracy"].toDouble() * 100, 'f', 1));
-        emit logOutput(logStr);
+        // 上报训练进度到监控器（包含 epoch/loss/acc/已运行/剩余等实时指标）
+        int epoch = prog["epoch"].toInt();
+        int totalEpochs = prog["totalEpochs"].toInt();
+        double progress = (totalEpochs > 0) ? (static_cast<double>(epoch) / totalEpochs) : 0.0;
+        double elapsedSeconds = prog["elapsedSeconds"].toDouble();
+        double remainingSeconds = -1.0;
+        if (progress > 0.0 && elapsedSeconds > 0.0) {
+            remainingSeconds = elapsedSeconds * (1.0 - progress) / progress;
+        }
+
+        TrainingProgressDetail detail;
+        detail.progress = progress;
+        detail.status = "running";
+        detail.epoch = epoch;
+        detail.totalEpochs = totalEpochs;
+        detail.trainLoss = prog["trainLoss"].toDouble();
+        detail.trainAcc = prog["trainAccuracy"].toDouble();
+        detail.valLoss = prog["valLoss"].toDouble();
+        detail.valAcc = prog["valAccuracy"].toDouble();
+        detail.elapsedSeconds = static_cast<qint64>(elapsedSeconds);
+        detail.remainingSeconds = static_cast<qint64>(remainingSeconds);
+        TrainingInferenceMonitor::instance()->recordTrainingProgress(detail);
+
+        // 注意：epoch 日志统一由 TrainingInferenceView::onTrainingProgress 输出，
+        // 避免 TrainingBridge 与 UI 层重复打印同一条训练指标。
 
     } else if (type == "complete") {
         // 标记已发出 complete 信号, 避免 onProcessFinished 重复 emit
@@ -379,14 +440,64 @@ void TrainingBridge::parseAndEmitOutput(const QString& line)
             result[it.key()] = it.value().toDouble();
         }
 
+        // 更新训练状态（用于项目保存）—— 仅在训练成功时记录
+        if (result.value("success").toBool()) {
+            m_trainingState.hasTrained = true;
+            m_trainingState.lastTrainedAt = QDateTime::currentDateTime();
+            m_trainingState.onnxPath = result.value("onnxPath").toString();
+            // 提取训练指标
+            QVariantMap metrics;
+            if (result.contains("train_acc")) metrics["trainAcc"] = result.value("train_acc");
+            if (result.contains("val_acc")) metrics["valAcc"] = result.value("val_acc");
+            if (result.contains("train_loss")) metrics["trainLoss"] = result.value("train_loss");
+            if (result.contains("val_loss")) metrics["valLoss"] = result.value("val_loss");
+            m_trainingState.lastMetrics = metrics;
+        }
+
         emit trainingCompleted(result);
+
+        // 通知监控器训练完成状态
+        if (result.value("success").toBool()) {
+            TrainingInferenceMonitor::instance()->recordTrainingProgress(1.0, "completed");
+        } else {
+            TrainingInferenceMonitor::instance()->recordTrainingProgress(-1.0, "failed");
+        }
 
     } else if (type == "error") {
         QString phase = obj.value("phase").toString();
         QString message = obj.value("message").toString();
         emit trainingError(phase, message);
         emit logOutput("[错误] " + message);
+
+        // 通知监控器训练失败
+        TrainingInferenceMonitor::instance()->recordTrainingProgress(-1.0, "failed");
     }
+}
+
+TrainingParamsSnapshot TrainingBridge::paramsSnapshot() const {
+    return m_currentParams;
+}
+
+TrainingStateSnapshot TrainingBridge::stateSnapshot() const {
+    return m_trainingState;
+}
+
+void TrainingBridge::applySnapshot(const TrainingParamsSnapshot& params, const TrainingStateSnapshot& state) {
+    m_currentParams = params;
+    m_trainingState = state;
+}
+
+void TrainingBridge::resetState() {
+    m_currentParams = TrainingParamsSnapshot();  // 重置为默认值
+    m_trainingState = TrainingStateSnapshot();   // 重置为默认值
+}
+
+void TrainingBridge::setCurrentParams(const QString& modelType, int numEpochs, int batchSize, double learningRate, double valSplit) {
+    m_currentParams.modelType = modelType;
+    m_currentParams.numEpochs = numEpochs;
+    m_currentParams.batchSize = batchSize;
+    m_currentParams.learningRate = learningRate;
+    m_currentParams.valSplit = valSplit;
 }
 
 } // namespace QDV

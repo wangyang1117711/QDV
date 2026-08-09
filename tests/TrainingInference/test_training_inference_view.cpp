@@ -13,7 +13,13 @@
 #include <QFileInfo>
 #include <QPainter>
 
-void ensureApp();
+inline void ensureApp() {
+    // 复用 test_main.cpp 中创建的全局 QApplication 实例
+    if (!QCoreApplication::instance()) {
+        static int argc = 0;
+        static QApplication a(argc, nullptr);
+    }
+}
 
 static QString createTempPng(QTemporaryDir& dir, const QString& name, int w, int h, QColor color)
 {

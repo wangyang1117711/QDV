@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV P1-4 算子界面示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #1e1e2e; color: #cdd6f4; padding: 24px; }
+  h1 { color: #89b4fa; margin-bottom: 8px; font-size: 22px; }
+  .subtitle { color: #a6adc8; font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1200px; }
+  .card { background: #313244; border-radius: 10px; overflow: hidden; border: 1px solid #45475a; }
+  .card-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #45475a; }
+  .icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; }
+  .card-title { font-size: 15px; font-weight: 600; color: #cdd6f4; }
+  .card-type { font-size: 11px; color: #7f849c; margin-top: 2px; }
+  .card-body { padding: 14px 16px; }
+  .section-label { font-size: 11px; color: #89b4fa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; margin-top: 12px; }
+  .section-label:first-child { margin-top: 0; }
+
+  /* 参数面板 */
+  .params { display: flex; flex-direction: column; gap: 6px; }
+  .param-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .param-name { color: #a6adc8; min-width: 110px; }
+  .param-input { flex: 1; background: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 4px 8px; color: #cdd6f4; font-size: 12px; }
+  .param-input.select { color: #f9e2af; }
+  .param-input.num { color: #a6e3a1; }
+
+  /* 端口 */
+  .ports { display: flex; gap: 16px; }
+  .port-group { flex: 1; }
+  .port-group-title { font-size: 10px; color: #7f849c; margin-bottom: 6px; }
+  .port { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0; }
+  .port-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-img { background: #f38ba8; }
+  .dot-pts { background: #f9e2af; }
+  .dot-num { background: #a6e3a1; }
+  .dot-str { background: #89b4fa; }
+  .dot-bool { background: #cba6f7; }
+  .dot-any { background: #94e2d5; }
+  .port-cn { color: #cdd6f4; }
+  .port-type { color: #6c7086; font-size: 10px; margin-left: auto; }
+
+  /* 可视化预览 */
+  .preview { background: #181825; border-radius: 6px; padding: 12px; margin-top: 10px; border: 1px dashed #45475a; }
+  .preview-title { font-size: 11px; color: #7f849c; margin-bottom: 8px; }
+
+  /* 网格切分示意 */
+  .grid-viz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background: #45475a; padding: 3px; border-radius: 4px; width: 180px; height: 120px; }
+  .grid-cell { background: #1e1e2e; border: 1.5px solid #f9e2af; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #f9e2af; }
+
+  /* Python 沙箱示意 */
+  .sandbox-box { background: #11111b; border-radius: 4px; padding: 8px; font-family: "Consolas", monospace; font-size: 11px; color: #a6e3a1; border-left: 3px solid #a6e3a1; }
+  .sandbox-line { color: #6c7086; }
+  .sandbox-keyword { color: #cba6f7; }
+  .sandbox-func { color: #89b4fa; }
+  .sandbox-comment { color: #585b70; font-style: italic; }
+
+  /* 运算示意 */
+  .op-flow { display: flex; align-items: center; gap: 8px; font-family: "Consolas", monospace; font-size: 12px; }
+  .op-box { background: #1e1e2e; border: 1px solid #45475a; border-radius: 4px; padding: 4px 10px; color: #f9e2af; }
+  .op-arrow { color: #89b4fa; }
+
+  /* 比较算子集 */
+  .ops-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .op-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-family: "Consolas", monospace; }
+  .tag-legacy { background: #313244; color: #a6adc8; border: 1px solid #585b70; }
+  .tag-new { background: #1e1e2e; color: #a6e3a1; border: 1px solid #a6e3a1; }
+
+  .footer { margin-top: 24px; font-size: 11px; color: #585b70; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>QDV P1-4 视觉算子界面示意图</h1>
+<p class="subtitle">4 个算子：LoopTool（循环遍历）· ScriptTool（Python脚本）· VariableTool（变量运算）· BranchControlTool（分支控制·扩展）</p>
+
+<div class="grid">
+
+  <!-- ============ LoopTool ============ -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon" style="background:#f9e2af;color:#1e1e2e;">⟳</div>
+      <div>
+        <div class="card-title">循环遍历 LoopTool</div>
+        <div class="card-type">type: "Loop" · P1-4a</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section-label">参数面板</div>
+      <div class="params">
+        <div class="param-row"><span class="param-name">遍历模式 mode</span><span class="param-input select">grid ▾</span></div>
+        <div class="param-row"><span class="param-name">网格列数 gridCols</span><span class="param-input num">3</span></div>
+        <div class="param-row"><span class="param-name">网格行数 gridRows</span><span class="param-input num">3</span></div>
+        <div class="param-row"><span class="param-name">重叠像素 gridOverlap</span><span class="param-input num">0</span></div>
+        <div class="param-row"><span class="param-name">ROI列表 roiList</span><span class="param-input">x,y,w,h;x,y,w,h</span></div>
+        <div class="param-row"><span class="param-name">起始索引 startIndex</span><span class="param-input num">0</span></div>
+        <div class="param-row"><span class="param-name">最大迭代 maxIterations</span><span class="param-input num">100</span></div>
+      </div>
+
+      <div class="section-label">网格切分预览（3×3，黄色框+索引）</div>
+      <div class="preview">
+        <div class="grid-viz">
+          <div class="grid-cell">0</div><div class="grid-cell">1</div><div class="grid-cell">2</div>
+          <div class="grid-cell">3</div><div class="grid-cell">4</div><div class="grid-cell">5</div>
+          <div class="grid-cell">6</div><div class="grid-cell">7</div><div class="grid-cell">8</div>
+        </div>
+      </div>
+
+      <div class="section-label">端口</div>
+      <div class="ports">
+        <div class="port-group">
+          <div class="port-group-title">输入</div>
+          <div class="port"><span class="port-dot dot-img"></span><span class="port-cn">图像</span><span class="port-type">Image</span></div>
+        </div>
+        <div class="port-group">
+          <div class="port-group-title">输出</div>
+          <div class="port"><span class="port-dot dot-pts"></span><span class="port-cn">ROI列表</span><span class="port-type">Points</span></div>
+          <div class="port"><span class="port-dot dot-num"></span><span class="port-cn">总数</span><span class="port-type">Number</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ScriptTool ============ -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon" style="background:#a6e3a1;color:#1e1e2e;">🐍</div>
+      <div>
+        <div class="card-title">Python脚本 ScriptTool</div>
+        <div class="card-type">type: "Script" · P1-4b · 条件编译 QDV_WITH_PYTHON</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section-label">参数面板</div>
+      <div class="params">
+        <div class="param-row"><span class="param-name">脚本 script</span><span class="param-input">result = 1 + 2</span></div>
+        <div class="param-row"><span class="param-name">超时 timeout</span><span class="param-input num">5000</span></div>
+        <div class="param-row"><span class="param-name">允许模块 allowedModules</span><span class="param-input">math,json,re</span></div>
+        <div class="param-row"><span class="param-name">Python路径 pythonHome</span><span class="param-input">D:/Program Files/Python314</span></div>
+      </div>
+
+      <div class="section-label">安全沙箱执行流程</div>
+      <div class="preview">
+        <div class="sandbox-box">
+          <span class="sandbox-comment"># 1. AST 白名单校验（禁止 os/sys/open/exec）</span><br>
+          <span class="sandbox-comment"># 2. Py_CompileString 编译为 code object</span><br>
+          <span class="sandbox-comment"># 3. 注入 sandbox 函数</span><br>
+          <span class="sandbox-keyword">def</span> <span class="sandbox-func">compute</span>():<br>
+          &nbsp;&nbsp;<span class="sandbox-func">log</span>(<span class="sandbox-line">"开始计算"</span>)<br>
+          &nbsp;&nbsp;x = <span class="sandbox-func">get_var</span>(<span class="sandbox-line">"input"</span>)<br>
+          &nbsp;&nbsp;result = x * <span class="sandbox-line">2.5</span><br>
+          &nbsp;&nbsp;<span class="sandbox-func">set_var</span>(<span class="sandbox-line">"output"</span>, result)<br>
+          &nbsp;&nbsp;<span class="sandbox-keyword">return</span> result<br>
+          <span class="sandbox-comment"># 4. PyEval_EvalCode 在受限命名空间执行</span>
+        </div>
+      </div>
+
+      <div class="section-label">端口</div>
+      <div class="ports">
+        <div class="port-group">
+          <div class="port-group-title">输入</div>
+          <div class="port"><span class="port-dot dot-img"></span><span class="port-cn">图像</span><span class="port-type">Image</span></div>
+        </div>
+        <div class="port-group">
+          <div class="port-group-title">输出</div>
+          <div class="port"><span class="port-dot dot-any"></span><span class="port-cn">输出</span><span class="port-type">Any</span></div>
+          <div class="port"><span class="port-dot dot-bool"></span><span class="port-cn">成功</span><span class="port-type">Bool</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VariableTool ============ -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon" style="background:#89b4fa;color:#1e1e2e;">∑</div>
+      <div>
+        <div class="card-title">变量运算 VariableTool</div>
+        <div class="card-type">type: "Variable" · P1-4c</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section-label">参数面板</div>
+      <div class="params">
+        <div class="param-row"><span class="param-name">运算类型 operation</span><span class="param-input select">add ▾</span></div>
+        <div class="param-row"><span class="param-name">操作数1 operand1</span><span class="param-input">3.14</span></div>
+        <div class="param-row"><span class="param-name">操作数2 operand2</span><span class="param-input">2.86</span></div>
+        <div class="param-row"><span class="param-name">格式化 format</span><span class="param-input">%.2f</span></div>
+        <div class="param-row"><span class="param-name">输出变量名 outputVar</span><span class="param-input">result</span></div>
+      </div>
+
+      <div class="section-label">运算流程示意</div>
+      <div class="preview">
+        <div class="op-flow">
+          <span class="op-box">operand1</span>
+          <span class="op-arrow">─op─▶</span>
+          <span class="op-box">operand2</span>
+          <span class="op-arrow">═══▶</span>
+          <span class="op-box" style="color:#a6e3a1;border-color:#a6e3a1;">result</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:#7f849c;line-height:1.8;">
+          支持运算：<span style="color:#f9e2af;">add</span> · <span style="color:#f9e2af;">sub</span> · <span style="color:#f9e2af;">mul</span> · <span style="color:#f9e2af;">div</span>(除零保护) · <span style="color:#f9e2af;">mod</span> · <span style="color:#f9e2af;">concat</span>(拼接) · <span style="color:#f9e2af;">format</span>(%.2f / %s_%d)
+        </div>
+      </div>
+
+      <div class="section-label">端口</div>
+      <div class="ports">
+        <div class="port-group">
+          <div class="port-group-title">输入</div>
+          <div class="port"><span class="port-dot dot-img"></span><span class="port-cn">图像</span><span class="port-type">Image</span></div>
+        </div>
+        <div class="port-group">
+          <div class="port-group-title">输出</div>
+          <div class="port"><span class="port-dot dot-any"></span><span class="port-cn">结果</span><span class="port-type">Any</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BranchControlTool 扩展 ============ -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon" style="background:#cba6f7;color:#1e1e2e;">⑂</div>
+      <div>
+        <div class="card-title">分支控制 BranchControlTool <span style="font-size:11px;color:#a6e3a1;">·扩展</span></div>
+        <div class="card-type">type: "BranchControl" · P1-4c · 向后兼容</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="section-label">比较算子集（原有 + 新增）</div>
+      <div class="ops-list">
+        <span class="op-tag tag-legacy">==</span>
+        <span class="op-tag tag-legacy">!=</span>
+        <span class="op-tag tag-legacy">&gt;</span>
+        <span class="op-tag tag-legacy">&gt;=</span>
+        <span class="op-tag tag-legacy">&lt;</span>
+        <span class="op-tag tag-legacy">&lt;=</span>
+        <span class="op-tag tag-legacy">ok</span>
+        <span class="op-tag tag-legacy">ng</span>
+        <span class="op-tag tag-new">ge</span>
+        <span class="op-tag tag-new">le</span>
+        <span class="op-tag tag-new">ne</span>
+        <span class="op-tag tag-new">contains</span>
+        <span class="op-tag tag-new">startswith</span>
+        <span class="op-tag tag-new">endswith</span>
+        <span class="op-tag tag-new">in</span>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#7f849c;">
+        <span style="color:#a6adc8;">灰色</span>=原有（向后兼容） · <span style="color:#a6e3a1;">绿色</span>=P1-4c 新增
+      </div>
+
+      <div class="section-label">条件评估流程</div>
+      <div class="preview">
+        <div style="font-family:'Consolas',monospace;font-size:11px;line-height:1.9;color:#a6adc8;">
+          <span style="color:#cba6f7;">if</span> op ∈ {==, !=, &gt;, &gt;=, &lt;, &lt;=, ok, ng}:<br>
+          &nbsp;&nbsp;<span style="color:#89b4fa;">→</span> BranchNode::evaluate <span style="color:#585b70;">// 原有逻辑</span><br>
+          <span style="color:#cba6f7;">elif</span> op ∈ {ge, le, ne}:<br>
+          &nbsp;&nbsp;<span style="color:#89b4fa;">→</span> 数值比较 (leftNum vs th) <span style="color:#585b70;">// 别名</span><br>
+          <span style="color:#cba6f7;">elif</span> op ∈ {contains, startswith, endswith}:<br>
+          &nbsp;&nbsp;<span style="color:#89b4fa;">→</span> 字符串比较 (leftStr vs condVal)<br>
+          <span style="color:#cba6f7;">elif</span> op == "in":<br>
+          &nbsp;&nbsp;<span style="color:#89b4fa;">→</span> leftStr ∈ condVal列表 <span style="color:#585b70;">// 逗号/分号分隔</span>
+        </div>
+      </div>
+
+      <div class="section-label">端口</div>
+      <div class="ports">
+        <div class="port-group">
+          <div class="port-group-title">输入</div>
+          <div class="port"><span class="port-dot dot-img"></span><span class="port-cn">图像</span><span class="port-type">Image</span></div>
+        </div>
+        <div class="port-group">
+          <div class="port-group-title">输出</div>
+          <div class="port"><span class="port-dot dot-bool"></span><span class="port-cn">条件成立</span><span class="port-type">Bool</span></div>
+          <div class="port"><span class="port-dot dot-str"></span><span class="port-cn">算子</span><span class="port-type">String</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  QDV 工业机器视觉平台 · P1-4 算子扩展 · 生成于 2026-07-15<br>
+  端口类型：Image(粉) · Points(黄) · Number(绿) · String(蓝) · Bool(紫) · Any(青)
+</div>
+
+</body>
+</html>

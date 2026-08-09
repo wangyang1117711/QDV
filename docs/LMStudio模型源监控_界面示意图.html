@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LM Studio 模型源监控 · 界面示意图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: #1e1e2e; color: #cdd6f4; padding: 20px; }
+  h1 { color: #89b4fa; margin-bottom: 8px; font-size: 22px; }
+  .sub { color: #a6adc8; font-size: 13px; margin-bottom: 24px; }
+  .section { background: #181825; border: 1px solid #313244; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+  .section h2 { color: #f9e2af; font-size: 16px; margin-bottom: 12px; border-left: 3px solid #f9e2af; padding-left: 8px; }
+  .section h3 { color: #94e2d5; font-size: 13px; margin: 10px 0 6px; }
+
+  .window { border: 1px solid #45475a; border-radius: 6px; overflow: hidden; background: #11111b; }
+  .titlebar { background: #313244; padding: 6px 12px; font-size: 12px; color: #a6adc8; display: flex; justify-content: space-between; }
+  .titlebar .tabs { display: flex; gap: 4px; }
+  .titlebar .tab { padding: 2px 10px; border-radius: 4px 4px 0 0; }
+  .titlebar .tab.active { background: #89b4fa; color: #11111b; font-weight: bold; }
+  .body { padding: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border: 1px solid #313244; padding: 6px 8px; text-align: left; }
+  th { background: #1e1e2e; color: #94e2d5; font-weight: normal; }
+  tr:hover { background: #1e1e2e; }
+
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+  .badge.lm { background: #f9e2af; color: #11111b; }
+  .badge.local { background: #89b4fa; color: #11111b; }
+  .badge.trained { background: #a6e3a1; color: #11111b; }
+  .badge.new { background: #f38ba8; color: #11111b; margin-left: 4px; }
+  .badge.empty { background: #6c7086; color: #11111b; }
+
+  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-size: 12px; }
+  .btn { background: #313244; border: 1px solid #45475a; color: #cdd6f4; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+  .btn.primary { background: #89b4fa; color: #11111b; border-color: #89b4fa; font-weight: bold; }
+  .btn.danger { background: #f38ba8; color: #11111b; border-color: #f38ba8; }
+  .btn.ghost { background: transparent; }
+
+  select, input[type=text] { width: 100%; background: #1e1e2e; border: 1px solid #45475a; color: #cdd6f4; padding: 4px 6px; border-radius: 4px; font-size: 12px; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .dot-ok { background: #a6e3a1; } .dot-warn { background: #f9e2af; } .dot-err { background: #f38ba8; }
+
+  .toast { background: #1e1e2e; border-left: 3px solid #a6e3a1; padding: 8px 12px; font-size: 12px; margin-top: 8px; border-radius: 0 4px 4px 0; }
+  .toast.warn { border-left-color: #f9e2af; }
+  .toast.err { border-left-color: #f38ba8; }
+
+  .flow { display: flex; align-items: center; gap: 6px; padding: 10px; background: #11111b; border-radius: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .flow .step { border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; background: #1e1e2e; font-size: 11px; }
+  .flow .step b { color: #89b4fa; display: block; margin-bottom: 2px; }
+  .flow .arrow { color: #f9e2af; font-size: 16px; }
+
+  .note { background: #1e1e2e; border-left: 3px solid #89b4fa; padding: 8px 12px; font-size: 12px; color: #a6adc8; margin-top: 8px; border-radius: 0 4px 4px 0; }
+</style>
+</head>
+<body>
+
+<h1>LM Studio 模型源监控 · 界面示意图</h1>
+<div class="sub">QDetectVision · 预设路径 F:\models\.lmstudio\models 与现有路径并存 · QFileSystemWatcher 自动监控 · 零样本模块调用</div>
+
+<!-- ============ 设置页：模型源路径配置 ============ -->
+<div class="section">
+  <h2>① 设置页 · 模型源路径配置区</h2>
+  <div class="window">
+    <div class="titlebar">
+      <div class="tabs">
+        <div class="tab">编辑</div><div class="tab">检测</div><div class="tab active">设置</div><div class="tab">监控</div>
+      </div>
+      <div>QDetectVision v2.0</div>
+    </div>
+    <div class="body">
+      <h3>模型源路径（多路径并存，统一扫描）</h3>
+      <table>
+        <thead>
+          <tr><th style="width:30px">启用</th><th style="width:180px">路径</th><th style="width:90px">来源类型</th><th style="width:80px">状态</th><th style="width:70px">模型数</th><th>说明</th><th style="width:120px">操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox" checked></td>
+            <td style="font-family:monospace;color:#f9e2af">F:\models\.lmstudio\models</td>
+            <td><span class="badge lm">LM Studio</span></td>
+            <td><span class="status-dot dot-ok"></span>已挂载</td>
+            <td style="color:#a6e3a1">5</td>
+            <td>预设路径，存放 LM Studio 下载的本地大模型，自动监控</td>
+            <td><button class="btn ghost">浏览</button> <button class="btn ghost">改</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked></td>
+            <td style="font-family:monospace;color:#89b4fa">D:\models</td>
+            <td><span class="badge local">本地</span></td>
+            <td><span class="status-dot dot-ok"></span>已挂载</td>
+            <td style="color:#a6e3a1">12</td>
+            <td>现有模型路径（ONNX/零样本模型），自动监控</td>
+            <td><button class="btn ghost">浏览</button> <button class="btn ghost">改</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" checked></td>
+            <td style="font-family:monospace;color:#a6e3a1">D:\QDV\trained</td>
+            <td><span class="badge trained">训练产物</span></td>
+            <td><span class="status-dot dot-ok"></span>已挂载</td>
+            <td style="color:#a6e3a1">3</td>
+            <td>训练 YOLO 产物目录，自动监控</td>
+            <td><button class="btn ghost">浏览</button> <button class="btn ghost">改</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td style="font-family:monospace;color:#6c7086">E:\backup\models</td>
+            <td><span class="badge local">本地</span></td>
+            <td><span class="status-dot dot-warn"></span>未挂载</td>
+            <td style="color:#6c7086">—</td>
+            <td>路径不存在，已禁用监控，恢复后自动重新监控</td>
+            <td><button class="btn ghost">浏览</button> <button class="btn danger">删</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary">+ 新增路径</button>
+        <button class="btn">立即重新扫描</button>
+        <span style="flex:1"></span>
+        <span style="color:#a6adc8">监控中：3 个路径 · 共 20 个模型</span>
+      </div>
+      <div class="toast">QFileSystemWatcher 正在监控已启用的路径，模型增删自动刷新，无需重启。</div>
+    </div>
+  </div>
+  <div class="note">说明：预设路径 F:\models\.lmstudio\models 默认锁定但可修改；与现有路径 D:\models 并存互不冲突；每个路径显示来源类型/挂载状态/模型数；路径不存在标记"未挂载"但不影响其他源。</div>
+</div>
+
+<!-- ============ 零样本面板：模型下拉合并多源 ============ -->
+<div class="section">
+  <h2>② 零样本面板 · 模型下拉合并多源 + 来源标签</h2>
+  <div class="window">
+    <div class="titlebar">
+      <div class="tabs">
+        <div class="tab">编辑</div><div class="tab active">零样本检测</div><div class="tab">训练</div><div class="tab">监控</div>
+      </div>
+      <div>QDetectVision v2.0</div>
+    </div>
+    <div class="body" style="display:flex;gap:12px">
+      <!-- 左：配置 -->
+      <div style="width:300px">
+        <h3 style="margin-top:0">配置面板</h3>
+        <label style="display:block;font-size:11px;color:#a6adc8;margin:8px 0 3px">模型类型</label>
+        <select>
+          <option>AnomalyCLIP（异常检测）</option>
+          <option>GroundingDINO（开集检测）</option>
+          <option selected>LocateAnything（开放词汇定位）</option>
+          <option>PatchCore（正常样本建模）</option>
+        </select>
+
+        <label style="display:block;font-size:11px;color:#a6adc8;margin:8px 0 3px">具体模型（合并所有源）</label>
+        <select size="9" style="height:auto">
+          <optgroup label="— LM Studio (F:\models\.lmstudio\models) —">
+            <option>qwen2.5-vl-7b-instruct <span class="badge new">新</span></option>
+            <option>llama-3.2-vision-11b</option>
+            <option>minicpm-v-2.6</option>
+          </optgroup>
+          <optgroup label="— 本地 (D:\models) —">
+            <option>clip_vision_vit_b32</option>
+            <option>anomaly_clip_v1</option>
+            <option>groundingdino_swint_og</option>
+          </optgroup>
+          <optgroup label="— 训练产物 (D:\QDV\trained) —">
+            <option>rust_detect_v1.onnx</option>
+            <option>screw_defect_v3.onnx</option>
+          </optgroup>
+        </select>
+
+        <div class="row">
+          <span class="badge lm">LM Studio</span>
+          <span style="color:#a6adc8">qwen2.5-vl-7b-instruct</span>
+          <span class="badge new">新</span>
+        </div>
+        <div class="row" style="color:#6c7086;font-size:11px">
+          路径: F:\models\.lmstudio\models\Qwen\Qwen2.5-VL-7B<br>
+          大小: 14.2 GB · 修改: 2026-08-02 18:30
+        </div>
+
+        <label style="display:block;font-size:11px;color:#a6adc8;margin:8px 0 3px">文本提示词</label>
+        <input type="text" value="scratch . dent . rust">
+
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary">加载模型</button>
+          <button class="btn">重新扫描</button>
+        </div>
+      </div>
+
+      <!-- 中：监控事件流 -->
+      <div style="flex:1">
+        <h3 style="margin-top:0">模型源监控事件流（实时）</h3>
+        <div style="background:#11111b;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;line-height:1.8;min-height:260px">
+          <div><span style="color:#6c7086">[18:30:12]</span> <span style="color:#a6e3a1">[LM Studio]</span> 检测到新模型: <span style="color:#f9e2af">qwen2.5-vl-7b-instruct</span> <span class="badge new">新</span></div>
+          <div><span style="color:#6c7086">[18:30:12]</span> <span style="color:#a6e3a1">[LM Studio]</span> 触发防抖合并扫描 (1 次)</div>
+          <div><span style="color:#6c7086">[18:30:13]</span> <span style="color:#89b4fa">[全局]</span> 模型清单已刷新: 20 → <span style="color:#a6e3a1">21</span> 个</div>
+          <div><span style="color:#6c7086">[18:30:13]</span> <span style="color:#89b4fa">[UI]</span> 零样本面板模型下拉已自动更新</div>
+          <div><span style="color:#6c7086">[18:31:05]</span> <span style="color:#a6e3a1">[本地]</span> D:\models 模型清单未变化</div>
+          <div><span style="color:#6c7086">[18:32:40]</span> <span style="color:#f38ba8">[LM Studio]</span> 用户删除模型: old-vlm-test (已从清单移除)</div>
+          <div><span style="color:#6c7086">[18:33:00]</span> <span style="color:#a6e3a1">[训练产物]</span> 新增: rust_detect_v2.onnx <span class="badge new">新</span></div>
+          <div><span style="color:#6c7086">[18:35:20]</span> <span style="color:#89b4fa">[用户]</span> 加载 LM Studio 模型 qwen2.5-vl-7b-instruct</div>
+          <div><span style="color:#6c7086">[18:35:22]</span> <span style="color:#a6e3a1">[推理]</span> 模型加载成功 (2.1s) · cuda:0</div>
+        </div>
+        <div class="toast">监控运行中：3 路径 · 防抖 500ms · 路径异常自动标记不影响其他源</div>
+      </div>
+    </div>
+  </div>
+  <div class="note">说明：模型下拉按来源分组（LM Studio/本地/训练产物），新模型标"新"；选中 LM Studio 模型时显示路径/大小/修改时间；右侧事件流实时展示监控状态；模型增删无需重启。</div>
+</div>
+
+<!-- ============ 数据流：LM Studio 下载到零样本调用 ============ -->
+<div class="section">
+  <h2>③ 数据流 · LM Studio 下载模型 → 零样本模块调用</h2>
+  <div class="flow">
+    <div class="step"><b>① LM Studio 下载</b>用户在 LM Studio 下载大模型到<br>F:\models\.lmstudio\models</div>
+    <span class="arrow">→</span>
+    <div class="step"><b>② QFileSystemWatcher</b>检测到目录文件变化<br>触发防抖合并 (500ms)</div>
+    <span class="arrow">→</span>
+    <div class="step"><b>③ ModelSourceManager</b>重新扫描路径<br>更新模型清单 (21 个)</div>
+    <span class="arrow">→</span>
+    <div class="step"><b>④ modelListChanged 信号</b>通知零样本面板<br>下拉自动刷新</div>
+    <span class="arrow">→</span>
+    <div class="step"><b>⑤ 用户选择模型</b>零样本模块加载<br>标记来源"LM Studio"</div>
+    <span class="arrow">→</span>
+    <div class="step"><b>⑥ 调用推理</b>LocateAnything/零样本<br>使用该模型推理</div>
+  </div>
+  <div class="note">说明：全流程无需重启软件。路径不存在时步骤②暂停监控，路径恢复后自动重新监控（步骤①恢复触发）。</div>
+</div>
+
+<!-- ============ 异常态：路径不存在 ============ -->
+<div class="section">
+  <h2>④ 异常态 · 预设路径不存在/为空</h2>
+  <div class="window">
+    <div class="titlebar"><div>零样本检测</div><div>QDetectVision v2.0</div></div>
+    <div class="body">
+      <div style="display:flex;gap:12px">
+        <div style="width:300px">
+          <label style="display:block;font-size:11px;color:#a6adc8;margin:0 0 3px">具体模型</label>
+          <select>
+            <optgroup label="— LM Studio (未挂载) —"></optgroup>
+            <optgroup label="— 本地 (D:\models) —">
+              <option>clip_vision_vit_b32</option>
+              <option>anomaly_clip_v1</option>
+            </optgroup>
+          </select>
+        </div>
+        <div style="flex:1">
+          <div class="toast warn">
+            <b>⚠ LM Studio 模型源不可用</b><br>
+            路径 F:\models\.lmstudio\models 不存在或为空。<br>
+            请检查该路径是否已创建，或在 LM Studio 中设置下载目录为该路径。<br>
+            其他模型源（本地/训练产物）不受影响，可正常使用。
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn">打开设置配置路径</button>
+            <button class="btn ghost">忽略</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note">说明：预设路径不可用时仅该源禁用并提示，其他模型源正常工作；路径恢复后自动重新挂载并恢复监控。</div>
+</div>
+
+<div style="color:#6c7086;font-size:11px;margin-top:16px">
+  图例：<span class="badge lm">LM Studio</span> LM Studio 下载的本地大模型 ｜
+  <span class="badge local">本地</span> 现有 ONNX/零样本模型 ｜
+  <span class="badge trained">训练产物</span> 训练 YOLO 产物 ｜
+  <span class="badge new">新</span> 新增模型 ｜
+  <span class="status-dot dot-ok"></span>已挂载 <span class="status-dot dot-warn"></span>未挂载
+</div>
+
+</body>
+</html>

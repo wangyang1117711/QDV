@@ -4,9 +4,14 @@ set(AI_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceEngineAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ModelManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ModelSourceManager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ClassificationMetrics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/VisionClassifier.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/TrainingBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/InferenceCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ImageCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/ExportManager.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include/AI/DatasetValidator.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../OperatorSDK/include/OperatorSDK/IInferenceEngine.h
 )
 
@@ -14,9 +19,14 @@ set(AI_SOURCES
     InferenceEngine.cpp
     InferenceEngineAdapter.cpp
     ModelManager.cpp
+    ModelSourceManager.cpp
     ClassificationMetrics.cpp
     VisionClassifier.cpp
     TrainingBridge.cpp
+    InferenceCache.cpp
+    ImageCache.cpp
+    ExportManager.cpp
+    DatasetValidator.cpp
 )
 
 add_library(AI STATIC
@@ -31,6 +41,7 @@ target_include_directories(AI PUBLIC
 
 target_link_libraries(AI PUBLIC
     Core
+    Monitoring
     OperatorSDK
     ${OpenCV_LIBS}
 )

@@ -1,8 +1,11 @@
-#include "Vision/ToolChainVerifier.h"
+﻿#include "Vision/ToolChainVerifier.h"
 #include "Core/VisionTool.h"
 #include "Vision/ToolFactory.h"
 #include "Vision/ToolChainExecutor.h"
 #include <QElapsedTimer>
+#include <QFile>
+#include <QDir>
+#include <QJsonObject>
 #include <opencv2/imgproc.hpp>
 
 using namespace QDV;
@@ -82,7 +85,7 @@ ToolVerifyResult ToolChainVerifier::verifyTemplateMatch() {
     cv::Mat search = cv::Mat(400, 400, CV_8UC1, cv::Scalar(40));
     pattern.copyTo(search(cv::Rect(150, 100, pattern.cols, pattern.rows)));
 
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::TemplateMatch);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("TemplateMatch"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -107,7 +110,7 @@ ToolVerifyResult ToolChainVerifier::verifyEdgeDetect() {
     r.toolName = "边缘检测";
 
     cv::Mat input = createTestImage(320, 240);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::EdgeDetect);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("EdgeDetect"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -146,7 +149,7 @@ ToolVerifyResult ToolChainVerifier::verifyBlobDetect() {
     r.toolName = "斑块检测";
 
     cv::Mat input = createTestImage(320, 240);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::BlobDetect);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("BlobDetect"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -171,7 +174,7 @@ ToolVerifyResult ToolChainVerifier::verifyColorDetect() {
     r.toolName = "颜色识别";
 
     cv::Mat input = createColorTestImage();
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ColorDetect);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ColorDetect"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -214,7 +217,7 @@ ToolVerifyResult ToolChainVerifier::verifyThreshold() {
     r.toolName = "阈值分割";
 
     cv::Mat gray = createPatternTestImage();
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::Threshold);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("Threshold"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -252,7 +255,7 @@ ToolVerifyResult ToolChainVerifier::verifyImagePreprocess() {
     r.toolName = "图像预处理";
 
     cv::Mat input = createTestImage(320, 240);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ImagePreprocess);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ImagePreprocess"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -290,7 +293,7 @@ ToolVerifyResult ToolChainVerifier::verifyContourAnalyze() {
     r.toolName = "轮廓分析";
 
     cv::Mat input = createTestImage(320, 240);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ContourAnalyze);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ContourAnalyze"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -315,7 +318,7 @@ ToolVerifyResult ToolChainVerifier::verifyGeometryMeasure() {
     r.toolName = "几何测量";
 
     cv::Mat input = createGeometricTestImage();
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::GeometryMeasure);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("GeometryMeasure"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -340,7 +343,7 @@ ToolVerifyResult ToolChainVerifier::verifyLineCircleDetect() {
     r.toolName = "直线/圆检测";
 
     cv::Mat input = createLineCircleTestImage();
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::LineCircleDetect);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("LineCircleDetect"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -379,7 +382,7 @@ ToolVerifyResult ToolChainVerifier::verifyImageArithmetic() {
     cv::Mat img2 = createTestImage(200, 150);
     cv::flip(img2, img2, 1);
 
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ImageArithmetic);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ImageArithmetic"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -417,7 +420,7 @@ ToolVerifyResult ToolChainVerifier::verifyImageTransform() {
     r.toolName = "图像变换";
 
     cv::Mat input = createTestImage(320, 240);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ImageTransform);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ImageTransform"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -456,7 +459,7 @@ ToolVerifyResult ToolChainVerifier::verifyImageMerge() {
     cv::Mat img2 = createTestImage(200, 150);
     cv::flip(img2, img2, 0);
 
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ImageMerge);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ImageMerge"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -492,7 +495,7 @@ ToolVerifyResult ToolChainVerifier::verifyBranchControl() {
     r.toolName = "分支控制";
 
     cv::Mat input = createTestImage(200, 150);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::BranchControl);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("BranchControl"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -535,7 +538,7 @@ ToolVerifyResult ToolChainVerifier::verifyAiClassify() {
     r.toolName = "AI分类";
 
     cv::Mat input = createTestImage(224, 224);
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::AiClassify);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("AiClassify"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";
@@ -551,7 +554,7 @@ ToolVerifyResult ToolChainVerifier::verifyAiClassify() {
 
     // AI 分类工具在没有加载模型时返回 false 是预期行为，不算失败
     // 只要工具能被创建并执行（不崩溃），即认为验证通过
-    r.passed = ok || !result.data.value("modelLoaded", true).toBool();
+    r.passed = ok || !result.data.value("modelLoaded").toBool(true);
     if (r.passed) {
         r.message = ok ? "AI分类执行成功" : "AI分类跳过（未加载模型，预期行为）";
     } else {
@@ -574,7 +577,7 @@ ToolVerifyResult ToolChainVerifier::verifyReadImage() {
         return r;
     }
 
-    VisionTool* tool = ToolFactory::instance()->createTool(VisionTool::ReadImage);
+    VisionTool* tool = ToolFactory::instance()->createTool(QStringLiteral("ReadImage"));
     if (!tool) {
         r.passed = false;
         r.message = "工厂创建失败";

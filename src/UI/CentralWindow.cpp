@@ -6,6 +6,7 @@
 #include "CommView.h"
 #include "MonitorView.h"
 #include "TrainingInference/TrainingInferenceView.h"
+#include "ZeroShotDetectView.h"  // [零样本检测模块] 索引 8
 #include "Core/DetectionStats.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,6 +20,8 @@
 #include <QEvent>
 #include <QApplication>
 #include <QPropertyAnimation>
+#include <QResizeEvent>
+#include <QLayout>
 
 CentralWindow::CentralWindow(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -34,6 +37,7 @@ CentralWindow::CentralWindow(QWidget* parent) : QWidget(parent) {
     m_commView = new CommView();
     m_monitorView = new MonitorView();
     m_trainingView = new TrainingInferenceView();
+    m_zeroShotView = new ZeroShotDetectView();  // [零样本检测模块] 索引 8
 
     createContentViews();
 
@@ -95,6 +99,7 @@ void CentralWindow::createNavigationPanel(QVBoxLayout* mainLayout) {
         {"\u27E1 通信", 5},
         {"\u26A1 监控", 6},
         {"\u25B6 训练推理", 7},
+        {"\u2728 零样本检测", 8},  // [零样本检测模块] 索引 8
     };
 
     for (const auto& item : items) {
@@ -184,6 +189,7 @@ void CentralWindow::createContentViews() {
     m_contentStack->addWidget(m_commView);
     m_contentStack->addWidget(m_monitorView);
     m_contentStack->addWidget(m_trainingView);
+    m_contentStack->addWidget(m_zeroShotView);  // [零样本检测模块] 索引 8
 }
 
 QWidget* CentralWindow::createHomeView() {
@@ -342,6 +348,25 @@ void CentralWindow::switchView(int index) {
     // 注意：EditView 内含 QQuickWidget，QGraphicsOpacityEffect 会引起渲染冲突，
     // 故采用 geometry 滑动而非 opacity 淡入。
     QWidget* newWidget = m_contentStack->widget(index);
+    auto finalizeSwitch = [this, newWidget]() {
+        // v3.2.1 统一修复：QStackedWidget 中的子视图在首次显示时，
+        // 内部布局（QQuickWidget viewport / QSplitter sizes）可能尚未稳定，
+        // 导致"未铺满"。在切换完成后强制发送一次 resize 事件，并刷新 layout。
+        if (newWidget) {
+            const QSize sz = m_contentStack->size();
+            if (sz.isValid() && sz.width() > 0 && sz.height() > 0) {
+                newWidget->setGeometry(m_contentStack->rect());
+                newWidget->updateGeometry();
+                if (QLayout* l = newWidget->layout()) {
+                    l->invalidate();
+                    l->activate();
+                }
+                QResizeEvent re(sz, QSize());
+                QApplication::sendEvent(newWidget, &re);
+            }
+        }
+    };
+
     if (newWidget && oldIndex >= 0) {
         const QRect targetGeometry = newWidget->geometry();
         const int xOffset = m_contentStack->width();
@@ -355,17 +380,19 @@ void CentralWindow::switchView(int index) {
         anim->setEndValue(targetGeometry);
         anim->setEasingCurve(QEasingCurve::OutCubic);
         connect(anim, &QPropertyAnimation::finished, anim, &QObject::deleteLater);
+        connect(anim, &QPropertyAnimation::finished, this, finalizeSwitch);
         anim->start();
     } else {
         // 首次切换无前驱视图，直接显示
         m_contentStack->setCurrentIndex(index);
+        finalizeSwitch();
     }
 
     for (auto it = navButtons.begin(); it != navButtons.end(); ++it) {
         it.value()->setChecked(it.key() == index);
     }
 
-    QStringList viewNames = {"首页", "相机", "方案", "编辑", "IO监控", "通信", "监控", "训练推理"};
+    QStringList viewNames = {"首页", "相机", "方案", "编辑", "IO监控", "通信", "监控", "训练推理", "零样本检测"};
     if (index >= 0 && index < viewNames.size()) {
         emit viewChanged(viewNames[index]);
         // v5.0：视图切换时发出状态栏提示
@@ -387,7 +414,7 @@ bool CentralWindow::eventFilter(QObject* obj, QEvent* event) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->modifiers() == Qt::AltModifier) {
             int key = keyEvent->key();
-            if (key >= Qt::Key_1 && key <= Qt::Key_8) {
+            if (key >= Qt::Key_1 && key <= Qt::Key_9) {  // [零样本检测模块] 扩展到 Key_9（Alt+9 切换零样本检测）
                 switchView(key - Qt::Key_1);
                 return true;
             }

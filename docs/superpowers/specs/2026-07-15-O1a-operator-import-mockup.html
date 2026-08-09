@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>O1a 算子导入功能 — 界面示意图</title>
+<style>
+  /* ============================================================
+   * 完全对齐 QDV DesignTokens v3.0.0（qml/EditView/DesignTokens.qml）
+   * 字体/色阶/间距/圆角均与系统一致，便于评估与最终实现的对齐度
+   * ============================================================ */
+  :root {
+    --bg-canvas: #121212;
+    --bg-panel: #1A1A1A;
+    --bg-surface: #242424;
+    --bg-hover: #2F2F2F;
+    --bg-header: #1F1F1F;
+    --text-primary: #FFFFFF;
+    --text-secondary: #C8C8C8;
+    --text-tertiary: #9E9E9E;
+    --text-disabled: #6E6E6E;
+    --text-placeholder: #757575;
+    --accent-primary: #7C4DFF;
+    --accent-primary-hover: #9D7BFF;
+    --accent-success: #69F0AE;
+    --accent-warning: #FFD740;
+    --accent-error: #FF5252;
+    --accent-info: #448AFF;
+    --border-default: #3D3D3D;
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-xl: 8px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --font-cjk: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    --font-mono: "Cascadia Code", "Consolas", monospace;
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-base: 13px;
+    --font-lg: 14px;
+    --font-xl: 16px;
+    --font-2xl: 20px;
+    --control-h: 28px;
+    --header-h: 40px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-canvas);
+    color: var(--text-secondary);
+    font-family: var(--font-cjk);
+    font-size: var(--font-base);
+    line-height: 1.4;
+    padding: var(--space-6);
+  }
+  h1 {
+    color: var(--text-primary);
+    font-size: var(--font-2xl);
+    margin-bottom: var(--space-2);
+  }
+  h2 {
+    color: var(--text-primary);
+    font-size: var(--font-xl);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+  }
+  .meta {
+    color: var(--text-tertiary);
+    font-size: var(--font-sm);
+    margin-bottom: var(--space-6);
+  }
+  .scene-label {
+    display: inline-block;
+    background: var(--accent-primary);
+    color: white;
+    padding: 2px 10px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-xs);
+    font-weight: bold;
+    margin-bottom: var(--space-3);
+  }
+  .scene-label.warn { background: var(--accent-warning); color: #1A1A1A; }
+  .scene-label.err  { background: var(--accent-error); }
+  .scene-label.ok   { background: var(--accent-success); color: #1A1A1A; }
+
+  /* ============ 主画布区（模拟 EditView） ============ */
+  .stage {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 1px;
+    background: var(--border-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    height: 720px;
+    margin-bottom: var(--space-8);
+  }
+  .panel {
+    background: var(--bg-panel);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    background: var(--bg-header);
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-primary);
+    font-weight: bold;
+    font-size: var(--font-lg);
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-h);
+  }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-3);
+  }
+
+  /* ============ 算子库面板（左） ============ */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  .search-bar input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-family: var(--font-cjk);
+    font-size: var(--font-base);
+    outline: none;
+    padding: 4px;
+  }
+  .search-bar input::placeholder { color: var(--text-placeholder); }
+  .category-group { margin-bottom: var(--space-2); }
+  .category-title {
+    color: var(--text-tertiary);
+    font-size: var(--font-sm);
+    padding: var(--space-2) var(--space-1);
+    cursor: pointer;
+    user-select: none;
+  }
+  .category-title::before { content: "▾ "; }
+  .op-item {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-base);
+  }
+  .op-item:hover { background: var(--bg-hover); }
+  .op-item.imported::after {
+    content: "I";
+    background: var(--accent-primary);
+    color: white;
+    font-size: 9px;
+    font-weight: bold;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: auto;
+  }
+  .op-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  /* 底部按钮区（本切片新增入口） */
+  .panel-footer {
+    border-top: 1px solid var(--border-default);
+    padding: var(--space-2);
+    display: flex;
+    gap: var(--space-2);
+    background: var(--bg-header);
+  }
+  .btn-footer {
+    flex: 1;
+    height: var(--control-h);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-cjk);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .btn-footer:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+  }
+  .btn-footer.primary {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+  }
+  .btn-footer.primary:hover { background: var(--accent-primary-hover); }
+  .new-badge {
+    display: inline-block;
+    background: var(--accent-success);
+    color: #1A1A1A;
+    font-size: 9px;
+    font-weight: bold;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+  }
+
+  /* ============ 画布（中） ============ */
+  .canvas {
+    background: var(--bg-canvas);
+    background-image:
+      linear-gradient(rgba(61,61,61,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,61,61,0.3) 1px, transparent 1px);
+    background-size: 20px 20px;
+    position: relative;
+  }
+  .canvas-hint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-disabled);
+    font-size: var(--font-lg);
+    text-align: center;
+  }
+  .node {
+    position: absolute;
+    width: 180px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    font-size: var(--font-sm);
+  }
+  .node-title {
+    color: var(--text-primary);
+    font-weight: bold;
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: var(--space-1);
+  }
+  .node-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-tertiary);
+    padding: 1px 0;
+  }
+  .node-row.in  { color: var(--accent-warning); }
+  .node-row.out { color: var(--accent-success); }
+
+  /* ============ 详情面板（右） ============ */
+  .detail-row {
+    display: flex;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--bg-hover);
+    font-size: var(--font-sm);
+  }
+  .detail-key { color: var(--text-tertiary); width: 80px; flex-shrink: 0; }
+  .detail-val { color: var(--text-secondary); }
+
+  /* ============ Popup 对话框通用 ============ */
+  .popup-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup-mask.show { display: flex; }
+  .popup {
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+  }
+  .popup-header {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-primary);
+    font-weight: bold;
+    font-size: var(--font-xl);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .popup-close {
+    cursor: pointer;
+    color: var(--text-tertiary);
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+  .popup-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .popup-body {
+    padding: var(--space-4);
+    overflow-y: auto;
+    flex: 1;
+  }
+  .popup-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border-default);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    background: var(--bg-header);
+  }
+  .btn {
+    height: var(--control-h);
+    padding: 0 var(--space-4);
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    font-family: var(--font-cjk);
+    font-size: var(--font-base);
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .btn.primary {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+    font-weight: bold;
+  }
+  .btn.primary:hover { background: var(--accent-primary-hover); }
+  .btn.danger {
+    background: transparent;
+    border-color: var(--accent-error);
+    color: var(--accent-error);
+  }
+  .btn.danger:hover { background: var(--accent-error); color: white; }
+  .btn:disabled {
+    background: #2a2a2a;
+    color: var(--text-disabled);
+    cursor: not-allowed;
+    border-color: var(--border-default);
+  }
+
+  /* ============ 导入对话框专属 ============ */
+  .import-dialog { width: 580px; height: 680px; }
+  .section-title {
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    font-weight: bold;
+    margin-bottom: var(--space-2);
+    margin-top: var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .section-title:first-child { margin-top: 0; }
+  .step-num {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .file-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .file-input {
+    flex: 1;
+    height: var(--control-h);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    padding: 0 var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+    display: flex;
+    align-items: center;
+  }
+  .preview-box {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    font-size: var(--font-sm);
+  }
+  .preview-name {
+    color: var(--text-primary);
+    font-size: var(--font-lg);
+    font-weight: bold;
+    margin-bottom: var(--space-1);
+  }
+  .preview-type {
+    color: var(--accent-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    margin-bottom: var(--space-2);
+  }
+  .preview-meta {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 2px var(--space-2);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+  }
+  .preview-meta .k { color: var(--text-tertiary); }
+  .port-section {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px dashed var(--border-default);
+  }
+  .port-label {
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+    margin-bottom: 2px;
+  }
+  .port-item {
+    padding: 2px 0 2px var(--space-2);
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+  }
+  .port-item.in  { border-left: 2px solid var(--accent-warning); }
+  .port-item.out { border-left: 2px solid var(--accent-success); }
+  .port-item .t { color: var(--text-tertiary); font-family: var(--font-mono); }
+  .port-item .req {
+    color: var(--accent-error);
+    font-size: 9px;
+    margin-left: var(--space-1);
+  }
+  .result-box {
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    font-size: var(--font-sm);
+  }
+  .result-ok {
+    background: rgba(105,240,174,0.08);
+    border: 1px solid rgba(105,240,174,0.3);
+    color: var(--accent-success);
+  }
+  .result-warn {
+    background: rgba(255,215,64,0.08);
+    border: 1px solid rgba(255,215,64,0.3);
+    color: var(--accent-warning);
+  }
+  .result-err {
+    background: rgba(255,82,82,0.08);
+    border: 1px solid rgba(255,82,82,0.3);
+    color: var(--accent-error);
+  }
+  .result-row {
+    padding: 2px 0;
+    display: flex;
+    gap: var(--space-2);
+  }
+  .result-row .icon { flex-shrink: 0; width: 14px; }
+
+  /* ============ 已导入面板专属（右侧抽屉） ============ */
+  .imported-panel { width: 420px; height: 560px; align-self: flex-end; margin-right: var(--space-6); }
+  .imported-item {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  .imported-item:hover { border-color: var(--accent-primary); }
+  .imported-item.disabled { opacity: 0.5; }
+  .imported-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-1);
+  }
+  .imported-name {
+    color: var(--text-primary);
+    font-weight: bold;
+    font-size: var(--font-base);
+  }
+  .imported-ver {
+    color: var(--accent-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+  }
+  .imported-cn {
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    margin-bottom: 2px;
+  }
+  .imported-cat {
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .imported-deleted-tag {
+    color: var(--text-disabled);
+    font-size: 10px;
+    font-style: italic;
+  }
+
+  /* ============ Toast ============ */
+  .toast {
+    position: fixed;
+    top: var(--space-6);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-surface);
+    border: 1px solid var(--accent-success);
+    border-left-width: 4px;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .toast.show { display: flex; }
+  .toast.err { border-color: var(--accent-error); }
+  .toast.warn { border-color: var(--accent-warning); }
+
+  /* ============ 控件 ============ */
+  .switch-row {
+    margin-top: var(--space-6);
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .scene-btn {
+    height: 32px;
+    padding: 0 var(--space-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    font-family: var(--font-cjk);
+    font-size: var(--font-sm);
+    cursor: pointer;
+  }
+  .scene-btn.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+  }
+  .scene-btn:hover { color: var(--text-primary); }
+  .legend {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    color: var(--text-tertiary);
+    font-size: var(--font-xs);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .note {
+    background: rgba(68,138,255,0.08);
+    border-left: 3px solid var(--accent-info);
+    padding: var(--space-2) var(--space-3);
+    margin: var(--space-3) 0;
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>O1a · 算子导入功能 — 界面示意图</h1>
+<div class="meta">
+  范围：算子库 MVP 预打包导入（.qdvop JSON） ｜
+  UI 技术栈：QML（对齐 EditView DesignTokens v3.0.0） ｜
+  生成日期：2026-07-15
+</div>
+
+<div class="switch-row">
+  <button class="scene-btn active" data-scene="empty">场景1 · 空状态 + 入口</button>
+  <button class="scene-btn" data-scene="preview-ok">场景2 · 导入预览（通过）</button>
+  <button class="scene-btn" data-scene="preview-conflict">场景3 · 导入预览（冲突）</button>
+  <button class="scene-btn" data-scene="imported-list">场景4 · 已导入算子面板</button>
+  <button class="scene-btn" data-scene="delete-confirm">场景5 · 删除二次确认</button>
+</div>
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:var(--accent-primary)"></span>主强调/导入标记</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--accent-warning)"></span>警告/输入端口</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--accent-success)"></span>成功/输出端口</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--accent-error)"></span>错误/删除</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--bg-surface);border:1px solid var(--border-default)"></span>新增入口</div>
+</div>
+
+<!-- ========== 主画布（EditView 三栏） ========== -->
+<div class="stage">
+  <!-- 左：算子库面板 -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>算子库</span>
+    </div>
+    <div class="panel-body">
+      <div class="search-bar">
+        <span style="color:var(--text-tertiary)">🔍</span>
+        <input placeholder="搜索算子... (Ctrl+K)" />
+      </div>
+
+      <div class="category-group">
+        <div class="category-title">图像采集</div>
+        <div class="op-item"><span class="op-icon" style="background:#FFB74D"></span>读图</div>
+        <div class="op-item"><span class="op-icon" style="background:#FFB74D"></span>采集卡取图</div>
+      </div>
+      <div class="category-group">
+        <div class="category-title">预处理</div>
+        <div class="op-item"><span class="op-icon" style="background:#7986CB"></span>高斯滤波</div>
+        <div class="op-item"><span class="op-icon" style="background:#7986CB"></span>中值滤波</div>
+      </div>
+      <div class="category-group">
+        <div class="category-title">图像分割</div>
+        <div class="op-item"><span class="op-icon" style="background:#4DD0E1"></span>阈值分割</div>
+        <div class="op-item"><span class="op-icon" style="background:#4DD0E1"></span>动态阈值</div>
+        <div class="op-item imported">
+          <span class="op-icon" style="background:#4DD0E1"></span>
+          我的自定义阈值
+        </div>
+        <div class="op-item imported">
+          <span class="op-icon" style="background:#4DD0E1"></span>
+          颜色检测V2
+        </div>
+      </div>
+      <div class="category-group">
+        <div class="category-title">深度学习</div>
+        <div class="op-item imported">
+          <span class="op-icon" style="background:#81C784"></span>
+          缺陷分类V2
+        </div>
+      </div>
+    </div>
+    <!-- ★ 本切片新增：底部入口按钮 -->
+    <div class="panel-footer">
+      <button class="btn-footer primary" onclick="showScene('preview-ok')">
+        ＋ 导入算子
+      </button>
+      <button class="btn-footer" onclick="showScene('imported-list')">
+        已导入 (3)
+      </button>
+    </div>
+  </div>
+
+  <!-- 中：画布 -->
+  <div class="canvas">
+    <div class="canvas-hint">画布区（中央）<br/><span style="font-size:var(--font-sm)">三栏布局示意</span></div>
+  </div>
+
+  <!-- 右：详情面板 -->
+  <div class="panel">
+    <div class="panel-header"><span>算子详情</span></div>
+    <div class="panel-body">
+      <div style="color:var(--text-tertiary);font-size:var(--font-sm);padding:var(--space-2)">
+        未选中算子
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 场景2/3：导入对话框 ========== -->
+<div class="popup-mask" id="dlg-preview-ok">
+  <div class="popup import-dialog">
+    <div class="popup-header">
+      <span>导入算子</span>
+      <div class="popup-close" onclick="hideAll()">✕</div>
+    </div>
+    <div class="popup-body">
+
+      <div class="section-title"><span class="step-num">1</span>选择文件</div>
+      <div class="file-row">
+        <div class="file-input">C:/users/ops/MyCustomThreshold.qdvop</div>
+        <button class="btn">浏览...</button>
+      </div>
+
+      <div class="section-title"><span class="step-num">2</span>预览</div>
+      <div class="preview-box">
+        <div class="preview-name">我的自定义阈值</div>
+        <div class="preview-type">type: MyCustomThreshold</div>
+        <div class="preview-meta">
+          <span class="k">分类:</span><span>图像分割 / 阈值分割</span>
+          <span class="k">版本:</span><span>1.0.0</span>
+          <span class="k">作者:</span><span>user</span>
+          <span class="k">标签:</span><span>自定义 · 阈值</span>
+        </div>
+        <div style="color:var(--text-secondary);font-size:var(--font-xs);margin:var(--space-1) 0">
+          基于双峰直方图自动选择阈值的二值化算子
+        </div>
+
+        <div class="port-section">
+          <div class="port-label">输入端口 (1)</div>
+          <div class="port-item in">
+            <span>image</span> <span class="t">: Image</span>
+            <span class="req">●必需</span> — 输入图像
+          </div>
+        </div>
+        <div class="port-section">
+          <div class="port-label">输出端口 (1)</div>
+          <div class="port-item out">
+            <span>region</span> <span class="t">: Region</span> — 分割区域
+          </div>
+        </div>
+        <div class="port-section">
+          <div class="port-label">参数 (1)</div>
+          <div class="port-item" style="border-left:2px solid var(--accent-primary)">
+            <span>mode</span> <span class="t">: Enum</span> = auto
+            <span style="color:var(--text-tertiary)"> [自动/手动]</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title"><span class="step-num">3</span>校验结果</div>
+      <div class="result-box result-ok">
+        <div class="result-row"><span class="icon">✓</span><span>type 命名合法（3-64 字符，字母数字下划线）</span></div>
+        <div class="result-row"><span class="icon">✓</span><span>必填字段完整（type/cnName/inputs/outputs）</span></div>
+        <div class="result-row"><span class="icon">✓</span><span>type "MyCustomThreshold" 不与内置/已导入算子冲突</span></div>
+        <div class="result-row"><span class="icon">✓</span><span>Enum 参数 mode 已定义 options</span></div>
+      </div>
+      <div class="result-box result-warn">
+        <div class="result-row"><span class="icon">⚠</span><span>分类 "图像分割" 建议使用现有分类以保持一致</span></div>
+        <div class="result-row"><span class="icon">⚠</span><span>recipe 引用 "Threshold"（已存在，可正常组合）</span></div>
+      </div>
+      <div style="color:var(--text-tertiary);font-size:var(--font-xs);margin-top:var(--space-2)">
+        共通过 8 项检查，2 项警告（可不解决）
+      </div>
+
+    </div>
+    <div class="popup-footer">
+      <button class="btn" onclick="hideAll()">取消</button>
+      <button class="btn primary" onclick="showToast('算子 [我的自定义阈值] 导入成功');hideAll();">
+        提交导入
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 冲突版本 -->
+<div class="popup-mask" id="dlg-preview-conflict">
+  <div class="popup import-dialog">
+    <div class="popup-header">
+      <span>导入算子</span>
+      <div class="popup-close" onclick="hideAll()">✕</div>
+    </div>
+    <div class="popup-body">
+
+      <div class="section-title"><span class="step-num">1</span>选择文件</div>
+      <div class="file-row">
+        <div class="file-input">C:/users/ops/Threshold.qdvop</div>
+        <button class="btn">浏览...</button>
+      </div>
+
+      <div class="section-title"><span class="step-num">2</span>预览</div>
+      <div class="preview-box">
+        <div class="preview-name">阈值分割</div>
+        <div class="preview-type">type: Threshold</div>
+        <div class="preview-meta">
+          <span class="k">分类:</span><span>图像分割</span>
+          <span class="k">版本:</span><span>1.0.0</span>
+        </div>
+      </div>
+
+      <div class="section-title"><span class="step-num">3</span>校验结果</div>
+      <div class="result-box result-ok">
+        <div class="result-row"><span class="icon">✓</span><span>JSON 格式合法</span></div>
+        <div class="result-row"><span class="icon">✓</span><span>必填字段完整</span></div>
+      </div>
+      <div class="result-box result-err">
+        <div class="result-row" style="font-weight:bold">
+          <span class="icon">✗</span><span>检测到冲突，无法提交</span>
+        </div>
+        <div class="result-row">
+          <span class="icon">✗</span>
+          <span>type "Threshold" 已存在（内置算子，category=图像分割）</span>
+        </div>
+        <div style="color:var(--text-tertiary);font-size:var(--font-xs);margin-top:var(--space-1);padding-left:18px">
+          请修改 .qdvop 中的 type 字段后重试
+        </div>
+      </div>
+
+    </div>
+    <div class="popup-footer">
+      <button class="btn" onclick="hideAll()">取消</button>
+      <button class="btn" disabled>提交导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 场景4：已导入面板 ========== -->
+<div class="popup-mask" id="dlg-imported-list">
+  <div class="popup imported-panel">
+    <div class="popup-header">
+      <span>已导入算子 (3)</span>
+      <div class="popup-close" onclick="hideAll()">✕</div>
+    </div>
+    <div class="popup-body">
+      <div class="search-bar" style="margin-bottom:var(--space-3)">
+        <span style="color:var(--text-tertiary)">🔍</span>
+        <input placeholder="搜索已导入算子..." />
+      </div>
+
+      <div class="imported-item">
+        <div class="imported-top">
+          <span class="imported-name">MyCustomThreshold</span>
+          <span class="imported-ver">v1.0.0</span>
+        </div>
+        <div class="imported-cn">我的自定义阈值</div>
+        <div class="imported-cat">
+          <span>图像分割 / 阈值分割</span>
+          <button class="btn danger" style="height:22px;padding:0 8px;font-size:11px"
+                  onclick="showScene('delete-confirm')">删除</button>
+        </div>
+      </div>
+
+      <div class="imported-item">
+        <div class="imported-top">
+          <span class="imported-name">ColorDetectV2</span>
+          <span class="imported-ver">v0.9.0</span>
+        </div>
+        <div class="imported-cn">颜色检测V2</div>
+        <div class="imported-cat">
+          <span>图像分割 / 颜色</span>
+          <button class="btn danger" style="height:22px;padding:0 8px;font-size:11px"
+                  onclick="showScene('delete-confirm')">删除</button>
+        </div>
+      </div>
+
+      <div class="imported-item">
+        <div class="imported-top">
+          <span class="imported-name">DefectClassifyV2</span>
+          <span class="imported-ver">v1.2.0</span>
+        </div>
+        <div class="imported-cn">缺陷分类V2</div>
+        <div class="imported-cat">
+          <span>深度学习 / 分类</span>
+          <button class="btn danger" style="height:22px;padding:0 8px;font-size:11px"
+                  onclick="showScene('delete-confirm')">删除</button>
+        </div>
+      </div>
+
+      <div class="imported-item disabled">
+        <div class="imported-top">
+          <span class="imported-name">OldOp</span>
+          <span class="imported-ver" style="color:var(--text-disabled)">v0.5.0</span>
+        </div>
+        <div class="imported-cn">旧算子（已删除）</div>
+        <div class="imported-cat">
+          <span class="imported-deleted-tag">已删除 · 重启后彻底生效</span>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>说明：</b>删除已导入算子后，文件立即从磁盘移除。
+        由于 OperatorDescriptors 不支持单算子反注册，<br/>
+        本次运行内已删除算子仍可能在算子库面板中显示（置灰），重启应用后彻底消失。
+        <br/>此为 MVP 已知技术债，O2 阶段补 unregisterExternalOperator API 后修复。
+      </div>
+    </div>
+    <div class="popup-footer">
+      <button class="btn" onclick="hideAll()">关闭</button>
+      <button class="btn primary" onclick="hideAll();showScene('preview-ok')">＋ 导入新算子</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 场景5：删除二次确认 ========== -->
+<div class="popup-mask" id="dlg-delete-confirm">
+  <div class="popup" style="width:420px">
+    <div class="popup-header" style="font-size:var(--font-lg)">
+      <span>确认删除算子</span>
+      <div class="popup-close" onclick="hideAll()">✕</div>
+    </div>
+    <div class="popup-body">
+      <div style="color:var(--text-secondary);margin-bottom:var(--space-3)">
+        即将删除以下算子：
+      </div>
+      <div class="imported-item" style="background:var(--bg-hover)">
+        <div class="imported-top">
+          <span class="imported-name">MyCustomThreshold</span>
+          <span class="imported-ver">v1.0.0</span>
+        </div>
+        <div class="imported-cn">我的自定义阈值</div>
+        <div class="imported-cat"><span>图像分割 / 阈值分割</span></div>
+      </div>
+      <div class="result-box result-warn" style="margin-top:var(--space-3)">
+        <div class="result-row">
+          <span class="icon">⚠</span>
+          <span>当前画布上存在 <b style="color:var(--accent-error)">1</b> 个使用该算子的节点</span>
+        </div>
+        <div style="color:var(--text-tertiary);font-size:var(--font-xs);padding-left:18px;margin-top:4px">
+          请先在画布上删除对应节点，再删除算子
+        </div>
+      </div>
+      <div style="color:var(--text-tertiary);font-size:var(--font-xs);margin-top:var(--space-3)">
+        文件 config/operators_imported/MyCustomThreshold.qdvop 将被删除
+      </div>
+    </div>
+    <div class="popup-footer">
+      <button class="btn" onclick="hideAll()">取消</button>
+      <button class="btn danger" disabled>确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Toast ========== -->
+<div class="toast" id="toast">
+  <span style="color:var(--accent-success)">✓</span>
+  <span id="toast-msg">操作成功</span>
+</div>
+
+<script>
+  function hideAll() {
+    document.querySelectorAll('.popup-mask').forEach(m => m.classList.remove('show'));
+  }
+  function showScene(scene) {
+    hideAll();
+    if (scene === 'empty') return; // 仅显示主画布
+    if (scene === 'preview-ok') document.getElementById('dlg-preview-ok').classList.add('show');
+    if (scene === 'preview-conflict') document.getElementById('dlg-preview-conflict').classList.add('show');
+    if (scene === 'imported-list') document.getElementById('dlg-imported-list').classList.add('show');
+    if (scene === 'delete-confirm') document.getElementById('dlg-delete-confirm').classList.add('show');
+  }
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-msg').textContent = msg;
+    t.className = 'toast show' + (type ? ' ' + type : '');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+  // 场景切换按钮
+  document.querySelectorAll('.scene-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.scene-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      showScene(b.dataset.scene);
+    });
+  });
+</script>
+
+</body>
+</html>

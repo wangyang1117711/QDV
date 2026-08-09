@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QStringList>
+#include <QMetaType>
 
 namespace QDV {
 
@@ -27,6 +28,13 @@ public:
         Critical
     };
 
+    // 错误记录结构，用于 Logger 与监控模块之间的契约
+    struct ErrorRecord {
+        QString timestamp;
+        LogLevel level;
+        QString message;
+    };
+
     static Logger* instance() {
         QMutexLocker locker(&s_instanceMutex);
         if (!s_instance) {
@@ -35,31 +43,8 @@ public:
         return s_instance;
     }
 
-    void log(LogLevel level, const QString& message) {
-        QString levelStr;
-        switch (level) {
-            case Trace: levelStr = "[TRACE]"; break;
-            case Debug: levelStr = "[DEBUG]"; break;
-            case Info: levelStr = "[INFO]"; break;
-            case Warn: levelStr = "[WARN]"; break;
-            case Error: levelStr = "[ERROR]"; break;
-            case Critical: levelStr = "[CRITICAL]"; break;
-        }
-
-        QString logMsg = QString("%1 %2 %3").arg(
-            QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz"),
-            levelStr,
-            message
-        );
-
-        qDebug().noquote() << logMsg;
-
-        QMutexLocker locker(&m_bufferMutex);
-        m_buffer.append(logMsg);
-
-        locker.unlock();
-        flushBuffer();
-    }
+    // 日志记录核心方法，实现在 Logger.cpp 中
+    void log(LogLevel level, const QString& message);
 
     static void trace(const QString& message)   { instance()->log(Trace, message); }
     static void debug(const QString& message)   { instance()->log(Debug, message); }
@@ -74,6 +59,10 @@ public:
             s_instance->closeFile();
         }
     }
+
+signals:
+    // 当记录 Error 或更高级别日志时发射，供监控模块监听
+    void errorOccurred(const QDV::Logger::ErrorRecord& record);
 
 private:
     Logger() {
@@ -202,3 +191,5 @@ private:
 };
 
 } // namespace QDV
+
+Q_DECLARE_METATYPE(QDV::Logger::ErrorRecord)

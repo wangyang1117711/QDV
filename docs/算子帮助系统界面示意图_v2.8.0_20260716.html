@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QDV 算子帮助系统界面示意图 v2.8.0</title>
+<!--
+  QDV 算子帮助系统界面示意图
+  版本：v2.8.0
+  日期：2026-07-16
+  说明：展示三层帮助形式的效果示意
+       1) 算子面板 hover 提示（cnName — 核心说明）
+       2) 算子节点"?"按钮 + OperatorHelpDialog 弹窗（分区布局）
+       3) 参数编辑器参数 tooltip（getParamHelp 多行显示）
+  配色：与项目 DesignTokens 一致（背景 #1E1E1E，面板 #2D2D30，文字 #E0E0E0）
+-->
+<style>
+  :root {
+    --bg-canvas: #121212;
+    --bg-page: #1E1E1E;
+    --bg-panel: #2D2D30;
+    --bg-surface: #242424;
+    --bg-hover: #2F2F2F;
+    --bg-header: #1F1F1F;
+    --text-primary: #E0E0E0;
+    --text-secondary: #C8C8C8;
+    --text-tertiary: #9E9E9E;
+    --text-disabled: #6E6E6E;
+    --accent-primary: #7C4DFF;      /* 紫 — 主强调 */
+    --accent-primary-hover: #9D7BFF;
+    --accent-success: #69F0AE;      /* 绿 — 功能描述 */
+    --accent-warning: #FFD740;      /* 橙 — 输入端口 */
+    --accent-error: #FF5252;        /* 红 — 删除 */
+    --accent-info: #448AFF;         /* 蓝 — 适用场景 */
+    --border-default: #3D3D3D;
+    --border-focus: #7C4DFF;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+    --shadow-popup: 0 12px 36px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
+    --font-cjk: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-cjk);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 24px 32px 60px;
+  }
+  /* ====== 顶部标题 ====== */
+  .doc-header {
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+  .doc-header h1 {
+    font-size: 22px;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .doc-header .meta {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+  .doc-header .meta span { margin-right: 18px; }
+  .doc-header .meta b { color: var(--accent-primary-hover); font-weight: 500; }
+
+  /* ====== 章节 ====== */
+  section.chapter {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .chapter-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .chapter-title .badge {
+    display: inline-block;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+    line-height: 26px;
+    font-size: 14px;
+    font-family: var(--font-mono);
+  }
+  .chapter-title h2 {
+    font-size: 17px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .chapter-desc {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    margin-bottom: 22px;
+    padding-left: 36px;
+  }
+  .chapter-desc code {
+    background: var(--bg-surface);
+    color: var(--accent-success);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  /* ====== 通用：?"图标按钮（CSS 绘制） ====== */
+  .help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text-disabled);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-cjk);
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s, transform 0.15s;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+  .help-icon:hover {
+    background: var(--accent-info);
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  .help-icon.large {
+    width: 18px; height: 18px;
+    font-size: 12px;
+  }
+
+  /* ====== Tooltip 通用样式 ====== */
+  .tooltip {
+    position: absolute;
+    background: var(--bg-header);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    color: var(--text-primary);
+    font-size: 11px;
+    max-width: 240px;
+    box-shadow: var(--shadow-popup);
+    z-index: 50;
+    pointer-events: none;
+    line-height: 1.4;
+  }
+
+  /* ============================================================
+     章节 1：算子面板 hover 提示
+     ============================================================ */
+  .s1-stage {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .s1-left-panel {
+    width: 240px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .s1-search {
+    padding: 8px 10px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .s1-search input {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    color: var(--text-primary);
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--font-cjk);
+  }
+  .s1-search .ico { color: var(--text-tertiary); font-size: 12px; }
+  .s1-list { padding: 4px 0; }
+  .s1-cat {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    padding: 6px 12px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .s1-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    position: relative;
+    border-left: 3px solid transparent;
+  }
+  .s1-item .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .s1-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .s1-item.active {
+    background: var(--bg-hover);
+    border-left-color: var(--accent-primary);
+    color: var(--text-primary);
+  }
+  /* hover 时显示 tooltip */
+  .s1-item:hover .tooltip {
+    display: block;
+    top: 100%;
+    left: 100%;
+    margin-left: 8px;
+    margin-top: -6px;
+    white-space: normal;
+    width: 240px;
+  }
+  .tooltip { display: none; }
+  .s1-item .tooltip b { color: var(--accent-primary-hover); }
+
+  /* 右侧说明卡片 */
+  .s1-right {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+  }
+  .s1-right h3 {
+    color: var(--accent-primary-hover);
+    font-size: 13px;
+    margin-bottom: 10px;
+    font-family: var(--font-mono);
+  }
+  .s1-right ul { list-style: none; padding-left: 0; }
+  .s1-right li {
+    padding: 4px 0 4px 18px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    position: relative;
+  }
+  .s1-right li::before {
+    content: "▸";
+    position: absolute;
+    left: 0;
+    color: var(--accent-primary);
+  }
+  .s1-right li code {
+    background: var(--bg-header);
+    color: var(--accent-success);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .s1-callout {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(124,77,255,0.08);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 3px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .s1-callout b { color: var(--text-primary); }
+
+  /* ============================================================
+     章节 2：算子节点"?"按钮 + OperatorHelpDialog 弹窗
+     ============================================================ */
+  .s2-stage {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  /* 画布上的算子节点 */
+  .s2-canvas {
+    flex: 0 0 280px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    min-height: 220px;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  .s2-node {
+    width: 200px;
+    background: var(--bg-surface);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    position: relative;
+    margin: 30px auto;
+  }
+  .s2-node-header {
+    background: var(--bg-header);
+    padding: 6px 10px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .s2-node-header .cat-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-warning);
+  }
+  .s2-node-header .name {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .s2-node-header .type {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    margin-left: auto;
+    margin-right: 22px;
+  }
+  /* 右上角的"?"按钮 */
+  .s2-node .help-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid var(--bg-canvas);
+    transition: background 0.15s;
+  }
+  .s2-node .help-btn:hover {
+    background: var(--text-secondary);
+  }
+  .s2-node-body {
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .s2-port {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+  }
+  .s2-port .port-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--accent-warning);
+  }
+  .s2-port.out .port-dot {
+    border-color: var(--accent-success);
+    margin-left: auto;
+  }
+  .s2-port.out { justify-content: flex-end; }
+
+  .s2-annot {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    margin-top: 10px;
+  }
+  .s2-annot code {
+    background: var(--bg-surface);
+    color: var(--accent-primary-hover);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+  }
+
+  /* OperatorHelpDialog 弹窗 */
+  .s2-dialog {
+    flex: 1;
+    min-width: 360px;
+    max-width: 540px;
+    background: var(--bg-panel);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-popup);
+    overflow: hidden;
+  }
+  .s2-dialog-header {
+    background: var(--bg-header);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-default);
+  }
+  .s2-dialog-header .cat-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent-warning);
+  }
+  .s2-dialog-header .cn-name {
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .s2-dialog-header .op-type {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+  .s2-dialog-header .close {
+    margin-left: auto;
+    color: var(--text-tertiary);
+    font-size: 18px;
+    cursor: pointer;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .s2-dialog-header .close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .s2-dialog-body {
+    padding: 16px;
+    max-height: 520px;
+    overflow-y: auto;
+  }
+  .s2-section { margin-bottom: 14px; }
+  .s2-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .s2-section-title .bar {
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+  }
+  .s2-section-title h4 {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .s2-section-title .tag {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    margin-left: auto;
+  }
+  .s2-section-body {
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding-left: 11px;
+    line-height: 1.55;
+  }
+  /* 参数详解卡片 */
+  .s2-param-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    margin-top: 6px;
+  }
+  .s2-param-row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .s2-param-row1 .pname {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+  .s2-param-row1 .pcn {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+  .s2-param-row1 .type-badge {
+    margin-left: auto;
+    background: rgba(124,77,255,0.3);
+    color: var(--accent-primary-hover);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9px;
+  }
+  .s2-param-row2 {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    margin-bottom: 4px;
+    font-family: var(--font-mono);
+  }
+  .s2-param-row2 .sep { color: var(--border-default); margin: 0 6px; }
+  .s2-param-help {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.45;
+    padding-left: 0;
+  }
+  .s2-related {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .s2-related .chip {
+    background: rgba(68,138,255,0.15);
+    border: 1px solid rgba(68,138,255,0.4);
+    color: var(--accent-info);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .s2-related .chip:hover {
+    background: rgba(68,138,255,0.3);
+  }
+
+  /* ============================================================
+     章节 3：参数编辑器参数 tooltip
+     ============================================================ */
+  .s3-stage {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .s3-form {
+    flex: 0 0 380px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+  }
+  .s3-form-title {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .s3-form-title .pill {
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+  .s3-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    position: relative;
+    border-bottom: 1px dashed var(--border-default);
+  }
+  .s3-row:last-child { border-bottom: none; }
+  .s3-row .label {
+    width: 110px;
+    color: var(--text-primary);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .s3-row .label .unit {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    margin-left: 4px;
+  }
+  .s3-row .input {
+    flex: 1;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    padding: 4px 8px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    min-width: 0;
+  }
+  .s3-row .input.enum {
+    font-family: var(--font-cjk);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .s3-row .input.enum::after {
+    content: "▾";
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+  .s3-row .input.check {
+    background: transparent;
+    border: none;
+    color: var(--accent-success);
+    font-size: 13px;
+    padding: 0;
+  }
+  /* hover "?"显示 tooltip */
+  .s3-row .help-icon { margin-left: auto; }
+  .s3-row:hover .tooltip {
+    display: block;
+    bottom: 100%;
+    left: 120px;
+    margin-bottom: 4px;
+    width: 240px;
+    white-space: normal;
+  }
+  .s3-row .tooltip b { color: var(--accent-primary-hover); }
+  .s3-row .tooltip .meta {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    margin-top: 4px;
+    border-top: 1px solid var(--border-default);
+    padding-top: 4px;
+  }
+
+  /* 参数表格示例 */
+  .s3-right {
+    flex: 1;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .s3-right h3 {
+    background: var(--bg-header);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-default);
+    font-family: var(--font-mono);
+  }
+  .s3-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .s3-table th {
+    background: var(--bg-surface);
+    color: var(--text-tertiary);
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-default);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .s3-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    vertical-align: top;
+  }
+  .s3-table td.mono {
+    font-family: var(--font-mono);
+    color: var(--accent-primary-hover);
+    font-size: 11px;
+  }
+  .s3-table td .type-tag {
+    display: inline-block;
+    background: rgba(124,77,255,0.2);
+    color: var(--accent-primary-hover);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+  .s3-table td.help-cell {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .s3-table tr:hover td {
+    background: var(--bg-hover);
+  }
+  .s3-table tr:last-child td { border-bottom: none; }
+
+  /* 底部说明 */
+  .footer-note {
+    margin-top: 28px;
+    padding: 14px 18px;
+    background: var(--bg-surface);
+    border-left: 3px solid var(--accent-info);
+    border-radius: 3px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .footer-note b { color: var(--text-primary); }
+  .footer-note code {
+    background: var(--bg-header);
+    color: var(--accent-success);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  /* 颜色块说明 */
+  .color-legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .color-legend .item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .color-legend .swatch {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ====================== 顶部标题 ====================== -->
+<div class="doc-header">
+  <h1>QDV 算子帮助系统 · 界面示意图</h1>
+  <div class="meta">
+    <span>版本：<b>v2.8.0</b></span>
+    <span>日期：<b>2026-07-16</b></span>
+    <span>主题：深色（与 DesignTokens 一致）</span>
+    <span>三层帮助：① 算子面板 hover ② 节点"?"弹窗 ③ 参数 tooltip</span>
+  </div>
+  <div class="color-legend">
+    <div class="item"><div class="swatch" style="background:#7C4DFF"></div>核心含义 / 主强调</div>
+    <div class="item"><div class="swatch" style="background:#448AFF"></div>适用场景</div>
+    <div class="item"><div class="swatch" style="background:#69F0AE"></div>功能描述</div>
+    <div class="item"><div class="swatch" style="background:#FFD740"></div>输入端口</div>
+    <div class="item"><div class="swatch" style="background:#6E6E6E"></div>"?"图标默认态</div>
+  </div>
+</div>
+
+<!-- ====================== 章节 1：算子面板 hover 提示 ====================== -->
+<section class="chapter">
+  <div class="chapter-title">
+    <span class="badge">1</span>
+    <h2>算子面板 hover 提示</h2>
+  </div>
+  <div class="chapter-desc">
+    左侧算子库面板中，鼠标悬停在算子项上时显示轻量 tooltip，格式为 <code>cnName — getShortDesc(type)</code>，延迟 400ms。
+  </div>
+
+  <div class="s1-stage">
+    <!-- 模拟左侧算子库面板 -->
+    <div class="s1-left-panel">
+      <div class="s1-search">
+        <span class="ico">🔍</span>
+        <input type="text" placeholder="搜索算子…" value="" />
+      </div>
+      <div class="s1-list">
+        <div class="s1-cat">图像采集</div>
+        <div class="s1-item">
+          <span class="dot" style="background:#FFB74D"></span>
+          <span>读取图像</span>
+          <div class="tooltip">
+            <b>读取图像</b> — 从文件加载图像作为流程输入，支持 png/jpg/bmp/tiff 等格式
+          </div>
+        </div>
+        <div class="s1-item">
+          <span class="dot" style="background:#FFB74D"></span>
+          <span>相机采集</span>
+          <div class="tooltip">
+            <b>相机采集</b> — 连接工业相机实时采集图像，支持 GigE/USB3 接口
+          </div>
+        </div>
+        <div class="s1-cat">预处理</div>
+        <div class="s1-item active">
+          <span class="dot" style="background:#7986CB"></span>
+          <span>图像预处理</span>
+          <div class="tooltip">
+            <b>图像预处理</b> — 对输入图像执行滤波/锐化/形态学等操作，提升后续处理稳定性
+          </div>
+        </div>
+        <div class="s1-item">
+          <span class="dot" style="background:#7986CB"></span>
+          <span>颜色空间转换</span>
+          <div class="tooltip">
+            <b>颜色空间转换</b> — 在 RGB/HSV/GRAY/Lab 等颜色空间之间转换
+          </div>
+        </div>
+        <div class="s1-cat">特征提取</div>
+        <div class="s1-item">
+          <span class="dot" style="background:#CE93D8"></span>
+          <span>线圆检测</span>
+          <div class="tooltip">
+            <b>线圆检测</b> — 基于 Hough 变换检测图像中的直线或圆形
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧说明 -->
+    <div class="s1-right">
+      <h3>// 实现要点</h3>
+      <ul>
+        <li>位置：<code>qml/EditView/Main.qml</code> 第 1822-1839 行</li>
+        <li>触发：<code>opArea.containsMouse</code> + <code>ToolTip.delay: 400</code></li>
+        <li>文案：<code>cn + " — " + desc</code>，desc 来自 <code>editViewBridge.getShortDesc(type)</code></li>
+        <li>降级：desc 为空时仅显示 cnName</li>
+        <li>用途：在拖拽到画布前快速了解算子用途</li>
+      </ul>
+      <div class="s1-callout">
+        <b>交互提示：</b>将鼠标移到左侧任意算子项上，即可看到 tooltip 效果（CSS :hover 模拟）。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== 章节 2：算子节点"?"按钮 + OperatorHelpDialog 弹窗 ====================== -->
+<section class="chapter">
+  <div class="chapter-title">
+    <span class="badge">2</span>
+    <h2>算子节点"?"按钮 + OperatorHelpDialog 弹窗</h2>
+  </div>
+  <div class="chapter-desc">
+    画布上选中或悬停算子节点时，右上角显示 <code>"?"</code> 按钮（16×16 圆形），点击打开 <code>OperatorHelpDialog</code> 完整说明弹窗，分区展示核心含义/适用场景/功能描述/参数详解/注意事项/关联算子。
+  </div>
+
+  <div class="s2-stage">
+    <!-- 左：画布上的算子节点 -->
+    <div class="s2-canvas">
+      <div class="s2-node">
+        <div class="s2-node-header">
+          <span class="cat-dot"></span>
+          <span class="name">图像预处理</span>
+          <span class="type">ImagePreprocess</span>
+          <div class="help-btn" title="点击打开完整说明">?</div>
+        </div>
+        <div class="s2-node-body">
+          <div class="s2-port">
+            <span class="port-dot"></span>
+            <span>imageIn</span>
+          </div>
+          <div class="s2-port out">
+            <span>imageOut</span>
+            <span class="port-dot"></span>
+          </div>
+        </div>
+      </div>
+      <div class="s2-annot">
+        ↑ 节点右上角 <code>?</code> 按钮<br/>
+        点击调用 <code>openOperatorHelp(type)</code>
+      </div>
+    </div>
+
+    <!-- 右：OperatorHelpDialog 弹窗 -->
+    <div class="s2-dialog">
+      <div class="s2-dialog-header">
+        <span class="cat-dot"></span>
+        <span class="cn-name">图像预处理</span>
+        <span class="op-type">ImagePreprocess</span>
+        <span class="close">×</span>
+      </div>
+      <div class="s2-dialog-body">
+
+        <!-- 核心含义 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#7C4DFF"></span>
+            <h4>核心含义</h4>
+            <span class="tag">coreMeaning</span>
+          </div>
+          <div class="s2-section-body">
+            对输入图像执行滤波、锐化、形态学等预处理操作，抑制噪声、增强特征，为后续检测/识别提供更稳定的图像输入。
+          </div>
+        </div>
+
+        <!-- 适用场景 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#448AFF"></span>
+            <h4>适用场景</h4>
+            <span class="tag">useCase</span>
+          </div>
+          <div class="s2-section-body">
+            适用于图像存在噪声、光照不均、对比度不足或需要形态学开闭运算的场景；常作为 ReadImage 之后、特征提取之前的标准前置步骤。
+          </div>
+        </div>
+
+        <!-- 功能描述 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#69F0AE"></span>
+            <h4>功能描述</h4>
+            <span class="tag">description</span>
+          </div>
+          <div class="s2-section-body">
+            支持 5 类操作：高斯滤波、均值滤波、中值滤波、拉普拉斯锐化、形态学（腐蚀/膨胀/开/闭）。形态学操作可配置 kernelSize 控制结构元素大小。
+          </div>
+        </div>
+
+        <!-- 参数详解 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#7C4DFF"></span>
+            <h4>参数详解</h4>
+            <span class="tag">params</span>
+          </div>
+
+          <div class="s2-param-card">
+            <div class="s2-param-row1">
+              <span class="pname">operation</span>
+              <span class="pcn">· 操作类型</span>
+              <span class="type-badge">Enum</span>
+            </div>
+            <div class="s2-param-row2">
+              默认: gaussian<span class="sep">|</span>可选: gaussian/mean/median/sharpen/morphology
+            </div>
+            <div class="s2-param-help">选择预处理算法。gaussian 抑制高斯噪声，median 抑制椒盐噪声，morphology 执行形态学操作。</div>
+          </div>
+
+          <div class="s2-param-card">
+            <div class="s2-param-row1">
+              <span class="pname">kernelSize</span>
+              <span class="pcn">· 核大小</span>
+              <span class="type-badge">Int</span>
+            </div>
+            <div class="s2-param-row2">
+              默认: 3<span class="sep">|</span>范围: [1, 31]
+            </div>
+            <div class="s2-param-help">滤波/形态学核的边长（奇数）。仅在 morphology ≠ none 时显示。</div>
+          </div>
+
+          <div class="s2-param-card">
+            <div class="s2-param-row1">
+              <span class="pname">morphology</span>
+              <span class="pcn">· 形态学类型</span>
+              <span class="type-badge">Enum</span>
+            </div>
+            <div class="s2-param-row2">
+              默认: none<span class="sep">|</span>可选: none/erode/dilate/open/close
+            </div>
+            <div class="s2-param-help">形态学操作类型。none 表示不执行形态学，此时 kernelSize 自动隐藏。</div>
+          </div>
+        </div>
+
+        <!-- 注意事项 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#FFD740"></span>
+            <h4>注意事项</h4>
+            <span class="tag">notes</span>
+          </div>
+          <div class="s2-section-body">
+            kernelSize 必须为奇数；中值滤波对大核较慢；形态学操作会改变区域面积，需谨慎选择操作方向。
+          </div>
+        </div>
+
+        <!-- 关联算子 -->
+        <div class="s2-section">
+          <div class="s2-section-title">
+            <span class="bar" style="background:#448AFF"></span>
+            <h4>关联算子</h4>
+            <span class="tag">relatedOps</span>
+          </div>
+          <div class="s2-related">
+            <span class="chip">读取图像</span>
+            <span class="chip">颜色空间转换</span>
+            <span class="chip">线圆检测</span>
+            <span class="chip">Blob 分析</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== 章节 3：参数编辑器参数 tooltip ====================== -->
+<section class="chapter">
+  <div class="chapter-title">
+    <span class="badge">3</span>
+    <h2>参数编辑器参数 tooltip</h2>
+  </div>
+  <div class="chapter-desc">
+    参数编辑器（<code>ParamForm.qml</code>）中每个参数右侧新增 <code>"?"</code> 图标（16×16 灰色圆形），hover 显示 tooltip，内容来自 <code>editViewBridge.getParamHelp(type, paramName)</code>，支持多行（WordWrap），最长 200 字符自动截断。
+  </div>
+
+  <div class="s3-stage">
+    <!-- 左：参数表单 -->
+    <div class="s3-form">
+      <div class="s3-form-title">
+        <span>图像预处理 · 参数</span>
+        <span class="pill">ImagePreprocess</span>
+      </div>
+
+      <!-- 参数行 1：Enum -->
+      <div class="s3-row">
+        <div class="label">操作类型</div>
+        <div class="input enum">gaussian</div>
+        <span class="help-icon">?</span>
+        <div class="tooltip">
+          选择预处理算法。gaussian 抑制高斯噪声，median 抑制椒盐噪声，morphology 执行形态学操作。
+          <div class="meta">getParamHelp("ImagePreprocess", "operation")</div>
+        </div>
+      </div>
+
+      <!-- 参数行 2：Int -->
+      <div class="s3-row">
+        <div class="label">核大小<span class="unit">(px)</span></div>
+        <div class="input">3</div>
+        <span class="help-icon">?</span>
+        <div class="tooltip">
+          滤波/形态学核的边长（必须为奇数）。仅在 morphology ≠ none 时显示。范围 [1, 31]。
+          <div class="meta">getParamHelp("ImagePreprocess", "kernelSize")</div>
+        </div>
+      </div>
+
+      <!-- 参数行 3：Enum -->
+      <div class="s3-row">
+        <div class="label">形态学类型</div>
+        <div class="input enum">none</div>
+        <span class="help-icon">?</span>
+        <div class="tooltip">
+          形态学操作类型。none 表示不执行形态学，此时 kernelSize 自动隐藏。可选 erode/dilate/open/close。
+          <div class="meta">getParamHelp("ImagePreprocess", "morphology")</div>
+        </div>
+      </div>
+
+      <!-- 参数行 4：Bool -->
+      <div class="s3-row">
+        <div class="label">原地处理</div>
+        <div class="input check">☑ 是</div>
+        <span class="help-icon">?</span>
+        <div class="tooltip">
+          是否直接覆盖输入图像变量。关闭则保留原图，输出到新变量。
+          <div class="meta">getParamHelp("ImagePreprocess", "inPlace")</div>
+        </div>
+      </div>
+
+      <!-- 参数行 5：Float -->
+      <div class="s3-row">
+        <div class="label">强度系数</div>
+        <div class="input">1.0</div>
+        <span class="help-icon">?</span>
+        <div class="tooltip">
+          滤波强度系数，仅对 sharpen 操作生效。值越大锐化效果越明显，推荐范围 [0.5, 3.0]。
+          <div class="meta">getParamHelp("ImagePreprocess", "strength")</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：参数表格示例 -->
+    <div class="s3-right">
+      <h3>// params 元数据示例</h3>
+      <table class="s3-table">
+        <thead>
+          <tr>
+            <th>参数名</th>
+            <th>类型</th>
+            <th>默认值</th>
+            <th>help 字段内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">operation</td>
+            <td><span class="type-tag">Enum</span></td>
+            <td>gaussian</td>
+            <td class="help-cell">选择预处理算法。gaussian 抑制高斯噪声，median 抑制椒盐噪声，morphology 执行形态学操作。</td>
+          </tr>
+          <tr>
+            <td class="mono">kernelSize</td>
+            <td><span class="type-tag">Int</span></td>
+            <td>3</td>
+            <td class="help-cell">滤波/形态学核的边长（必须为奇数）。仅在 morphology ≠ none 时显示。范围 [1, 31]。</td>
+          </tr>
+          <tr>
+            <td class="mono">morphology</td>
+            <td><span class="type-tag">Enum</span></td>
+            <td>none</td>
+            <td class="help-cell">形态学操作类型。none 表示不执行形态学，此时 kernelSize 自动隐藏。可选 erode/dilate/open/close。</td>
+          </tr>
+          <tr>
+            <td class="mono">inPlace</td>
+            <td><span class="type-tag">Bool</span></td>
+            <td>true</td>
+            <td class="help-cell">是否直接覆盖输入图像变量。关闭则保留原图，输出到新变量。</td>
+          </tr>
+          <tr>
+            <td class="mono">strength</td>
+            <td><span class="type-tag">Float</span></td>
+            <td>1.0</td>
+            <td class="help-cell">滤波强度系数，仅对 sharpen 操作生效。值越大锐化效果越明显，推荐范围 [0.5, 3.0]。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== 底部说明 ====================== -->
+<div class="footer-note">
+  <b>说明：</b>本示意图为静态 HTML，通过 CSS <code>:hover</code> 模拟 QML 中的 tooltip 交互。
+  实际运行时，三种帮助形式由 <code>OperatorHelpProvider</code>（C++ 单例）统一提供数据，
+  通过 <code>editViewBridge</code> 暴露给 QML：<code>getShortDesc(type)</code> / <code>getOperatorDoc(type)</code> / <code>getParamHelp(type, paramName)</code>。
+  参数 tooltip 在 <code>ParamForm.qml</code> 中通过 <code>paramHelpIconComp</code> inline Component 实现，width 240px、wrapMode WordWrap、最长 200 字符截断、delay 200ms、timeout 10000ms。
+</div>
+
+</body>
+</html>

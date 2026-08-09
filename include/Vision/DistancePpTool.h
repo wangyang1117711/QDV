@@ -22,6 +22,8 @@ private:
     double m_p2x = 0.0;          // 第二个点 x
     double m_p2y = 0.0;          // 第二个点 y
     double m_pixelScale = 1.0;   // 像素到实际尺寸的缩放系数(>0)
+    // P0-3 扩展：输出单位选择（px/mm），默认 px 保持向后兼容
+    QString m_outputUnit = "px";
 };
 
 #endif // DISTANCEPPTOOL_H

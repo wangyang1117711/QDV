@@ -25,6 +25,14 @@ bool DistancePpTool::configure(const QJsonObject& params) {
         m_pixelScale = s;
     }
 
+    // P0-3 扩展：输出单位选择
+    if (params.contains("outputUnit")) {
+        const QString u = params["outputUnit"].toString().toLower();
+        if (u == "px" || u == "mm") {
+            m_outputUnit = u;
+        }
+    }
+
     m_params = params;
     return true;
 }
@@ -98,6 +106,10 @@ bool DistancePpTool::execute(const cv::Mat& input, ToolResult& result) {
     result.data["p2x"] = m_p2x;
     result.data["p2y"] = m_p2y;
     result.data["pixelScale"] = m_pixelScale;
+    // P0-3 扩展：输出单位与主输出值（按选定单位）
+    result.data["outputUnit"] = m_outputUnit;
+    result.ports["outputUnit"] = m_outputUnit;
+    result.ports["distance"] = (m_outputUnit == "mm") ? distanceScaled : distancePx;
 
     m_results["lastDistance"] = distancePx;
     m_results["lastDistanceScaled"] = distanceScaled;
@@ -115,6 +127,7 @@ QJsonObject DistancePpTool::serialize() const {
     obj["p2x"] = m_p2x;
     obj["p2y"] = m_p2y;
     obj["pixelScale"] = m_pixelScale;
+    obj["outputUnit"] = m_outputUnit;
     return obj;
 }
 
@@ -131,5 +144,6 @@ bool DistancePpTool::deserialize(const QJsonObject& data) {
         if (s <= 0.0) s = 1.0;
         m_pixelScale = s;
     }
+    if (data.contains("outputUnit")) m_outputUnit = data["outputUnit"].toString();
     return true;
 }

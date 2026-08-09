@@ -74,15 +74,6 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
         return false;
     }
 
-    // 引擎未注入保护（同 AiClassifyTool，保持 AI 算子行为一致性）
-    if (!m_engine) {
-        Logger::warn("SegmentDlTool: no inference engine injected");
-        result.ok = false;
-        result.data["error"] = "No inference engine injected";
-        result.data["modelLoaded"] = false;
-        return false;
-    }
-
     if (m_modelPath.isEmpty()) {
         Logger::warn("SegmentDlTool: no model configured");
         result.ok = false;
@@ -90,6 +81,85 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["modelLoaded"] = false;
         return false;
     }
+
+    // 优先通过 IInferenceEngine::segment 接口推理
+    if (m_engine) {
+        result.data["modelLoaded"] = true;
+
+        // segment 接口直接返回 mask + overlay（彩色叠加图）+ resultJson（含 classStats）
+        cv::Mat mask, overlay;
+        QJsonObject segResult;
+        bool ok = m_engine->segment(input, mask, overlay, segResult);
+        if (!ok) {
+            Logger::error("SegmentDlTool: segmentation failed via engine");
+            result.ok = false;
+            result.data["error"] = "Segmentation failed";
+            return false;
+        }
+
+        // overlay 直接作为 result.overlayImage
+        result.overlayImage = overlay;
+
+        // 指标
+        InferenceMetricsLite metrics = m_engine->lastMetrics();
+        result.elapsedMs = metrics.totalMs;
+
+        // 解析 classStats（若引擎已提供则直接使用，否则基于 mask 统计）
+        QJsonArray classStats = segResult["classStats"].toArray();
+        int numClasses = segResult["numClasses"].toInt();
+        if (classStats.isEmpty() && !mask.empty()) {
+            // 基于 mask 统计各类别像素占比
+            numClasses = 0;
+            for (int y = 0; y < mask.rows; ++y) {
+                const uchar* row = mask.ptr<uchar>(y);
+                for (int x = 0; x < mask.cols; ++x) {
+                    int label = row[x];
+                    if (label >= numClasses) numClasses = label + 1;
+                }
+            }
+            std::vector<int> pixelCounts(numClasses, 0);
+            for (int y = 0; y < mask.rows; ++y) {
+                const uchar* row = mask.ptr<uchar>(y);
+                for (int x = 0; x < mask.cols; ++x) {
+                    int label = row[x];
+                    if (label >= 0 && label < numClasses) {
+                        pixelCounts[label]++;
+                    }
+                }
+            }
+            int totalPixels = mask.rows * mask.cols;
+            for (int c = 0; c < numClasses; ++c) {
+                QJsonObject stat;
+                stat["classId"] = c;
+                if (c < m_categoryLabels.size()) {
+                    stat["className"] = m_categoryLabels[c];
+                }
+                stat["pixelCount"] = pixelCounts[c];
+                stat["ratio"] = totalPixels > 0 ? (double)pixelCounts[c] / (double)totalPixels : 0.0;
+                classStats.append(stat);
+            }
+        }
+
+        result.data["classStats"] = classStats;
+        result.data["numClasses"] = numClasses;
+        result.data["inputWidth"] = m_inputWidth;
+        result.data["inputHeight"] = m_inputHeight;
+        result.data["elapsedMs"] = result.elapsedMs;
+        result.data["confidenceThreshold"] = m_confidenceThreshold;
+        result.data["preprocess_ms"] = metrics.preprocessMs;
+        result.data["inference_ms"] = metrics.inferenceMs;
+        result.data["postprocess_ms"] = metrics.postprocessMs;
+        result.data["backend"] = metrics.backend;
+        result.score = 1.0;  // 分割成功即视为通过
+        result.ok = true;
+
+        m_results["lastNumClasses"] = numClasses;
+
+        return true;
+    }
+
+    // Fallback: m_engine 未注入时，使用 cv::dnn::Net 直接推理
+    Logger::warn("SegmentDlTool: no inference engine injected, fallback to cv::dnn::Net");
 
     // 懒加载模型（首次执行时加载）
     if (!m_modelLoaded && !loadModel()) {
