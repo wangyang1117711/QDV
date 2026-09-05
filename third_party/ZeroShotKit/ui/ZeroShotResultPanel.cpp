@@ -7,8 +7,10 @@
 #include <QGroupBox>
 #include <QLinearGradient>
 #include <QResizeEvent>
+#include <QScrollArea>
 
 #include <opencv2/imgproc.hpp>
+#include <algorithm>  // std::max
 
 using namespace QDVMini;
 
@@ -103,9 +105,10 @@ void ZeroShotResultPanel::setupUI() {
     // 页 0：空状态提示
     m_emptyLabel = new QLabel(tr("暂无零样本推理结果"), m_stack);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
+    m_emptyLabel->setWordWrap(true);
     m_emptyLabel->setStyleSheet(
-        "color: #666; font-size: 14px; background-color: #252525; "
-        "border: 1px solid #3a3a3e; border-radius: 4px; padding: 40px;");
+        "color: #888; font-size: 13px; background-color: #252525; "
+        "border: 1px solid #3a3a3e; border-radius: 4px; padding: 24px;");
     m_stack->addWidget(m_emptyLabel);
 
     // 页 1：结果展示
@@ -148,7 +151,9 @@ void ZeroShotResultPanel::setupUI() {
     QVBoxLayout* gaugeLayout = new QVBoxLayout();
     gaugeLayout->setAlignment(Qt::AlignCenter);
     m_anomalyGauge = new AnomalyGaugeWidget(detailPage);
-    m_anomalyGauge->setToolTip(tr("异常分数（超过阈值显示红色）"));
+    // 通俗解读：分数 0~1，越高越可能是缺陷；指针超过红色刻度线即判定为异常
+    m_anomalyGauge->setToolTip(
+        tr("异常分数（0~1）：分数越高，越可能是缺陷。\n指针超过红色刻度线（阈值）即判定为异常。"));
     gaugeLayout->addWidget(m_anomalyGauge, 0, Qt::AlignCenter);
     m_anomalyScoreLabel = new QLabel("0.00", detailPage);
     m_anomalyScoreLabel->setAlignment(Qt::AlignCenter);
@@ -171,6 +176,20 @@ void ZeroShotResultPanel::setupUI() {
 
     detailLayout->addLayout(topLayout);
 
+    // --- 检测效果图（原图 + 检测框/掩码叠加，直观查看检测效果） ---
+    QGroupBox* effectBox = new QGroupBox(tr("检测效果图"), detailPage);
+    QVBoxLayout* effectLayout = new QVBoxLayout(effectBox);
+    effectLayout->setContentsMargins(6, 6, 6, 6);
+    m_effectImageLabel = new QLabel(tr("暂无效果图"), effectBox);
+    m_effectImageLabel->setAlignment(Qt::AlignCenter);
+    m_effectImageLabel->setMinimumSize(240, 180);
+    m_effectImageLabel->setStyleSheet(
+        "background-color: #1c1c1e; color: #666; border: 1px solid #3a3a3e; "
+        "border-radius: 4px; font-size: 12px;");
+    m_effectImageLabel->setScaledContents(false);
+    effectLayout->addWidget(m_effectImageLabel);
+    detailLayout->addWidget(effectBox);
+
     // --- 检测框列表 ---
     QGroupBox* detectionBox = new QGroupBox(tr("检测结果"), detailPage);
     QVBoxLayout* detectionLayout = new QVBoxLayout(detectionBox);
@@ -179,6 +198,9 @@ void ZeroShotResultPanel::setupUI() {
     m_detectionTable->setHorizontalHeaderLabels({
         tr("类别名"), tr("置信度"), tr("CX"), tr("CY"), tr("W"), tr("H")
     });
+    // 通俗解读：每行是一个被检出的目标；CX/CY 为框中心坐标，W/H 为框宽高
+    m_detectionTable->setToolTip(
+        tr("检出的目标列表（每行一个）。\n置信度越高越可信；CX/CY 为中心坐标，W/H 为框宽高。"));
     m_detectionTable->setEditTriggers(QAbstractItemView::NoEditTriggers);  // 只读
     m_detectionTable->setAlternatingRowColors(true);
     m_detectionTable->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -201,6 +223,8 @@ void ZeroShotResultPanel::setupUI() {
     m_maskPreviewLabel->setStyleSheet(
         "background-color: #1e1e1e; border: 1px solid #3a3a3e;");
     m_maskPreviewLabel->setText(tr("无掩码"));
+    // 通俗解读：白色区域 = 模型认为的目标/缺陷区域
+    m_maskPreviewLabel->setToolTip(tr("分割掩码：白色区域为模型标出的目标/缺陷区域。"));
     maskLayout->addWidget(m_maskPreviewLabel);
     m_maskInfoLabel = new QLabel("-", maskBox);
     m_maskInfoLabel->setAlignment(Qt::AlignCenter);
@@ -217,6 +241,9 @@ void ZeroShotResultPanel::setupUI() {
     m_heatmapPreviewLabel->setStyleSheet(
         "background-color: #1e1e1e; border: 1px solid #3a3a3e;");
     m_heatmapPreviewLabel->setText(tr("无热力图"));
+    // 通俗解读：越偏红（亮）的区域异常分数越高，越可能是缺陷
+    m_heatmapPreviewLabel->setToolTip(
+        tr("异常热力图：颜色越红（亮），该区域异常分数越高，越可能是缺陷。"));
     heatmapLayout->addWidget(m_heatmapPreviewLabel);
     previewLayout->addWidget(heatmapBox);
 
@@ -224,6 +251,7 @@ void ZeroShotResultPanel::setupUI() {
 
     // --- 性能指标 ---
     QGroupBox* perfBox = new QGroupBox(tr("性能指标"), detailPage);
+    perfBox->setToolTip(tr("各阶段耗时（毫秒）。总耗时越短，检测越快。"));
     QFormLayout* perfForm = new QFormLayout(perfBox);
     perfForm->setSpacing(4);
     m_perfPreprocessLabel = new QLabel("-", perfBox);
@@ -295,7 +323,15 @@ void ZeroShotResultPanel::setupUI() {
 
     m_stack->addWidget(resultPage);
 
-    mainLayout->addWidget(m_stack);
+    // v2.1.0 界面优化：结果面板内容（效果图+仪表+表格+预览）可能高于可视区，
+    // 包进滚动区，保证小窗口/低分辨率下也能完整查看，且可滚动。
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(m_stack);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    mainLayout->addWidget(scrollArea);
 }
 
 // ============================================================================
@@ -349,6 +385,8 @@ void ZeroShotResultPanel::displayResult(const zsu::ZeroShotResult& result) {
 
         // 清空检测表与预览
         m_detectionTable->setRowCount(0);
+        m_effectImageLabel->setText(tr("推理失败"));
+        m_effectImageLabel->setPixmap(QPixmap());
         m_maskPreviewLabel->setText(tr("推理失败"));
         m_maskPreviewLabel->setPixmap(QPixmap());
         m_maskInfoLabel->setText("-");
@@ -379,6 +417,18 @@ void ZeroShotResultPanel::displayResult(const zsu::ZeroShotResult& result) {
 
     // 分类结果
     m_categoryLabel->setText(result.category.isEmpty() ? tr("（无）") : result.category);
+
+    // --- 检测效果图（原图 + 检测框/掩码/热力图叠加） ---
+    {
+        const QPixmap effect = buildEffectImage(result);
+        if (!effect.isNull()) {
+            m_effectImageLabel->setPixmap(effect);
+            m_effectImageLabel->setText(QString());
+        } else {
+            m_effectImageLabel->setText(tr("无效果图"));
+            m_effectImageLabel->setPixmap(QPixmap());
+        }
+    }
     m_confidenceLabel->setText(QString::number(result.confidence, 'f', 4));
 
     // --- 检测框表格 ---
@@ -514,6 +564,139 @@ QPixmap ZeroShotResultPanel::applyColormap(const cv::Mat& anomalyMap) {
 }
 
 // ============================================================================
+// 热力图叠加到原图（保留原图结构，异常区域半透明红色高亮）
+// anomalyMap 尺寸需与 source 一致（推理后处理已上采样到原图尺寸）
+// ============================================================================
+cv::Mat ZeroShotResultPanel::computeHeatOverlay(const cv::Mat& source, const cv::Mat& anomalyMap) {
+    if (source.empty() || anomalyMap.empty()) {
+        return source.clone();
+    }
+
+    // 统一到 8 位 3 通道
+    cv::Mat src;
+    if (source.channels() == 1) {
+        cv::cvtColor(source, src, cv::COLOR_GRAY2BGR);
+    } else if (source.channels() == 4) {
+        cv::cvtColor(source, src, cv::COLOR_BGRA2BGR);
+    } else {
+        src = source.clone();
+    }
+
+    // 归一化异常图到 0-255
+    cv::Mat normalized;
+    cv::normalize(anomalyMap, normalized, 0, 255, cv::NORM_MINMAX, CV_8U);
+
+    // 仅保留异常分数较高的区域（> 均值）作为高亮，避免整图泛红
+    cv::Scalar meanScalar = cv::mean(normalized);
+    double activeThresh = std::max<double>(meanScalar[0], 80.0);
+    cv::Mat hotMask;
+    cv::threshold(normalized, hotMask, activeThresh, 255, cv::THRESH_BINARY);
+
+    // 生成红色热力图
+    cv::Mat heat;
+    cv::applyColorMap(normalized, heat, cv::COLORMAP_JET);
+
+    // 仅在高亮区域叠加（半透明，alpha=0.55）
+    cv::Mat overlay = src.clone();
+    cv::Mat hotBGR;
+    cv::cvtColor(hotMask, hotBGR, cv::COLOR_GRAY2BGR);
+    cv::addWeighted(heat, 0.55, overlay, 0.45, 0.0, overlay, CV_32F);
+    cv::Mat eight;
+    overlay.convertTo(eight, CV_8U);
+    cv::Mat result = src.clone();
+    eight.copyTo(result, hotBGR);
+    return result;
+}
+
+// ============================================================================
+// 检测效果图：把检测框/掩码/热力图叠加到原图上，直观展示检测效果
+// 优先级：原图 + 检测框 > 原图 + 热力图 > 原图 + 掩码
+// ============================================================================
+QPixmap ZeroShotResultPanel::buildEffectImage(const zsu::ZeroShotResult& result) {
+    if (result.sourceImage.empty()) {
+        // 无原图时退化为展示掩码/热力图本身
+        if (!result.mask.empty()) {
+            return matToPixmap(result.mask);
+        }
+        if (!result.anomalyMap.empty()) {
+            return applyColormap(result.anomalyMap);
+        }
+        return QPixmap();
+    }
+
+    cv::Mat overlay = result.sourceImage.clone();
+    if (overlay.channels() == 1) {
+        cv::cvtColor(overlay, overlay, cv::COLOR_GRAY2BGR);
+    }
+
+    // 1) 叠加异常热力图（如果与原图同尺寸）
+    if (!result.anomalyMap.empty()) {
+        cv::Mat heat = computeHeatOverlay(overlay, result.anomalyMap);
+        if (!heat.empty()) {
+            overlay = heat;
+        }
+    }
+
+    // 2) 叠加分割掩码（半透明青色，标识分割前景）
+    if (!result.mask.empty()) {
+        cv::Mat maskGray;
+        if (result.mask.channels() > 1) {
+            cv::cvtColor(result.mask, maskGray, cv::COLOR_BGR2GRAY);
+        } else {
+            maskGray = result.mask;
+        }
+        cv::resize(maskGray, maskGray, cv::Size(overlay.cols, overlay.rows));
+        cv::threshold(maskGray, maskGray, 127, 255, cv::THRESH_BINARY);
+
+        // 生成青色，仅在前景区域半透明混合
+        cv::Mat maskBool;
+        cv::threshold(maskGray, maskBool, 127, 255, cv::THRESH_BINARY);
+        cv::Mat cyan(overlay.size(), CV_8UC3, cv::Scalar(0, 200, 200));
+        cv::Mat cyanBlend;
+        cv::addWeighted(cyan, 0.45, overlay, 0.55, 0, cyanBlend);
+        cv::Mat cyanMask;
+        cv::cvtColor(maskBool, cyanMask, cv::COLOR_GRAY2BGR);
+        cyanBlend.copyTo(overlay, cyanMask);
+    }
+
+    // 3) 叠加检测框 + 类别/置信度标签
+    for (const auto& d : result.detections) {
+        const int w = overlay.cols;
+        const int h = overlay.rows;
+        const int x1 = static_cast<int>((d.cx - d.w / 2.0) * w);
+        const int y1 = static_cast<int>((d.cy - d.h / 2.0) * h);
+        const int x2 = static_cast<int>((d.cx + d.w / 2.0) * w);
+        const int y2 = static_cast<int>((d.cy + d.h / 2.0) * h);
+        cv::rectangle(overlay, cv::Point(x1, y1), cv::Point(x2, y2),
+                      cv::Scalar(0, 0, 255), 2);  // 红色框
+
+        // 标签底条
+        const QString label = QString("%1 %2")
+            .arg(d.className)
+            .arg(d.confidence, 0, 'f', 0);
+        const int labelTop = std::max(0, y1 - 18);
+        cv::rectangle(overlay, cv::Point(x1, labelTop),
+                      cv::Point(x1 + static_cast<int>(label.size() * 9 + 14), labelTop + 16),
+                      cv::Scalar(0, 0, 255), cv::FILLED);
+        // 中文标签用 cv::putText 中文可能乱码，仅画英文/数字标签
+        cv::putText(overlay, label.toStdString(), cv::Point(x1 + 4, labelTop + 12),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.45, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+    }
+
+    // 转 QPixmap 并等比缩放适配显示区域
+    cv::Mat rgb;
+    cv::cvtColor(overlay, rgb, cv::COLOR_BGR2RGB);
+    QImage image(rgb.data, rgb.cols, rgb.rows,
+                 static_cast<int>(rgb.step), QImage::Format_RGB888);
+    QPixmap pixmap = QPixmap::fromImage(image.copy());
+
+    // 等比缩放到效果图区域（限宽高，保持宽高比）
+    const int maxW = m_effectImageLabel ? qMax(240, m_effectImageLabel->width()) : 320;
+    const int maxH = m_effectImageLabel ? qMax(180, m_effectImageLabel->height()) : 220;
+    return pixmap.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+// ============================================================================
 // 设置单条推理结果
 // ============================================================================
 void ZeroShotResultPanel::setResult(const zsu::ZeroShotResult& result) {
@@ -545,6 +728,10 @@ void ZeroShotResultPanel::clearResults() {
     m_currentIndex = 0;
     // 清空表格与预览
     if (m_detectionTable) m_detectionTable->setRowCount(0);
+    if (m_effectImageLabel) {
+        m_effectImageLabel->setPixmap(QPixmap());
+        m_effectImageLabel->setText(tr("暂无效果图"));
+    }
     if (m_maskPreviewLabel) {
         m_maskPreviewLabel->setPixmap(QPixmap());
         m_maskPreviewLabel->setText(tr("无掩码"));
@@ -560,6 +747,19 @@ void ZeroShotResultPanel::clearResults() {
     if (m_thumbnailList) m_thumbnailList->clear();
     updateDisplay();
     ZSU_LOG_INFO("ZeroShotResultPanel: 已清空结果");
+}
+
+// ============================================================================
+// 设置空状态引导提示（依赖注入）
+// 由主项目 ZeroShotDetectView 注入新手分步指引；空 hint 时恢复默认文案
+// ============================================================================
+void ZeroShotResultPanel::setEmptyHint(const QString& hint) {
+    m_emptyHint = hint;
+    if (!m_emptyLabel) return;
+    m_emptyLabel->setText(hint.isEmpty()
+                          ? tr("暂无零样本推理结果")
+                          : hint);
+    m_emptyLabel->setAlignment(hint.isEmpty() ? Qt::AlignCenter : Qt::AlignLeft | Qt::AlignVCenter);
 }
 
 // ============================================================================
@@ -645,7 +845,8 @@ void ZeroShotResultPanel::updateThumbnailList() {
     m_thumbnailList->clear();
     for (int i = 0; i < m_results.size(); ++i) {
         const auto& r = m_results[i];
-        QString text = tr("图 %1").arg(i + 1);
+        // 优先显示原图像文件名，无文件名时回退为"图 N"
+        QString text = r.imageName.isEmpty() ? tr("图 %1").arg(i + 1) : r.imageName;
         if (!r.success) {
             text += tr(" (失败)");
         } else {

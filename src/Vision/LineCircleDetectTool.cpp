@@ -140,5 +140,10 @@ bool LineCircleDetectTool::deserialize(const QJsonObject& data) {
     m_maxLineGap = data["maxLineGap"].toDouble(10.0);
     m_minRadius = data["minRadius"].toDouble(20.0);
     m_maxRadius = data["maxRadius"].toDouble(200.0);
+    // P 修复：补齐 dp/minDist/param1/param2 反序列化（之前缺失导致圆检测参数全默认）
+    if (data.contains("dp"))      m_dp      = data["dp"].toDouble(1.0);
+    if (data.contains("minDist")) m_minDist = data["minDist"].toDouble(50.0);
+    if (data.contains("param1"))  m_param1  = data["param1"].toDouble(150.0);
+    if (data.contains("param2"))  m_param2  = data["param2"].toDouble(30.0);
     return true;
 }

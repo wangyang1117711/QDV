@@ -162,3 +162,6 @@ if(OpenCV_FOUND)
 else()
     message(STATUS "OpenCVTest skipped: OpenCV MinGW libs not available")
 endif()
+
+# [QDV Annotator] 数据标注工具（独立子目录，复用 QDV.EditView QML 模块）
+add_subdirectory(tools/qdv-annotator)

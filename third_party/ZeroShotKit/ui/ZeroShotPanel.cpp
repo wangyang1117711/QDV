@@ -61,7 +61,7 @@ void ZeroShotPanel::setupUI() {
     typeRow->addWidget(new QLabel(tr("模型类型:"), modelConfigBox));
 
     m_modelTypeCombo = new QComboBox(modelConfigBox);
-    m_modelTypeCombo->setToolTip(tr("选择零样本模型类型"));
+    m_modelTypeCombo->setToolTip(tr("选择检测方案。悬停各选项可查看适合的场景。"));
     m_modelTypeCombo->addItem(tr("AnomalyCLIP (零样本异常检测)"),
                               static_cast<int>(zsu::ZeroShotModelType::AnomalyCLIP));
     m_modelTypeCombo->addItem(tr("Grounding DINO (开集目标检测)"),
@@ -70,6 +70,11 @@ void ZeroShotPanel::setupUI() {
                               static_cast<int>(zsu::ZeroShotModelType::MobileSAM));
     m_modelTypeCombo->addItem(tr("PatchCore (正常样本建模)"),
                               static_cast<int>(zsu::ZeroShotModelType::PatchCore));
+    // 每个模型类型的通俗场景说明（新手悬停即懂，无需查文档）
+    m_modelTypeCombo->setItemData(0, tr("适合判断“产品有没有缺陷”：给出一句“正常”和“缺陷”的描述，输出异常分数（≥阈值判定为异常）。"), Qt::ToolTipRole);
+    m_modelTypeCombo->setItemData(1, tr("适合找出“缺陷在哪、是什么”：用英文类别名描述目标（如 scratch . dent），输出检测框与类别。"), Qt::ToolTipRole);
+    m_modelTypeCombo->setItemData(2, tr("适合把目标轮廓精确“抠”出来：输出分割掩码，通常与检测模型配合使用。"), Qt::ToolTipRole);
+    m_modelTypeCombo->setItemData(3, tr("适合只给正常样本、自动学习正常标准：添加若干张合格品图片作为样本，即可检测与样本差异大的异常。"), Qt::ToolTipRole);
     connect(m_modelTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ZeroShotPanel::onModelTypeChanged);
     typeRow->addWidget(m_modelTypeCombo, 1);
@@ -119,6 +124,7 @@ void ZeroShotPanel::setupUI() {
 
     m_modelPathEdit = new QLineEdit(modelConfigBox);
     m_modelPathEdit->setPlaceholderText(tr("选择模型所在目录..."));
+    m_modelPathEdit->setToolTip(tr("模型所在目录。可直接输入，或点击【浏览...】选择；也可在下方“具体模型”下拉中直接选，路径会自动填入。"));
     pathRow->addWidget(m_modelPathEdit, 1);
 
     m_browseBtn = new QPushButton(tr("浏览..."), modelConfigBox);
@@ -207,7 +213,11 @@ void ZeroShotPanel::setupUI() {
     m_anomalyThresholdSlider = new QSlider(Qt::Horizontal, anomalyRow);
     m_anomalyThresholdSlider->setRange(0, 100);
     m_anomalyThresholdSlider->setValue(50);
-    m_anomalyThresholdSlider->setToolTip(tr("异常分数判定阈值，默认 0.50"));
+    // 通俗解读：判定"缺陷"的门槛。调高更宽松（漏报变多、误报变少）；调低更严格（误报变多、漏报变少）
+    m_anomalyThresholdSlider->setToolTip(
+        tr("判定“缺陷”的门槛（0~1）：异常分数超过该值就判为异常。\n"
+           "调高 → 更宽松（漏报变多、误报变少）；调低 → 更严格（误报变多、漏报变少）。\n"
+           "建议从 0.5 开始，根据实际效果微调。"));
     m_anomalyThresholdValueLabel = new QLabel("0.50", anomalyRow);
     m_anomalyThresholdValueLabel->setMinimumWidth(36);
     m_anomalyThresholdValueLabel->setAlignment(Qt::AlignCenter);
@@ -228,7 +238,10 @@ void ZeroShotPanel::setupUI() {
     m_detectionThresholdSlider = new QSlider(Qt::Horizontal, detectionRow);
     m_detectionThresholdSlider->setRange(0, 100);
     m_detectionThresholdSlider->setValue(30);
-    m_detectionThresholdSlider->setToolTip(tr("Grounding DINO 检测置信度阈值，默认 0.30"));
+    // 通俗解读：只保留置信度足够高的检测框
+    m_detectionThresholdSlider->setToolTip(
+        tr("检测框置信度门槛：只有置信度 ≥ 该值的检测框才会保留。\n"
+           "调低显示更多（可能含误检）；调高更少（可能漏检）。"));
     m_detectionThresholdValueLabel = new QLabel("0.30", detectionRow);
     m_detectionThresholdValueLabel->setMinimumWidth(36);
     m_detectionThresholdValueLabel->setAlignment(Qt::AlignCenter);
@@ -241,7 +254,9 @@ void ZeroShotPanel::setupUI() {
 
     // 量化开关
     m_quantizedCheck = new QCheckBox(tr("使用量化模型 (INT8)"), thresholdGroup);
-    m_quantizedCheck->setToolTip(tr("启用后优先加载 _int8.onnx 量化版本，降低显存与延迟"));
+    // 通俗解读：压缩版模型，更快更省内存，精度可能略降
+    m_quantizedCheck->setToolTip(
+        tr("模型压缩方式：占用内存更小、速度更快，但精度可能略有下降。\n显存/内存紧张时建议开启。"));
     connect(m_quantizedCheck, &QCheckBox::toggled,
             this, &ZeroShotPanel::onQuantizedToggled);
     thresholdLayout->addWidget(m_quantizedCheck);
@@ -255,7 +270,8 @@ void ZeroShotPanel::setupUI() {
     actionRow->setSpacing(6);
 
     m_loadModelBtn = new QPushButton(tr("加载模型"), content);
-    m_loadModelBtn->setToolTip(tr("加载当前选择的模型到引擎"));
+    // 引导性提示：先选好类型与路径再加载
+    m_loadModelBtn->setToolTip(tr("加载当前选择的模型到引擎（第 2 步）。\n加载成功后“推理当前/推理全部”按钮将自动可用。"));
     m_loadModelBtn->setMinimumHeight(28);
     m_loadModelBtn->setStyleSheet(
         "QPushButton { background-color: #2d4a2d; color: #4ec9b0; "
@@ -273,16 +289,22 @@ void ZeroShotPanel::setupUI() {
     actionRow->addStretch();
 
     m_inferCurrentBtn = new QPushButton(tr("推理当前"), content);
-    m_inferCurrentBtn->setToolTip(tr("对当前图片执行推理"));
+    // 明确语义：检测"当前已加载的那张图"
+    m_inferCurrentBtn->setToolTip(tr("对当前已加载的图片执行检测（第 4 步）。\n需要先完成：加载模型 + 顶部【加载图像】。"));
     m_inferCurrentBtn->setMinimumHeight(28);
     connect(m_inferCurrentBtn, &QPushButton::clicked, this, &ZeroShotPanel::onInferCurrent);
     actionRow->addWidget(m_inferCurrentBtn);
 
     m_inferAllBtn = new QPushButton(tr("推理全部"), content);
-    m_inferAllBtn->setToolTip(tr("对所有已导入图片执行推理"));
+    // 明确语义：检测"批量目录里的全部图片"
+    m_inferAllBtn->setToolTip(tr("对批量目录中的全部图片执行检测。\n需要先完成：加载模型 + 顶部【批量目录】选择文件夹。"));
     m_inferAllBtn->setMinimumHeight(28);
     connect(m_inferAllBtn, &QPushButton::clicked, this, &ZeroShotPanel::onInferAll);
     actionRow->addWidget(m_inferAllBtn);
+
+    // 初始禁用推理按钮：模型未加载前避免误点（加载成功后由 updateModelStatus 启用）
+    m_inferCurrentBtn->setEnabled(false);
+    m_inferAllBtn->setEnabled(false);
 
     m_stopBtn = new QPushButton(tr("停止"), content);
     m_stopBtn->setToolTip(tr("停止当前推理任务"));
@@ -310,7 +332,9 @@ void ZeroShotPanel::setupUI() {
     multiRunLayout->setContentsMargins(0, 0, 0, 0);
     multiRunLayout->setSpacing(8);
     m_multiRunCheck = new QCheckBox(tr("多次推理取稳定值"), accuracyBox);
-    m_multiRunCheck->setToolTip(tr("对同一张图推理多次，取投票结果，保证稳定性"));
+    // 通俗解读：重复推理投票，降低随机波动，但更耗时
+    m_multiRunCheck->setToolTip(
+        tr("同一张图重复推理多次，取“投票”结果，降低随机波动。\n追求稳定结果时开启；开启后耗时按次数成倍增加。"));
     connect(m_multiRunCheck, &QCheckBox::toggled, this, &ZeroShotPanel::onMultiRunToggled);
     multiRunLayout->addWidget(m_multiRunCheck);
 
@@ -334,7 +358,10 @@ void ZeroShotPanel::setupUI() {
     m_nmsThresholdSlider = new QSlider(Qt::Horizontal, nmsRow);
     m_nmsThresholdSlider->setRange(10, 80);
     m_nmsThresholdSlider->setValue(45);
-    m_nmsThresholdSlider->setToolTip(tr("NMS 去重 IoU 阈值，越大保留越多框"));
+    // 通俗解读：把重复框出的同一目标合并为一个
+    m_nmsThresholdSlider->setToolTip(
+        tr("“去重”设置：同一目标被重复框出时自动合并为一个框。\n"
+           "数值越大越宽松（保留更多重叠框）。建议保持默认 0.45。"));
     m_nmsThresholdValueLabel = new QLabel("0.45", nmsRow);
     m_nmsThresholdValueLabel->setMinimumWidth(36);
     m_nmsThresholdValueLabel->setAlignment(Qt::AlignCenter);
@@ -347,7 +374,9 @@ void ZeroShotPanel::setupUI() {
 
     // 人工复核开关
     m_humanReviewCheck = new QCheckBox(tr("启用人工复核"), accuracyBox);
-    m_humanReviewCheck->setToolTip(tr("推理完成后逐张确认/拒绝检测结果，拒绝的结果计入 bad case"));
+    // 通俗解读：逐张确认/拒绝结果，拒绝的计入 bad case 用于后续优化
+    m_humanReviewCheck->setToolTip(
+        tr("推理完成后由人逐张确认/拒绝检测结果。\n被拒绝的结果会自动记录（bad case），用于后续优化模型。"));
     connect(m_humanReviewCheck, &QCheckBox::toggled,
             this, &ZeroShotPanel::humanReviewToggled);
     accuracyLayout->addWidget(m_humanReviewCheck);
@@ -387,21 +416,24 @@ void ZeroShotPanel::setupUI() {
     patchCoreLayout->setContentsMargins(8, 12, 8, 8);
 
     m_sampleCountLabel = new QLabel(tr("样本数: 0"), patchCoreBox);
+    // 通俗解读：什么是"正常样本"
+    m_sampleCountLabel->setToolTip(
+        tr("已添加的“合格品”图片数量。\nPatchCore 会从这些图片学习“正常长什么样”，再与待检图片比较，找出差异大的异常。"));
     patchCoreLayout->addWidget(m_sampleCountLabel);
 
     QHBoxLayout* patchCoreBtnLayout = new QHBoxLayout();
     m_addSampleBtn = new QPushButton(tr("添加当前图"), patchCoreBox);
-    m_addSampleBtn->setToolTip(tr("将当前图片加入 PatchCore memory bank"));
+    m_addSampleBtn->setToolTip(tr("把当前显示的图片加入正常样本库（作为合格品标准）。\n建议添加 10~20 张覆盖不同姿态与光照的正常图片。"));
     connect(m_addSampleBtn, &QPushButton::clicked, this, &ZeroShotPanel::onAddNormalSample);
     patchCoreBtnLayout->addWidget(m_addSampleBtn);
 
     m_removeLastBtn = new QPushButton(tr("移除最后"), patchCoreBox);
-    m_removeLastBtn->setToolTip(tr("从 memory bank 移除最后添加的样本"));
+    m_removeLastBtn->setToolTip(tr("撤销：移除刚添加的最后一张正常样本。"));
     connect(m_removeLastBtn, &QPushButton::clicked, this, &ZeroShotPanel::onRemoveLastSample);
     patchCoreBtnLayout->addWidget(m_removeLastBtn);
 
     m_clearSamplesBtn = new QPushButton(tr("清空全部"), patchCoreBox);
-    m_clearSamplesBtn->setToolTip(tr("清空 PatchCore memory bank"));
+    m_clearSamplesBtn->setToolTip(tr("清空全部正常样本，从零开始。"));
     connect(m_clearSamplesBtn, &QPushButton::clicked, this, &ZeroShotPanel::onClearSamples);
     patchCoreBtnLayout->addWidget(m_clearSamplesBtn);
     patchCoreLayout->addLayout(patchCoreBtnLayout);
@@ -412,7 +444,9 @@ void ZeroShotPanel::setupUI() {
     m_progressiveThresholdSpin = new QSpinBox(patchCoreBox);
     m_progressiveThresholdSpin->setRange(1, 100);
     m_progressiveThresholdSpin->setValue(10);
-    m_progressiveThresholdSpin->setToolTip(tr("当 memory bank 样本数超过此值时切换到 PatchCore"));
+    // 通俗解读：样本够了就自动切换到"正常样本对比"模式
+    m_progressiveThresholdSpin->setToolTip(
+        tr("样本数量达到该值时，自动从“提示词检测”切换到“正常样本对比”模式。建议保持默认。"));
     progressiveLayout->addWidget(m_progressiveThresholdSpin);
     patchCoreLayout->addLayout(progressiveLayout);
 
@@ -597,6 +631,19 @@ void ZeroShotPanel::updateModelStatus(bool loaded, const QString& modelTypeName,
         m_modelStatusLabel->setText(tr("未加载模型"));
         m_modelStatusLabel->setStyleSheet("color: gray;");
     }
+
+    // 推理按钮使能联动：模型加载成功后可推理，未加载/失败时禁用（避免新手误点）
+    updateInferenceButtonsState();
+}
+
+// ============================================================================
+// 推理按钮使能联动
+// 模型加载成功后启用"推理当前/推理全部"，否则禁用
+// ============================================================================
+void ZeroShotPanel::updateInferenceButtonsState() {
+    const bool ready = m_engine ? m_engine->isModelLoaded() : false;
+    if (m_inferCurrentBtn) m_inferCurrentBtn->setEnabled(ready);
+    if (m_inferAllBtn)     m_inferAllBtn->setEnabled(ready);
 }
 
 // ============================================================================
@@ -652,6 +699,11 @@ void ZeroShotPanel::onLoadModel() {
     if (path.isEmpty()) {
         updateModelStatus(false, QString(), tr("模型路径为空"));
         ZSU_LOG_WARN("ZeroShotPanel: 模型路径为空，取消加载");
+        // 新手友好：给出明确的操作指引
+        QMessageBox::information(this, tr("还差一步"),
+            tr("请先选择模型目录：\n"
+               "1. 点击【浏览...】选择模型所在文件夹；或\n"
+               "2. 在“具体模型”下拉中直接选择（路径会自动填入）。"));
         return;
     }
 

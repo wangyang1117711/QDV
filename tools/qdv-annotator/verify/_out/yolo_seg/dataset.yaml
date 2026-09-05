@@ -1,0 +1,7 @@
+path: E:\anchor\Trae\QDV\tools\qdv-annotator\verify\_out\yolo_seg
+train: images/train
+val: images/val
+masks: masks/train
+
+nc: 2
+names: [defect, good]

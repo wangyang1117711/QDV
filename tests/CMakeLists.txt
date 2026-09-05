@@ -48,6 +48,10 @@ add_executable(QDV_tests
     UI/test_operator_descriptors.cpp
     # v2.8.0：OperatorHelpProvider 双源帮助内容提供器单元测试
     UI/test_operator_help_provider.cpp
+    # 零样本检测新手引导模块（ZeroShotGuide）单元测试
+    UI/test_zeroshot_guide.cpp
+    # 零样本检测视图"能否打开"冒烟测试（构造 + 首显不崩溃）
+    UI/test_zeroshot_view_open.cpp
     # spec（editor-output-connection-optimization）Task 13：端口绑定/冲突检测/算子推荐引擎单元测试
     UI/test_editor_output_connection.cpp
     Plugins/test_plugins.cpp
@@ -114,4 +118,29 @@ add_executable(zero_shot_smoke AI/zero_shot_smoke.cpp)
 
 target_link_libraries(zero_shot_smoke PRIVATE
     ZeroShotKit::Core
+)
+
+# ============================================================================
+# 零样本检测视图"能否打开"独立探针（隔离验证，避免全量 OOM 段错误）
+# 构造 + QStackedWidget 切换动画后检查实际几何尺寸，结果写入 %TEMP%/zsv_probe.log
+# ============================================================================
+add_executable(zero_shot_view_probe
+    zero_shot_view_probe.cpp
+)
+
+target_include_directories(zero_shot_view_probe PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(zero_shot_view_probe PRIVATE
+    UI
+    TrainingInference
+    AI
+    Vision
+    Core
+    Database
+    Monitoring
+    Qt6::Core Qt6::Widgets Qt6::Concurrent Qt6::Sql
+    ${OpenCV_LIBS}
 )

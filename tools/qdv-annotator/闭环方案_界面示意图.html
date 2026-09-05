@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单丝计数 训练标注闭环 — 流程与界面示意图（整合方案）</title>
+<style>
+  :root {
+    --bg-canvas:#121212; --bg-panel:#1A1A1A; --bg-surface:#242424; --bg-hover:#2F2F2F; --bg-header:#1F1F1F;
+    --text-primary:#FFFFFF; --text-secondary:#C8C8C8; --text-tertiary:#9E9E9E;
+    --accent:#7C4DFF; --accent-hover:#9D7BFF; --success:#69F0AE; --warning:#FFD740; --error:#FF5252; --info:#448AFF;
+    --border:#3D3D3D;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#0d0d0d; color:var(--text-primary); font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif; padding:24px; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:var(--text-tertiary); font-size:12px; margin-bottom:20px; }
+  .card { background:var(--bg-canvas); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; }
+  .card-title { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--bg-header); border-bottom:1px solid var(--border); font-size:14px; font-weight:700; }
+  .card-title .tag { font-size:11px; color:var(--accent-hover); background:rgba(124,77,255,0.15); border:1px solid rgba(124,77,255,0.4); border-radius:3px; padding:1px 6px; }
+  .card-body { padding:14px; }
+
+  /* 阶段流程 */
+  .flow { display:flex; align-items:stretch; gap:8px; flex-wrap:wrap; }
+  .stage { flex:1; min-width:150px; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:10px; position:relative; }
+  .stage .no { position:absolute; top:8px; right:10px; font-size:22px; font-weight:800; color:rgba(124,77,255,0.25); }
+  .stage h3 { font-size:13px; margin-bottom:6px; color:var(--accent-hover); }
+  .stage ul { list-style:none; font-size:11px; color:var(--text-secondary); line-height:1.7; }
+  .stage ul li::before { content:"▸ "; color:var(--accent); }
+  .arrow { align-self:center; color:var(--text-tertiary); font-size:18px; }
+
+  /* 标注页界面 */
+  .app { background:var(--bg-canvas); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .topbar { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg-header); border-bottom:1px solid var(--border); font-size:12px; flex-wrap:wrap; }
+  .app-title { color:var(--accent-hover); font-weight:700; font-size:14px; }
+  .btn { background:var(--bg-surface); border:1px solid var(--border); color:var(--text-primary); border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .btn.hl { background:var(--accent); border-color:var(--accent); font-weight:600; }
+  .btn.ob { background:#0E5A3A; border-color:#1F8A56; color:#7CF5B5; font-weight:600; }
+  .btn.new { background:#4A2B8A; border-color:var(--accent); color:var(--accent-hover); font-weight:700; }
+  .spacer { flex:1; }
+  .body { display:flex; height:300px; }
+  .col { padding:8px; background:var(--bg-panel); }
+  .col-left { width:170px; border-right:1px solid var(--border); }
+  .col-mid { flex:1; background:var(--bg-canvas); position:relative; }
+  .col-right { width:220px; border-left:1px solid var(--border); }
+  .panel-title { font-size:12px; font-weight:700; margin-bottom:8px; }
+  .img-item { padding:5px; border-radius:4px; margin-bottom:3px; background:var(--bg-surface); font-size:11px; }
+  .img-item.sel { outline:1px solid var(--accent); }
+  .canvas-area { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  .img-sim { width:420px; height:250px; background:linear-gradient(135deg,#151515,#202020); border:1px solid #333; position:relative; }
+  .ann { position:absolute; border:2px solid #69F0AE; background:rgba(105,240,174,0.08); }
+  .ann .tag { position:absolute; top:-16px; left:0; font-size:9px; color:#fff; background:#000a; padding:0 3px; border-radius:2px; white-space:nowrap; }
+  .ann .arrow { position:absolute; font-size:12px; color:#7CF5B5; }
+  .legend { display:flex; gap:10px; margin-top:8px; font-size:11px; color:var(--text-tertiary); flex-wrap:wrap; }
+  .swatch { width:12px; height:12px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:-2px; }
+  .note { background:rgba(124,77,255,0.08); border:1px solid rgba(124,77,255,0.35); border-radius:6px; padding:8px 12px; font-size:11px; color:var(--text-secondary); line-height:1.7; }
+
+  /* 训练窗口 */
+  .dlg { background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; max-width:520px; margin:0 auto; }
+  .dlg-head { padding:8px 12px; background:var(--bg-header); border-bottom:1px solid var(--border); font-size:13px; font-weight:700; display:flex; justify-content:space-between; }
+  .dlg-body { padding:12px; }
+  .row { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:12px; }
+  .row label { width:110px; color:var(--text-secondary); }
+  .field { flex:1; background:var(--bg-surface); border:1px solid var(--border); border-radius:4px; padding:5px 8px; font-size:12px; color:var(--text-primary); }
+  .field.sel { outline:1px solid var(--accent); }
+  .prog { height:8px; background:var(--bg-surface); border:1px solid var(--border); border-radius:4px; overflow:hidden; margin:6px 0; }
+  .prog > i { display:block; height:100%; width:72%; background:linear-gradient(90deg,var(--accent),var(--success)); }
+  .log { background:#0a0a0a; border:1px solid var(--border); border-radius:4px; padding:6px; font-family:Consolas,monospace; font-size:10px; color:#7CF5B5; line-height:1.6; height:84px; overflow:hidden; }
+  .foot { display:flex; justify-content:flex-end; gap:8px; padding:10px 12px; border-top:1px solid var(--border); }
+  .badge { font-size:10px; padding:1px 6px; border-radius:3px; border:1px solid var(--border); }
+  .badge.ok { color:var(--success); border-color:var(--success); }
+  .badge.warn { color:var(--warning); border-color:var(--warning); }
+</style>
+</head>
+<body>
+
+<h1>单丝计数「标注 ⇄ 训练」闭环 — 流程与界面示意图</h1>
+<div class="sub">整合方案 · 2026-08-19 · 与 <code>QDVAnnotator_闭环整合设计方案_2026-08-19.md</code> 配套</div>
+
+<!-- ===== 阶段流程 ===== -->
+<div class="card">
+  <div class="card-title">端到端闭环 · 5 阶段 <span class="tag">全部 GUI / 双击 .bat</span></div>
+  <div class="card-body">
+    <div class="flow">
+      <div class="stage"><span class="no">1</span><h3>标注</h3><ul>
+        <li>annotator_rect2.html 加载图</li>
+        <li>人工标有向矩形（或先自动预标）</li>
+        <li>填「图像目录路径」→ 导出 QDV 工程</li></ul></div>
+      <div class="arrow">➜</div>
+      <div class="stage"><span class="no">2</span><h3>导入补标</h3><ul>
+        <li>QDVAnnotator.exe 打开 .qdvann</li>
+        <li>旋转矩形完整显示（角度+根数）</li>
+        <li>人工校验/补标 → 保存</li></ul></div>
+      <div class="arrow">➜</div>
+      <div class="stage"><span class="no">3</span><h3>训练</h3><ul>
+        <li>导出「YOLO 有向矩形 OBB」数据集</li>
+        <li>标训闭环 → 数据集来源 yolo_obb</li>
+        <li>模型 yolov8n-obb · Python=QDV venv</li></ul></div>
+      <div class="arrow">➜</div>
+      <div class="stage"><span class="no">4</span><h3>回灌</h3><ul>
+        <li>双击 sync_obb_weight.bat</li>
+        <li>best*.onnx → 单丝 weights/</li>
+        <li>重启 8765 服务加载新权重</li></ul></div>
+      <div class="arrow">➜</div>
+      <div class="stage"><span class="no">5</span><h3>自动标注升级</h3><ul>
+        <li>点「🟦 有向矩形自动标注(OBB)」</li>
+        <li>升级模型自动出带角度框（φ+根数）</li>
+        <li>人工修正 → 导出 → 循环</li></ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 标注页界面 ===== -->
+<div class="card">
+  <div class="card-title">annotator_rect2.html — 标注页界面示意 <span class="tag">含新增「导入 QDV 重训权重」按钮（二期）</span></div>
+  <div class="card-body">
+    <div class="app">
+      <div class="topbar">
+        <span class="app-title">单丝计数标注工具</span><span class="badge">v2026-08-18l</span>
+        <span class="spacer"></span>
+        <button class="btn">🖼️ 选择图片文件夹</button>
+        <button class="btn">导出 QDV 工程</button>
+        <button class="btn ob">🟦 有向矩形自动标注(OBB)</button>
+        <button class="btn new">⬇ 导入 QDV 重训权重</button>
+        <button class="btn">合并到训练集</button>
+      </div>
+      <div class="body">
+        <div class="col col-left">
+          <div class="panel-title">图像列表</div>
+          <div class="img-item sel">Image_2025…17.png</div>
+          <div class="img-item">Image_2025…33.png</div>
+          <div class="img-item">Image_2025…95.png</div>
+          <div class="img-item">Image_2025…43.png</div>
+        </div>
+        <div class="col col-mid">
+          <div class="canvas-area">
+            <div class="img-sim">
+              <div class="ann" style="left:96px; top:60px; width:34px; height:64px; transform:rotate(18deg);"><span class="tag">φ72° · 1根</span><span class="arrow" style="left:-2px; top:-6px;">➜</span></div>
+              <div class="ann" style="left:200px; top:110px; width:28px; height:52px; transform:rotate(-30deg);"><span class="tag">φ-30° · 2根</span><span class="arrow" style="left:-2px; top:-6px;">➜</span></div>
+              <div class="ann" style="left:300px; top:70px; width:30px; height:58px; transform:rotate(75deg);"><span class="tag">φ75° · 1根</span><span class="arrow" style="left:-2px; top:-6px;">➜</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="col col-right">
+          <div class="panel-title">标签 / 标注项</div>
+          <div style="font-size:11px; color:var(--text-secondary); line-height:1.9;">
+            根数1（绿）· 根数2（蓝）<br>根数3（橙）· 根数4（红）
+          </div>
+          <div style="margin-top:10px;" class="panel-title">标注项列表</div>
+          <div class="img-item">▸ φ72° · 1根 · 0.91</div>
+          <div class="img-item">▸ φ-30° · 2根 · 0.87</div>
+          <div class="img-item">▸ φ75° · 1根 · 0.83</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:#69F0AE;"></i>根数1</span>
+      <span><i class="swatch" style="background:#448AFF;"></i>根数2</span>
+      <span><i class="swatch" style="background:#FFB300;"></i>根数3</span>
+      <span><i class="swatch" style="background:#FF5252;"></i>根数4</span>
+    </div>
+    <div class="note" style="margin-top:10px;">
+      <b>新增按钮说明（二期方案 B）：</b>「导入 QDV 重训权重」→ 调服务端 <code>POST /api/load_obb_weight</code> → 自动复制 + 热切换模型 + 样例自检（0 检出则告警），使用者全程只点一个按钮。一期由 <code>sync_obb_weight.bat</code> 承担同样职责。
+    </div>
+  </div>
+</div>
+
+<!-- ===== 标训闭环窗口 ===== -->
+<div class="card">
+  <div class="card-title">QDVAnnotator.exe — 标训闭环窗口示意 <span class="tag">yolo_obb · 资源自适应</span></div>
+  <div class="card-body">
+    <div class="dlg">
+      <div class="dlg-head"><span>标训闭环</span><span class="badge ok">Python 已检测 ✓</span></div>
+      <div class="dlg-body">
+        <div class="row"><label>数据集来源</label><div class="field sel">使用已导出的 OBB 数据集 (yolo_obb) ▾</div></div>
+        <div class="row"><label>dataset.yaml</label><div class="field">E:\…\yolo_obb\dataset.yaml</div></div>
+        <div class="row"><label>输出目录</label><div class="field">E:\…\qdv_retrain_001</div></div>
+        <div class="row"><label>Python</label><div class="field">E:\anchor\Trae\QDV\training\venv\Scripts\python.exe</div></div>
+        <div class="row"><label>模型</label><div class="field sel">yolov8n-obb (旋转矩形) ▾</div></div>
+        <div class="row"><label>轮数 / 批大小</label><div class="field">60 / 8（资源自适应自动降档）</div></div>
+        <div class="prog"><i></i></div>
+        <div class="log">[TrainingBridge] 启动 python yolo_train.py --config …<br>[resource] 探测显存 8150MiB → batch 8→8<br>[resource] 页面文件 3.1GB → 强制 workers=0<br>Epoch 12/60  box 2.14  angle 0.048  mAP50 0.63</div>
+      </div>
+      <div class="foot">
+        <span class="badge warn">提示：页面文件建议 ≥16GB</span>
+        <button class="btn">取消</button>
+        <button class="btn hl">开始标训闭环</button>
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px;">
+      <b>产物：</b><code>输出目录/best&lt;时间戳&gt;.onnx</code> + <code>labels.json</code> → 供 <code>sync_obb_weight.bat</code> 一键回灌。<br>
+      <b>红线：</b>训练 Python 必须用 QDV venv；页面文件不足会被系统强杀导致 GUI 闪退（已自动降档兜底）。
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

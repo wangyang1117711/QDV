@@ -32,4 +32,8 @@ private:
     double  m_edgeThreshold = 30.0;// 边缘梯度阈值
     QString m_polarity = "any";    // 边缘极性 "any"/"dark_to_bright"/"bright_to_dark"
     double  m_smoothSigma = 1.0;   // 高斯平滑 sigma
+    // P 优化：useSobel=true 用 Sobel 算子（更适合工业软边），false 用中心差分（保留兼容）
+    bool    m_useSobel = true;
+    // P 优化：自适应阈值降级（用户阈值找不到边缘时自动降阈值）
+    bool    m_autoThreshold = true;
 };

@@ -160,6 +160,8 @@ private:
     void setupUI();
     void updateControlVisibility();  // 根据模型类型动态显示/隐藏控件
     void updatePromptPlaceholder();  // 根据模型类型更新提示词占位符
+    // 推理按钮使能联动：模型加载成功后启用"推理当前/推理全部"，未加载/失败时禁用
+    void updateInferenceButtonsState();
 
     // v2.0 阶段二 Task 7：目标类型选择区辅助
     void rebuildTargetTypeMenu();    // 根据 m_targetTypeEntries 重建菜单

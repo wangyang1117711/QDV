@@ -16,6 +16,10 @@ public:
     QJsonObject serialize() const override;
     bool deserialize(const QJsonObject& data) override;
 
+    // 端口声明（与 config/operators.json 的 outputs 保持一致）
+    QList<QDV::PortDescriptor> outputPorts() const override;
+    QList<QDV::PortDescriptor> inputPorts() const override;
+
 private:
     QString m_modelPath;            // ONNX 模型文件路径
     QString m_charsetPath;          // 字符集文件路径（每行一个字符，UTF8）

@@ -1734,12 +1734,15 @@ void TrainingInferenceView::onSaveFinished(const QString& filePath, bool success
 {
     QDV::Logger::info(QString("[ProjectSave] 保存完成: success=%1 file=%2").arg(success).arg(filePath));
 
-    // 关键修复：直接销毁进度对话框，不再调用 processEvents。
-    // 之前的 processEvents 会导致事件循环递归，可能在保存完成回调中触发其他事件
-    // （如 Monitor 的 onTick），从而访问到正在被修改的 UI 状态，导致 ACCESS_VIOLATION。
+    // 关键修复：进度对话框改用 deleteLater() 延迟销毁（而不是同步 delete）。
+    // 原因：工作线程发出的 loadProgress/saveProgress 是排队的跨线程 queued 事件，
+    // 若在此同步 delete，晚到的 queued 事件仍会触发 onSaveProgress → QProgressDialog::setValue，
+    // 访问到已释放的对话框，导致 ACCESS_VIOLATION 崩溃（UAF）。
+    // deleteLater 保证对象在当前事件批次处理期间仍存活，挂起事件排空后再安全释放，
+    // QPointer 随后自动置空，后续 onSaveProgress 判空安全返回。
     if (m_progressDialog) {
         m_progressDialog->close();
-        delete m_progressDialog;
+        m_progressDialog->deleteLater();
         // QPointer 自动置空，无需手动 m_progressDialog = nullptr
     }
 
@@ -1776,12 +1779,16 @@ void TrainingInferenceView::onLoadFinished(const QString& filePath, bool success
 {
     QDV::Logger::info(QString("[ProjectLoad] 加载完成: success=%1 file=%2").arg(success).arg(filePath));
 
-    // 关键修复：直接销毁进度对话框，不再调用 processEvents。
-    // processEvents 会导致事件循环递归，在加载完成回调中触发其他 pending 事件
-    // （如 Monitor 的 onTick），从而访问到正在被重建的 UI 控件，导致 ACCESS_VIOLATION。
+    // 关键修复：进度对话框改用 deleteLater() 延迟销毁（而不是同步 delete）。
+    // 原因：工作线程（QtConcurrent）发出的 loadProgress 是排队到本线程的 queued 事件，
+    // 加载完成时这些事件可能尚未全部处理。若在此同步 delete，晚到的 queued 事件仍会
+    // 触发 onLoadProgress → QProgressDialog::setValue，访问到已释放的对话框，
+    // 导致 ACCESS_VIOLATION 崩溃（UAF，调用栈位于 onLoadProgress 的 setValue 处）。
+    // deleteLater 保证对象在当前事件批次处理期间仍存活，挂起事件排空后再安全释放，
+    // QPointer 随后自动置空，后续 onLoadProgress 判空安全返回。
     if (m_progressDialog) {
         m_progressDialog->close();
-        delete m_progressDialog;
+        m_progressDialog->deleteLater();
         // QPointer 自动置空
     }
 

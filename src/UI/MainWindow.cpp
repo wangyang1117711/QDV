@@ -450,8 +450,12 @@ void MainWindow::showMain() {
     }
     m_stackedWidget->hide();
     this->hide();
-    QDV::Logger::info("[MainWindow] showMain: MainWindow hidden, about to showMaximized() central");
-    m_centralWindow->showMaximized();
+    // v2.1.0 BUG修复：之前此处强制 showMaximized()，导致中央窗口在登录后
+    // "自动全屏"且难以自由缩放。改为恢复上次窗口几何（默认 1400x900 居中），
+    // 始终为可缩放普通窗口，用户可自由调整大小。
+    QDV::Logger::info("[MainWindow] showMain: MainWindow hidden, restoring central window state");
+    restoreCentralWindowState();
+    m_centralWindow->show();
     QDV::Logger::info("[MainWindow] showMain: central shown OK, isVisible=" +
         QString::number(m_centralWindow->isVisible()));
 }
@@ -543,8 +547,38 @@ void MainWindow::saveWindowState() {
     settings.setValue("windowState", saveState());
 }
 
+// =====================================================================
+// v2.1.0 BUG修复：中央窗口几何持久化
+// 登录后不再强制 showMaximized()，而是恢复上次几何（默认 1400x900 居中），
+// 保证窗口始终可自由缩放，且关闭/登出后能记住用户调好的大小。
+// =====================================================================
+void MainWindow::restoreCentralWindowState() {
+    if (!m_centralWindow) return;
+    QSettings settings("奇测科技", "QDetectVision");
+    const QByteArray geo = settings.value("centralGeometry").toByteArray();
+    if (geo.size() >= 16) {
+        m_centralWindow->restoreGeometry(geo);
+    }
+    // 恢复后若尺寸无效（损坏/过小），回退到默认 1400x900 并居中
+    if (m_centralWindow->width() < 800 || m_centralWindow->height() < 600) {
+        const int w = 1400, h = 900;
+        m_centralWindow->resize(w, h);
+        if (QScreen* screen = QGuiApplication::primaryScreen()) {
+            const QRect avail = screen->availableGeometry();
+            m_centralWindow->move((avail.width() - w) / 2, (avail.height() - h) / 2);
+        }
+    }
+}
+
+void MainWindow::saveCentralWindowState() {
+    if (!m_centralWindow) return;
+    QSettings settings("奇测科技", "QDetectVision");
+    settings.setValue("centralGeometry", m_centralWindow->saveGeometry());
+}
+
 void MainWindow::closeEvent(QCloseEvent* event) {
     saveWindowState();
+    saveCentralWindowState();
     QMainWindow::closeEvent(event);
 }
 
@@ -598,6 +632,7 @@ void MainWindow::onLogout() {
     QDV::Logger::info("[MainWindow] onLogout: close central, show MainWindow login");
     // v2.1.0 M4：CentralWindow 是独立 top-level 窗口，登出时直接 close()，回到登录页
     if (m_centralWindow) {
+        saveCentralWindowState();  // 记录中央窗口几何，下次登录恢复
         m_centralWindow->close();
     }
     if (m_loginView) {

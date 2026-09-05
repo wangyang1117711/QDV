@@ -18,6 +18,10 @@ private:
     bool m_denoise = false;
     QString m_morphology = "none";
     int m_kernelSize = 3;
+    // P 优化：bilateralFilter 参数可配置（默认与原硬编码值一致）
+    int m_bilateralD = 9;
+    double m_bilateralSigmaColor = 75.0;
+    double m_bilateralSigmaSpace = 75.0;
 };
 
 #endif // IMAGEPREPROCESSTOOL_H

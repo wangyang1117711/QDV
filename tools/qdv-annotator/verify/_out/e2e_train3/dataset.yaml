@@ -1,0 +1,9 @@
+names:
+- 1根丝线
+- 2根丝线
+- 3根丝线
+- 4根丝线
+nc: 4
+path: E:/anchor/Trae/QDV/tools/qdv-annotator/verify/_out/e2e_train3
+train: images/train
+val: images/val

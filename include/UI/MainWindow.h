@@ -52,6 +52,8 @@ private:
     void animateViewTransition(int targetIndex);
     void restoreWindowState();
     void saveWindowState();
+    void restoreCentralWindowState();  // v2.1.0 BUG修复：中央窗口几何恢复
+    void saveCentralWindowState();     // v2.1.0 BUG修复：中央窗口几何保存
     
     QStackedWidget* m_stackedWidget;
     LoginView* m_loginView;

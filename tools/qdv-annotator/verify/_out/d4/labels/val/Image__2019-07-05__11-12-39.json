@@ -1,0 +1,16 @@
+{
+  "image_width": 1200,
+  "image_height": 1200,
+  "annotations": [
+    {
+      "bbox": [
+        100,
+        100,
+        300,
+        300
+      ],
+      "text": "",
+      "label": "good"
+    }
+  ]
+}

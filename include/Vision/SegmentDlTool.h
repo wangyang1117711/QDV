@@ -5,6 +5,7 @@
 #include "OperatorSDK/IInferenceEngine.h"
 #include <opencv2/dnn.hpp>
 #include <QJsonArray>
+#include <QMutex>
 
 /// 深度学习语义分割算子（ONNX 格式）
 /// 依赖注入：通过 setInferenceEngine 注入 AI 引擎（保持架构一致性）
@@ -22,6 +23,10 @@ public:
 
     QJsonObject serialize() const override;
     bool deserialize(const QJsonObject& data) override;
+
+    // 端口声明（与 config/operators.json 的 outputs 保持一致）
+    QList<QDV::PortDescriptor> outputPorts() const override;
+    QList<QDV::PortDescriptor> inputPorts() const override;
 
     // ----- 参数 setter/getter -----
     void setModelPath(const QString& path) { m_modelPath = path; }
@@ -48,8 +53,12 @@ private:
     int m_inputWidth = 512;                       // 模型输入宽度
     int m_inputHeight = 512;                      // 模型输入高度
     QStringList m_categoryLabels;                 // 类别标签列表
-    bool m_modelLoaded = false;                   // 模型是否已加载
+    bool m_modelLoaded = false;                   // 模型是否已加载（fallback 路径）
+    bool m_warmedUp = false;                      // 引擎分支：模型是否已加载预热
     cv::dnn::Net m_net;                           // OpenCV DNN 网络（用于分割推理）
+
+    // 线程安全：防止 m_modelLoaded 检查-设置竞态与 m_net 并发推理冲突
+    mutable QMutex m_execMutex;
 
     /// 懒加载模型（首次执行时调用）
     bool loadModel();

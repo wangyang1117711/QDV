@@ -38,6 +38,7 @@
 #include <QElapsedTimer>
 #include <QDateTime>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QByteArray>
 #include <QtConcurrent>   // 异步部署执行
@@ -530,6 +531,12 @@ void EditViewBridge::deleteNode(const QString& nodeId) {
     }
     markDirty();
 
+    // v6.x：节点删除后清理其运行输出值缓存
+    {
+        QMutexLocker locker(&m_nodeOutputsMutex);
+        m_nodeOutputs.remove(nodeId);
+    }
+
     // v2.6.0：节点删除后通知 PreviewManager 清理对应图像变量
     if (m_previewManager) {
         m_previewManager->onNodeDeleted(nodeId);
@@ -623,6 +630,24 @@ QVariantMap EditViewBridge::getOperatorParams(const QString& nodeId) const {
 // v5.4：返回指定节点的输出开关配置（委托 OutputConfigManager，Task 6）
 QVariantMap EditViewBridge::getOutputConfig(const QString& nodeId) const {
     return m_outputConfigManager->getOutputConfig(nodeId);
+}
+
+// =====================================================================
+// v6.x：节点运行后输出值缓存
+// 由 SchemeRunController 在工作线程回调写入，QML 变量管理面板读取展示
+// =====================================================================
+void EditViewBridge::setNodeOutputValues(const QString& nodeId, const QVariantMap& ports) {
+    if (nodeId.isEmpty()) return;
+    {
+        QMutexLocker locker(&m_nodeOutputsMutex);
+        m_nodeOutputs[nodeId] = ports;
+    }
+    emit nodeOutputsUpdated();
+}
+
+QVariantMap EditViewBridge::getNodeOutputValues(const QString& nodeId) const {
+    QMutexLocker locker(&m_nodeOutputsMutex);
+    return m_nodeOutputs.value(nodeId);
 }
 
 void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantMap& params) {
@@ -1150,6 +1175,11 @@ void EditViewBridge::newScheme() {
     // v2.6.0：新建方案时清空所有变量
     if (m_variableManager) m_variableManager->clear();
     if (m_imageVariableManager) m_imageVariableManager->clear();
+    // v6.x：清空节点运行后输出值缓存
+    {
+        QMutexLocker locker(&m_nodeOutputsMutex);
+        m_nodeOutputs.clear();
+    }
     emit currentNodesChanged();
     emit connectionsChanged();
     emit currentSchemeNameChanged();
@@ -1227,6 +1257,11 @@ bool EditViewBridge::applyLoadedJson(const QString& jsonText, const QString& fil
     // 提交
     m_currentNodes = newNodes;
     m_connections  = newConns;
+    // v6.x：加载新方案后旧的运行输出值已失效，清空缓存
+    {
+        QMutexLocker locker(&m_nodeOutputsMutex);
+        m_nodeOutputs.clear();
+    }
     if (newName != m_currentSchemeName) {
         m_currentSchemeName = newName;
         emit currentSchemeNameChanged();
@@ -1503,6 +1538,93 @@ QVariantList EditViewBridge::getRegisteredModels() const {
     }
 
     QDV::Logger::info(QString("getRegisteredModels: returning %1 models").arg(models.size()));
+    return models;
+}
+
+// ============================================================================
+// v5.4.2：零样本模型路径下拉 — 按模型类型过滤
+// ----------------------------------------------------------------------------
+// 与 ZeroShotDetect 算子的 modelType 参数联动：切换模型类型后，modelPath
+// 下拉候选自动过滤为该类型对应的零样本模型（目录）。目录路径由引擎
+// ZeroShotEngine::loadModel 直接支持（自动解析目录内对应文件）。
+// ============================================================================
+QVariantList EditViewBridge::getZeroShotModelsByType(const QString& modelType) {
+    QVariantList models;
+    const QString type = modelType.trimmed().toLower();
+
+    // 模型类型 → 关键文件/文件名特征（小写）映射
+    // 说明：PatchCore 复用 AnomalyCLIP 的 CLIP 视觉编码器（见 ZeroShotEngine）
+    QStringList markerFiles;      // 完整文件名精确匹配
+    QStringList markerSubstrings; // 文件名包含即匹配
+    if (type == "anomalyclip" || type == "patchcore") {
+        markerFiles       << "clip_vision_vit_b32.onnx" << "clip_text_embeddings.txt";
+        markerSubstrings  << "clip_vision";
+    } else if (type == "groundingdino") {
+        markerFiles       << "grounding_dino_tiny.onnx";
+        markerSubstrings  << "grounding_dino";
+    } else if (type == "mobilesam") {
+        markerFiles       << "mobile_sam.onnx"
+                         << "mobile_sam_encoder.onnx"
+                         << "mobile_sam_decoder_slim.onnx";
+        markerSubstrings  << "mobile_sam" << "sam_encoder" << "sam_decoder";
+    } else {
+        // LocateAnything 等未实现类型：无可选模型
+        QDV::Logger::info(QString("getZeroShotModelsByType: 未支持的模型类型 %1，返回空列表")
+                         .arg(modelType));
+        return models;
+    }
+
+    // 扫描根目录：默认模型目录下的专门零样本子目录
+    QStringList roots;
+    const QString base = QDir(QCoreApplication::applicationDirPath() + "/models").absolutePath();
+    roots << base;
+    const QStringList subDirs = {"clip", "grounding_sam", "mobile_sam", "patch_core", "zero_shot"};
+    for (const QString& sub : subDirs) {
+        const QString p = QDir(base).absoluteFilePath(sub);
+        if (QDir(p).exists()) roots << p;
+    }
+    // 开发环境兼容：exe 位于 build/bin 时，零样本模型在源码目录 models/ 下
+    // （部署后该目录由打包流程复制到 <appDir>/models，不会重复扫描）
+    // 注意：base 已含 "/models" 后缀，必须从 applicationDirPath 直接上溯两级，
+    // 否则会多跳一级到 <appDir>/models/../../models（不存在）。
+    const QString devModels =
+        QDir(QCoreApplication::applicationDirPath() + "/../../models").absolutePath();
+    if (QDir(devModels).exists() && !roots.contains(devModels)) {
+        roots << devModels;
+    }
+
+    // 递归扫描各根目录，收集匹配文件 → 按父目录去重作为模型条目
+    QSet<QString> matchedDirs;
+    for (const QString& root : roots) {
+        if (!QDir(root).exists()) continue;
+        QDirIterator it(root, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            const QString fname = it.fileName().toLower();
+            bool matched = markerFiles.contains(fname);
+            if (!matched) {
+                for (const QString& ms : markerSubstrings) {
+                    if (fname.contains(ms)) { matched = true; break; }
+                }
+            }
+            if (!matched) continue;
+
+            // 命中：以包含该模型的目录为条目（引擎支持目录路径，自动解析内部文件）
+            const QString dirPath = QDir::toNativeSeparators(it.fileInfo().absolutePath());
+            if (matchedDirs.contains(dirPath)) continue;
+            matchedDirs.insert(dirPath);
+            QVariantMap entry;
+            entry["displayName"] = QFileInfo(dirPath).fileName();
+            entry["filePath"]    = dirPath;
+            entry["type"]        = modelType.trimmed();
+            models.append(entry);
+            QDV::Logger::info(QString("getZeroShotModelsByType: type=%1 → %2")
+                             .arg(modelType, dirPath));
+        }
+    }
+
+    QDV::Logger::info(QString("getZeroShotModelsByType: type=%1 → %2 个候选模型")
+                     .arg(modelType).arg(models.size()));
     return models;
 }
 

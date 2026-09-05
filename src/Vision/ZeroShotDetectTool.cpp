@@ -13,11 +13,73 @@
 #include "ZeroShotKit/ZeroShotTypes.h"
 
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QByteArray>
 #include <QVariantList>
 #include <QVariantMap>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include <algorithm>
+
+// ----------------------------------------------------------------------------
+// Mat → QJsonObject 编码（PNG 字节流 + 尺寸/通道/类型元数据）
+// 用途：掩码/热力图等 Mat 数据无法直接放入 ToolResult.ports（QVariantMap），
+//       统一编码为 JSON 数据字段，供变量管理/属性面板展示与后续算子复用。
+// ----------------------------------------------------------------------------
+namespace {
+
+QJsonObject encodeMatToJson(const cv::Mat& img) {
+    QJsonObject obj;
+    if (img.empty()) {
+        obj["valid"] = false;
+        return obj;
+    }
+    std::vector<uchar> buf;
+    // 先转 8UC3/8UC1 便于 imencode（兼容 16U 等非常规类型）
+    cv::Mat enc = img;
+    if (enc.depth() != CV_8U) {
+        double mn, mx;
+        cv::minMaxLoc(enc, &mn, &mx);
+        if (enc.channels() == 1) {
+            cv::Mat tmp;
+            enc.convertTo(tmp, CV_8U, 255.0 / std::max(1.0, mx - mn),
+                          -mn * 255.0 / std::max(1.0, mx - mn));
+            enc = tmp;
+        } else {
+            cv::Mat tmp;
+            enc.convertTo(tmp, CV_8UC3, 255.0 / std::max(1.0, mx - mn),
+                          -mn * 255.0 / std::max(1.0, mx - mn));
+            enc = tmp;
+        }
+    }
+    if (enc.channels() == 1) {
+        cv::imencode(".png", enc, buf);
+    } else if (enc.channels() == 3) {
+        cv::imencode(".png", enc, buf);
+    } else if (enc.channels() == 4) {
+        cv::imencode(".png", enc, buf);
+    } else {
+        obj["valid"] = false;
+        return obj;
+    }
+    if (buf.empty()) {
+        obj["valid"] = false;
+        return obj;
+    }
+    obj["valid"] = true;
+    obj["rows"] = img.rows;
+    obj["cols"] = img.cols;
+    obj["channels"] = img.channels();
+    obj["type"] = img.type();
+    obj["encoding"] = QStringLiteral("png");
+    // 二进制字节流 base64 编码为字符串存储（QJsonValue 不支持 QByteArray）
+    QByteArray raw(reinterpret_cast<const char*>(buf.data()), static_cast<int>(buf.size()));
+    obj["data"] = QString::fromLatin1(raw.toBase64());
+    return obj;
+}
+
+}  // namespace
 
 using namespace QDV;
 
@@ -247,6 +309,27 @@ bool ZeroShotDetectTool::execute(const cv::Mat& input, ToolResult& result) {
     result.data["max_confidence"] = maxConf;
     result.data["pass"] = !zsuResult.detections.empty();
 
+    // --- 完整输出参数：补充分类/异常/掩码/元数据等实际输出 ---
+    // 检测模型取最高检测置信度，分类模型取 zsuResult.confidence
+    const double confValue = (maxConf > 0.0) ? maxConf : zsuResult.confidence;
+    result.ports["category"]      = zsuResult.category;
+    result.ports["confidence"]    = confValue;
+    result.ports["anomalyScore"]  = zsuResult.anomalyScore;
+    result.ports["imageName"]     = zsuResult.imageName;
+    result.ports["latencyMs"]     = static_cast<qint64>(zsuResult.metrics.totalMs);
+    result.data["category"]       = zsuResult.category;
+    result.data["anomaly_score"]  = zsuResult.anomalyScore;
+    result.data["latency_ms"]     = zsuResult.metrics.totalMs;
+
+    // --- Mat 输出编码（掩码/异常热力图） ---
+    // cv::Mat 无法直接放入 ToolResult.ports（QVariantMap 类型约束），统一用
+    // imencode 编码为 JSON 数据字段，供变量管理/属性面板展示与下游算子复用。
+    // 同时写入 result.ports，保证变量管理面板（读取 ports）能展示掩码/热力图输出。
+    result.data["mask"]       = encodeMatToJson(zsuResult.mask);
+    result.data["anomalyMap"] = encodeMatToJson(zsuResult.anomalyMap);
+    result.ports["mask"]       = encodeMatToJson(zsuResult.mask);
+    result.ports["anomalyMap"] = encodeMatToJson(zsuResult.anomalyMap);
+
     // --- 绘制 overlayImage（检测框 + 标签 + 置信度） ---
     if (!zsuResult.detections.empty()) {
         cv::Mat overlay = input.clone();
@@ -292,6 +375,66 @@ QList<PortDescriptor> ZeroShotDetectTool::outputPorts() const {
     num.dir    = PortDirection::Out;
     num.desc   = QStringLiteral("检测到的目标数量");
     ports << num;
+
+    // 补充输出端口（与 execute() 填充的 ports 保持一致；掩码/热力图走 overlayImage 通道）
+    PortDescriptor cat;
+    cat.name   = "category";
+    cat.cnName = QStringLiteral("分类类别");
+    cat.type   = PortType::String;
+    cat.dir    = PortDirection::Out;
+    cat.desc   = QStringLiteral("分类模型输出的类别名称（AnomalyCLIP/OpenCLIP）");
+    ports << cat;
+
+    PortDescriptor conf;
+    conf.name   = "confidence";
+    conf.cnName = QStringLiteral("置信度");
+    conf.type   = PortType::Number;
+    conf.dir    = PortDirection::Out;
+    conf.desc   = QStringLiteral("分类置信度或最高检测置信度");
+    ports << conf;
+
+    PortDescriptor anomaly;
+    anomaly.name   = "anomalyScore";
+    anomaly.cnName = QStringLiteral("异常分数");
+    anomaly.type   = PortType::Number;
+    anomaly.dir    = PortDirection::Out;
+    anomaly.desc   = QStringLiteral("异常检测分数（[0,1]，越高越异常）");
+    ports << anomaly;
+
+    PortDescriptor imgName;
+    imgName.name   = "imageName";
+    imgName.cnName = QStringLiteral("图像文件名");
+    imgName.type   = PortType::String;
+    imgName.dir    = PortDirection::Out;
+    imgName.desc   = QStringLiteral("输入原图像文件名");
+    ports << imgName;
+
+    // 分割掩码（MobileSAM）与异常热力图（AnomalyCLIP/PatchCore）：
+    // Mat 数据不落入 typed ports（设计约束见 ToolResult 注释），以 Image 端口声明供连线期类型校验。
+    // 实际像素数据写入 result.data["mask"]/["anomalyMap"]（imencode 编码）。
+    PortDescriptor mask;
+    mask.name   = "mask";
+    mask.cnName = QStringLiteral("分割掩码");
+    mask.type   = PortType::Image;
+    mask.dir    = PortDirection::Out;
+    mask.desc   = QStringLiteral("分割模型输出的二值掩码图（MobileSAM），数据见 result.data.mask");
+    ports << mask;
+
+    PortDescriptor anomalyMap;
+    anomalyMap.name   = "anomalyMap";
+    anomalyMap.cnName = QStringLiteral("异常热力图");
+    anomalyMap.type   = PortType::Image;
+    anomalyMap.dir    = PortDirection::Out;
+    anomalyMap.desc   = QStringLiteral("像素级异常热力图（AnomalyCLIP/PatchCore），数据见 result.data.anomalyMap");
+    ports << anomalyMap;
+
+    PortDescriptor latency;
+    latency.name   = "latencyMs";
+    latency.cnName = QStringLiteral("推理耗时");
+    latency.type   = PortType::Number;
+    latency.dir    = PortDirection::Out;
+    latency.desc   = QStringLiteral("单次推理总耗时（毫秒）");
+    ports << latency;
     return ports;
 }
 

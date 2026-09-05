@@ -1,0 +1,7 @@
+# QDV Annotator local QML module (spec: qdv-annotator-comprehensive-optimization)
+# 标注工具专用本地模块：复制主工程 AnnotateOverlay/DesignTokens 为本地版本，
+# 使标注工具的绘制层与设计令牌可独立演进，不改动主工程 qml/EditView/。
+module QDVAnnotator
+singleton DesignTokens 1.0 DesignTokens.qml
+AnnotateOverlay 1.0 AnnotateOverlay.qml
+WideComboBox 1.0 WideComboBox.qml

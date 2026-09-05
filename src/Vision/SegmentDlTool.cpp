@@ -1,12 +1,70 @@
 #include "Vision/SegmentDlTool.h"
 #include "Core/Logger.h"
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <QFileInfo>
 #include <QElapsedTimer>
 #include <QJsonArray>
+#include <QByteArray>
 #include <vector>
+#include <algorithm>
 
 using namespace QDV;
+
+// ----------------------------------------------------------------------------
+// Mat → QJsonObject 编码（PNG 字节流 + 尺寸/通道/类型元数据）
+// 与 ZeroShotDetectTool 保持同构实现：掩膜等 Mat 数据无法直接放入
+// ToolResult.ports（QVariantMap），统一编码为 JSON 数据字段，
+// 供变量管理/属性面板展示与后续算子复用。
+// ----------------------------------------------------------------------------
+namespace {
+
+QJsonObject encodeMatToJson(const cv::Mat& img) {
+    QJsonObject obj;
+    if (img.empty()) {
+        obj["valid"] = false;
+        return obj;
+    }
+    std::vector<uchar> buf;
+    // 先转 8UC1/8UC3 便于 imencode（兼容 16U 等非常规类型）
+    cv::Mat enc = img;
+    if (enc.depth() != CV_8U) {
+        double mn, mx;
+        cv::minMaxLoc(enc, &mn, &mx);
+        if (enc.channels() == 1) {
+            cv::Mat tmp;
+            enc.convertTo(tmp, CV_8U, 255.0 / std::max(1.0, mx - mn),
+                          -mn * 255.0 / std::max(1.0, mx - mn));
+            enc = tmp;
+        } else {
+            cv::Mat tmp;
+            enc.convertTo(tmp, CV_8UC3, 255.0 / std::max(1.0, mx - mn),
+                          -mn * 255.0 / std::max(1.0, mx - mn));
+            enc = tmp;
+        }
+    }
+    if (enc.channels() != 1 && enc.channels() != 3 && enc.channels() != 4) {
+        obj["valid"] = false;
+        return obj;
+    }
+    cv::imencode(".png", enc, buf);
+    if (buf.empty()) {
+        obj["valid"] = false;
+        return obj;
+    }
+    obj["valid"] = true;
+    obj["rows"] = img.rows;
+    obj["cols"] = img.cols;
+    obj["channels"] = img.channels();
+    obj["type"] = img.type();
+    obj["encoding"] = QStringLiteral("png");
+    // 二进制字节流 base64 编码为字符串存储（QJsonValue 不支持 QByteArray）
+    QByteArray raw(reinterpret_cast<const char*>(buf.data()), static_cast<int>(buf.size()));
+    obj["data"] = QString::fromLatin1(raw.toBase64());
+    return obj;
+}
+
+}  // namespace
 
 SegmentDlTool::SegmentDlTool() {
     m_name = "DL语义分割";
@@ -68,6 +126,9 @@ bool SegmentDlTool::loadModel() {
 }
 
 bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
+    // 线程安全：防止 m_modelLoaded 检查-设置竞态与 m_net 并发推理冲突
+    QMutexLocker locker(&m_execMutex);
+
     if (input.empty()) {
         Logger::warn("SegmentDlTool: empty input");
         result.ok = false;
@@ -84,6 +145,25 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
 
     // 优先通过 IInferenceEngine::segment 接口推理
     if (m_engine) {
+        // 懒加载：共享引擎可能未加载模型或加载了其他模型，首次执行必须用本算子
+        // 模型路径加载（与 AiClassifyTool/YoloDetectTool 的 m_warmedUp 模式保持一致）
+        if (!m_warmedUp) {
+            Logger::info("SegmentDlTool: loading model before first inference");
+            bool loaded = m_engine->loadModel(m_modelPath,
+                QSize(m_inputWidth, m_inputHeight),
+                cv::Scalar(0, 0, 0),
+                1.0 / 255.0,
+                true);
+            if (loaded) {
+                m_engine->warmUp(3);
+                m_warmedUp = true;
+            } else {
+                result.ok = false;
+                result.data["error"] = "Failed to load model";
+                result.data["modelLoaded"] = false;
+                return false;
+            }
+        }
         result.data["modelLoaded"] = true;
 
         // segment 接口直接返回 mask + overlay（彩色叠加图）+ resultJson（含 classStats）
@@ -93,7 +173,13 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
         if (!ok) {
             Logger::error("SegmentDlTool: segmentation failed via engine");
             result.ok = false;
-            result.data["error"] = "Segmentation failed";
+            // segResult 中可能已包含引擎返回的具体错误信息（如 OpenCV DNN forward error）
+            if (segResult.contains("error") && !segResult["error"].toString().isEmpty()) {
+                result.data["error"] = segResult["error"].toString();
+                result.data["errorDetail"] = segResult["error"].toString();
+            } else {
+                result.data["error"] = "Segmentation failed";
+            }
             return false;
         }
 
@@ -150,6 +236,9 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["inference_ms"] = metrics.inferenceMs;
         result.data["postprocess_ms"] = metrics.postprocessMs;
         result.data["backend"] = metrics.backend;
+        // typed ports 填充（与 operators.json outputs: mask 保持一致）
+        result.ports["mask"] = encodeMatToJson(mask);
+        result.data["mask"]  = encodeMatToJson(mask);
         result.score = 1.0;  // 分割成功即视为通过
         result.ok = true;
 
@@ -229,6 +318,9 @@ bool SegmentDlTool::execute(const cv::Mat& input, ToolResult& result) {
     result.data["inputHeight"] = m_inputHeight;
     result.data["elapsedMs"] = result.elapsedMs;
     result.data["confidenceThreshold"] = m_confidenceThreshold;
+    // typed ports 填充（与 operators.json outputs: mask 保持一致）
+    result.ports["mask"] = encodeMatToJson(labelMap);
+    result.data["mask"]  = encodeMatToJson(labelMap);
     result.score = 1.0;  // 分割成功即视为通过
     result.ok = true;
 
@@ -338,4 +430,31 @@ bool SegmentDlTool::deserialize(const QJsonObject& data) {
     }
 
     return configure(data);
+}
+
+// ----------------------------------------------------------------------------
+// 端口声明（与 config/operators.json 的 outputs/inputs 保持一致）
+// ----------------------------------------------------------------------------
+QList<PortDescriptor> SegmentDlTool::outputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor mask;
+    mask.name   = "mask";
+    mask.cnName = QStringLiteral("分割掩膜");
+    mask.type   = PortType::Image;
+    mask.dir    = PortDirection::Out;
+    mask.desc   = QStringLiteral("语义分割结果掩膜，数据见 result.data.mask / result.ports.mask");
+    ports << mask;
+    return ports;
+}
+
+QList<PortDescriptor> SegmentDlTool::inputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor img;
+    img.name   = "image";
+    img.cnName = QStringLiteral("输入图像");
+    img.type   = PortType::Image;
+    img.dir    = PortDirection::In;
+    img.desc   = QStringLiteral("待分割的输入图像");
+    ports << img;
+    return ports;
 }

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halcon 模型集成方案 - 路径决策树</title>
+<style>
+  /* ========== CSS 变量：颜色与样式 token ========== */
+  :root {
+    --color-root: #0f172a;            /* 根节点：深蓝黑 */
+    --color-decision: #475569;        /* 决策节点：中灰蓝 */
+    --color-leaf-a: #7c3aed;          /* 叶子 A：紫色 */
+    --color-leaf-b: #2563eb;          /* 叶子 B：蓝色（推荐首期） */
+    --color-leaf-c: #0891b2;          /* 叶子 C：青色（推荐二期） */
+    --color-leaf-d: #6b7280;          /* 叶子 D：灰色 */
+    --color-recommend: #fbbf24;       /* 推荐高亮：金色 */
+    --color-line: #94a3b8;            /* 普通连接线 */
+    --color-line-recommend: #f59e0b;  /* 推荐路径连接线 */
+    --color-bg: #f8fafc;
+    --color-card: #ffffff;
+    --color-text: #1e293b;
+    --color-muted: #64748b;
+    --color-border: #e2e8f0;
+  }
+
+  /* ========== 全局重置 ========== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.5;
+    padding: 24px;
+  }
+
+  /* ========== 页面头部 ========== */
+  .page-header {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    color: var(--color-root);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .page-header .subtitle {
+    color: var(--color-muted);
+    font-size: 14px;
+  }
+  .page-header .recommend-summary {
+    margin-top: 12px;
+    display: inline-block;
+    background: linear-gradient(90deg, #fef3c7, #fde68a);
+    border: 2px solid var(--color-recommend);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: #78350f;
+    font-weight: 600;
+  }
+
+  /* ========== 决策树容器 ========== */
+  .tree-wrapper {
+    max-width: 1440px;
+    overflow-x: auto;
+    background: var(--color-card);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    padding: 24px;
+    margin: 0 auto 24px;
+    border: 1px solid var(--color-border);
+  }
+  .tree-canvas {
+    position: relative;
+    width: 1400px;
+    height: 1240px;
+    margin: 0 auto;
+  }
+
+  /* ========== SVG 连接线层 ========== */
+  .tree-canvas svg.lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .line-main { stroke: var(--color-line); stroke-width: 2; fill: none; }
+  .line-branch { stroke: var(--color-line); stroke-width: 2; fill: none; }
+  .line-recommend { stroke: var(--color-line-recommend); stroke-width: 3; fill: none; }
+  .line-label-bg { fill: #ffffff; stroke: var(--color-border); stroke-width: 1; }
+  .line-label-text { fill: var(--color-text); font-size: 11px; font-family: inherit; }
+
+  /* ========== 节点基础样式 ========== */
+  .node {
+    position: absolute;
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    transition: transform 0.18s, box-shadow 0.18s;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.18);
+  }
+  .node .node-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .node .node-sub {
+    font-size: 12px;
+    opacity: 0.92;
+    line-height: 1.4;
+  }
+  .node .node-tag {
+    font-size: 11px;
+    font-weight: 700;
+    color: #78350f;
+    background: var(--color-recommend);
+    border-radius: 10px;
+    padding: 2px 8px;
+    display: inline-block;
+    margin-top: 6px;
+    align-self: center;
+  }
+
+  /* 节点类型 */
+  .node-root { background: var(--color-root); }
+  .node-decision { background: var(--color-decision); }
+  .node-leaf-a { background: var(--color-leaf-a); }
+  .node-leaf-b {
+    background: var(--color-leaf-b);
+    border: 3px solid var(--color-recommend);
+  }
+  .node-leaf-c {
+    background: var(--color-leaf-c);
+    border: 3px solid var(--color-recommend);
+  }
+  .node-leaf-d { background: var(--color-leaf-d); }
+
+  /* 叶子节点作为链接 */
+  a.node-leaf {
+    text-decoration: none;
+    color: #ffffff;
+    cursor: pointer;
+    display: block;
+  }
+  a.node-leaf:hover .node-title { text-decoration: underline; }
+  .leaf-link-hint {
+    font-size: 11px;
+    opacity: 0.85;
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  /* ========== 详情面板 ========== */
+  .details-section {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+    background: var(--color-card);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    padding: 24px;
+    border: 1px solid var(--color-border);
+  }
+  .details-section h2 {
+    color: var(--color-root);
+    margin-bottom: 16px;
+    font-size: 20px;
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: 8px;
+  }
+  .leaf-detail {
+    border-left: 4px solid #ccc;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    background: #f9fafb;
+    border-radius: 4px;
+  }
+  .leaf-detail.path-a { border-color: var(--color-leaf-a); }
+  .leaf-detail.path-b {
+    border-color: var(--color-leaf-b);
+    background: #fffbeb;
+    box-shadow: inset 0 0 0 1px var(--color-recommend);
+  }
+  .leaf-detail.path-c {
+    border-color: var(--color-leaf-c);
+    background: #fffbeb;
+    box-shadow: inset 0 0 0 1px var(--color-recommend);
+  }
+  .leaf-detail.path-d { border-color: var(--color-leaf-d); }
+  .leaf-detail h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: var(--color-root);
+  }
+  .leaf-detail .summary {
+    font-size: 13px;
+    color: var(--color-text);
+    margin-bottom: 10px;
+    line-height: 1.6;
+  }
+  .leaf-detail .metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .leaf-detail .metric {
+    background: #ffffff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+  }
+  .leaf-detail .metric strong { color: var(--color-root); }
+  .leaf-detail .report-link {
+    display: inline-block;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    border-bottom: 1px dashed #2563eb;
+    padding-bottom: 1px;
+  }
+  .leaf-detail .report-link:hover { color: #1d4ed8; border-bottom-style: solid; }
+  .leaf-detail .recommend-tag {
+    display: inline-block;
+    background: var(--color-recommend);
+    color: #78350f;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* ========== 图例 ========== */
+  .legend {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: var(--color-card);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+    padding: 16px 24px;
+    border: 1px solid var(--color-border);
+  }
+  .legend h3 {
+    font-size: 14px;
+    color: var(--color-root);
+    margin-bottom: 10px;
+  }
+  .legend-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text);
+  }
+  .legend-swatch {
+    width: 28px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .legend-swatch.recommend {
+    border: 3px solid var(--color-recommend);
+  }
+
+  /* 响应式：小屏幕下保留横向滚动，节点保持可读 */
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .page-header h1 { font-size: 22px; }
+    .tree-wrapper { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== 页面头部 ========== -->
+<header class="page-header">
+  <h1>Halcon 模型集成方案 - 路径决策树</h1>
+  <p class="subtitle">基于「原生 Halcon 推理需求 / Halcon 授权预算 / 转换完整性可接受度 / 性能延迟容忍度 / 维护成本容忍度」5 维度串联判定</p>
+  <div class="recommend-summary">
+    推荐路径：B 单选（首期 P0）+ 追加 C（二期 P1）｜ROI 等级：中
+  </div>
+</header>
+
+<!-- ========== 决策树主区域 ========== -->
+<section class="tree-wrapper">
+  <div class="tree-canvas" id="treeCanvas">
+
+    <!-- SVG 连接线层 -->
+    <svg class="lines" viewBox="0 0 1400 1240" preserveAspectRatio="none">
+      <!-- 主链：根 → D1 → D2 → D3 → D4 → D5 -->
+      <path class="line-main" d="M 700 110 L 700 160" />
+      <path class="line-main" d="M 700 240 L 700 290" />
+      <path class="line-main" d="M 700 370 L 700 420" />
+      <path class="line-main" d="M 700 500 L 700 550" />
+      <path class="line-main" d="M 700 630 L 700 680" />
+
+      <!-- D1 → D2 单线（是/否均进入 D2 评估） -->
+      <!-- D2 → 叶子 D（否分支：D1=是 且 无授权预算 → 暂不实施） -->
+      <path class="line-branch" d="M 860 330 L 1080 340" />
+      <!-- D3 → 叶子 A（不可接受分支：需 100% 保真 → 仅路径 A，前提 D2=是） -->
+      <path class="line-branch" d="M 860 460 L 1080 470" />
+      <!-- D4 → 叶子 A（宽松分支：1.2-1.8x GPU 可接受 → 路径 A 可选，前提 D2=是） -->
+      <path class="line-branch" d="M 860 590 L 1080 600" />
+      <!-- D5 → 叶子 B（低维护成本分支：≤5 人·周 → 路径 B，推荐首期，金色线） -->
+      <path class="line-recommend" d="M 860 720 L 1080 730" />
+      <!-- D5 → 叶子 C（中维护成本分支：≤15 人·周 → 路径 B+C，推荐二期，金色线，L 形） -->
+      <path class="line-recommend" d="M 860 730 L 960 730 L 960 890 L 1080 890" />
+      <!-- D5 → 叶子 A（高维护成本分支：可接受部署机授权 → 路径 A，L 形） -->
+      <path class="line-branch" d="M 860 710 L 950 710 L 950 1050 L 1080 1050" />
+
+      <!-- 分支线条件标签 -->
+      <!-- D1 → D2 之间标签：是/否均进入 D2 -->
+      <rect class="line-label-bg" x="715" y="252" width="170" height="32" rx="4" />
+      <text class="line-label-text" x="800" y="265" text-anchor="middle">是 → 倾向路径 A</text>
+      <text class="line-label-text" x="800" y="279" text-anchor="middle">否 → 倾向路径 B/C</text>
+
+      <!-- D2 → D3 主链标签：是（有授权）→ 继续 D3 -->
+      <rect class="line-label-bg" x="715" y="382" width="120" height="20" rx="4" />
+      <text class="line-label-text" x="775" y="396" text-anchor="middle">是（有授权）→ D3</text>
+
+      <!-- D2 → 叶子 D 标签 -->
+      <rect class="line-label-bg" x="900" y="312" width="140" height="20" rx="4" />
+      <text class="line-label-text" x="970" y="326" text-anchor="middle">否（无授权预算）</text>
+
+      <!-- D3 → D4 主链标签：可接受 → 继续 D4 -->
+      <rect class="line-label-bg" x="715" y="512" width="160" height="20" rx="4" />
+      <text class="line-label-text" x="795" y="526" text-anchor="middle">可接受（允许算子限制）→ D4</text>
+
+      <!-- D3 → 叶子 A 标签 -->
+      <rect class="line-label-bg" x="900" y="442" width="160" height="20" rx="4" />
+      <text class="line-label-text" x="980" y="456" text-anchor="middle">不可接受（需 100% 保真）</text>
+
+      <!-- D4 → D5 主链标签：严格（≤1.0x）→ 继续 D5 -->
+      <rect class="line-label-bg" x="715" y="642" width="200" height="20" rx="4" />
+      <text class="line-label-text" x="815" y="656" text-anchor="middle">严格（≤1.0x ONNX 基线）→ D5</text>
+
+      <!-- D4 → 叶子 A 标签 -->
+      <rect class="line-label-bg" x="900" y="572" width="170" height="20" rx="4" />
+      <text class="line-label-text" x="985" y="586" text-anchor="middle">宽松（1.2-1.8x GPU 可接受）</text>
+
+      <!-- D5 → 叶子 B 标签 -->
+      <rect class="line-label-bg" x="900" y="700" width="150" height="20" rx="4" />
+      <text class="line-label-text" x="975" y="714" text-anchor="middle">低（≤5 人·周）</text>
+
+      <!-- D5 → 叶子 C 标签 -->
+      <rect class="line-label-bg" x="900" y="858" width="160" height="20" rx="4" />
+      <text class="line-label-text" x="980" y="872" text-anchor="middle">中（≤15 人·周）</text>
+
+      <!-- D5 → 叶子 A（高分支）标签 -->
+      <rect class="line-label-bg" x="895" y="1018" width="170" height="20" rx="4" />
+      <text class="line-label-text" x="980" y="1032" text-anchor="middle">高（可接受部署机授权）</text>
+    </svg>
+
+    <!-- ========== 节点层 ========== -->
+
+    <!-- 根节点 -->
+    <div class="node node-root" style="left: 540px; top: 30px; width: 320px; height: 80px;">
+      <div class="node-title">是否需要 Halcon 模型集成？</div>
+      <div class="node-sub">决策树根节点</div>
+    </div>
+
+    <!-- D1：是否需要原生 Halcon 推理？ -->
+    <div class="node node-decision" style="left: 540px; top: 160px; width: 320px; height: 80px;">
+      <div class="node-title">D1 · 是否需要原生 Halcon 推理？</div>
+      <div class="node-sub">维度 1：Halcon SDK 直推 vs ONNX 转换</div>
+    </div>
+
+    <!-- D2：是否有 Halcon 授权预算？ -->
+    <div class="node node-decision" style="left: 540px; top: 290px; width: 320px; height: 80px;">
+      <div class="node-title">D2 · 是否有 Halcon 授权预算？</div>
+      <div class="node-sub">维度 2：$5K-$8K/年/席位可接受否</div>
+    </div>
+
+    <!-- D3：转换完整性可接受度？ -->
+    <div class="node node-decision" style="left: 540px; top: 420px; width: 320px; height: 80px;">
+      <div class="node-title">D3 · 转换完整性可接受度？</div>
+      <div class="node-sub">维度 3：.hdl → ONNX 算子覆盖限制</div>
+    </div>
+
+    <!-- D4：性能延迟容忍度？ -->
+    <div class="node node-decision" style="left: 540px; top: 550px; width: 320px; height: 80px;">
+      <div class="node-title">D4 · 性能延迟容忍度？</div>
+      <div class="node-sub">维度 4：≤1.0x 严格 vs 1.2-1.8x 宽松</div>
+    </div>
+
+    <!-- D5：维护成本容忍度？ -->
+    <div class="node node-decision" style="left: 540px; top: 680px; width: 320px; height: 80px;">
+      <div class="node-title">D5 · 维护成本容忍度？</div>
+      <div class="node-sub">维度 5：低 ≤5 / 中 ≤15 / 高可接受授权</div>
+    </div>
+
+    <!-- ========== 叶子节点 ========== -->
+
+    <!-- 叶子 D：暂不实施（D2 否分支） -->
+    <a class="node node-leaf node-leaf-d" style="left: 1080px; top: 270px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#10-结论与建议"
+       title="跳转至主报告第 10 章 结论与建议">
+      <div class="node-title">叶子 D · 暂不实施</div>
+      <div class="node-sub">当前条件不满足实施前提（无授权预算 / 无训练环境 / ONNX 导出能力未验证），建议持续关注官方确认</div>
+      <div class="leaf-link-hint">→ 主报告 §10 结论与建议</div>
+    </a>
+
+    <!-- 叶子 A（D3 不可接受分支） -->
+    <a class="node node-leaf node-leaf-a" style="left: 1080px; top: 400px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述"
+       title="跳转至主报告第 3 章 三条候选技术路径详述（路径 A）">
+      <div class="node-title">叶子 A · 原生 SDK 直接推理</div>
+      <div class="node-sub">QDV 进程内嵌 Halcon C++ SDK，直接加载 .hdl 推理，不转换格式，需 Halcon 运行时授权</div>
+      <div class="leaf-link-hint">→ 主报告 §3 路径 A</div>
+    </a>
+
+    <!-- 叶子 A（D4 宽松分支） -->
+    <a class="node node-leaf node-leaf-a" style="left: 1080px; top: 530px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述"
+       title="跳转至主报告第 3 章 三条候选技术路径详述（路径 A）">
+      <div class="node-title">叶子 A · 原生 SDK 直接推理</div>
+      <div class="node-sub">延迟宽松可接受 1.2-1.8x GPU / 5-10x CPU；前提：D2=是（有授权）</div>
+      <div class="leaf-link-hint">→ 主报告 §3 路径 A</div>
+    </a>
+
+    <!-- 叶子 B：离线 ONNX 转换（D5 低分支，推荐首期） -->
+    <a class="node node-leaf node-leaf-b" style="left: 1080px; top: 660px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述"
+       title="跳转至主报告第 3 章 三条候选技术路径详述（路径 B）">
+      <div class="node-title">叶子 B · 离线 ONNX 转换</div>
+      <div class="node-sub">Halcon 训练环境一次性 .hdl → .onnx，QDV 复用现有 ONNX 推理链路，零 SDK 依赖</div>
+      <span class="node-tag">★ 推荐首期 P0</span>
+      <div class="leaf-link-hint">→ 主报告 §3 路径 B</div>
+    </a>
+
+    <!-- 叶子 C：运行时桥接适配（D5 中分支，推荐二期） -->
+    <a class="node node-leaf node-leaf-c" style="left: 1080px; top: 820px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述"
+       title="跳转至主报告第 3 章 三条候选技术路径详述（路径 C）">
+      <div class="node-title">叶子 C · 运行时桥接适配</div>
+      <div class="node-sub">路径 B 的运行时封装版，用户选"Halcon 模型"类别指向 .hdl，QDV 自动转换+缓存+算子适配，强依赖路径 B</div>
+      <span class="node-tag">★ 推荐二期 P1</span>
+      <div class="leaf-link-hint">→ 主报告 §3 路径 C</div>
+    </a>
+
+    <!-- 叶子 A（D5 高分支） -->
+    <a class="node node-leaf node-leaf-a" style="left: 1080px; top: 980px; width: 280px; height: 140px;"
+       href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述"
+       title="跳转至主报告第 3 章 三条候选技术路径详述（路径 A）">
+      <div class="node-title">叶子 A · 原生 SDK 直接推理</div>
+      <div class="node-sub">高维护成本可接受 + 部署机授权可接受 → 路径 A 可选（6.5 人·周 + 年度许可续费）</div>
+      <div class="leaf-link-hint">→ 主报告 §3 路径 A</div>
+    </a>
+
+  </div>
+</section>
+
+<!-- ========== 详情面板：四类叶子节点完整对照 ========== -->
+<section class="details-section">
+  <h2>四类叶子节点详情与主报告章节对照</h2>
+
+  <!-- 叶子 A 详情 -->
+  <div class="leaf-detail path-a">
+    <h3>叶子 A · 路径 A - 原生 SDK 直接推理</h3>
+    <p class="summary">
+      <strong>一句话总结：</strong>QDV 进程内嵌 Halcon C++ SDK，直接加载 .hdl 模型推理，不转换格式，需 Halcon 运行时授权。
+    </p>
+    <div class="metrics">
+      <span class="metric"><strong>投入：</strong>6.5 人·周 + $5K-$8K/年/席位许可</span>
+      <span class="metric"><strong>延迟：</strong>1.2-1.8x GPU / 5-10x CPU</span>
+      <span class="metric"><strong>侵入性：</strong>中侵入</span>
+      <span class="metric"><strong>可行性：</strong>有限可行，不推荐作为首期主路径</span>
+    </div>
+    <a class="report-link" href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述">→ 主报告：Halcon模型集成方案评估报告.md §3 三条候选技术路径详述（路径 A）</a>
+  </div>
+
+  <!-- 叶子 B 详情（推荐首期） -->
+  <div class="leaf-detail path-b">
+    <h3>叶子 B · 路径 B - 离线 ONNX 转换 <span class="recommend-tag">★ 推荐首期 P0</span></h3>
+    <p class="summary">
+      <strong>一句话总结：</strong>Halcon 训练环境一次性将 .hdl 导出为 .onnx，QDV 复用现有 ONNX 推理链路，零 SDK 依赖。
+    </p>
+    <div class="metrics">
+      <span class="metric"><strong>投入：</strong>3.0 人·周 / 4-5 自然周</span>
+      <span class="metric"><strong>许可：</strong>$5K-$8K/年（仅训练环境）</span>
+      <span class="metric"><strong>延迟：</strong>1.0x（与 ONNX 基线持平）</span>
+      <span class="metric"><strong>侵入性：</strong>零侵入（对既有 ONNX 链路）</span>
+      <span class="metric"><strong>ROI：</strong>中</span>
+    </div>
+    <a class="report-link" href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述">→ 主报告：Halcon模型集成方案评估报告.md §3 三条候选技术路径详述（路径 B）</a>
+  </div>
+
+  <!-- 叶子 C 详情（推荐二期） -->
+  <div class="leaf-detail path-c">
+    <h3>叶子 C · 路径 C - 运行时桥接适配 <span class="recommend-tag">★ 推荐二期 P1</span></h3>
+    <p class="summary">
+      <strong>一句话总结：</strong>路径 B 的运行时封装版，用户选"Halcon 模型"类别指向 .hdl 文件，QDV 内部自动转换+缓存+算子适配，强依赖路径 B。
+    </p>
+    <div class="metrics">
+      <span class="metric"><strong>投入：</strong>路径 C 增量 14.5 人·周 / B+C 组合 17.5 人·周 / 16-20 自然周</span>
+      <span class="metric"><strong>延迟：</strong>1.0x（转换后复用现有后端）</span>
+      <span class="metric"><strong>侵入性：</strong>低侵入（UI 类别扩展 + 算子层适配）</span>
+      <span class="metric"><strong>ROI：</strong>中</span>
+    </div>
+    <a class="report-link" href="./Halcon模型集成方案评估报告.md#3-三条候选技术路径详述">→ 主报告：Halcon模型集成方案评估报告.md §3 三条候选技术路径详述（路径 C）</a>
+  </div>
+
+  <!-- 叶子 D 详情 -->
+  <div class="leaf-detail path-d">
+    <h3>叶子 D · 暂不实施</h3>
+    <p class="summary">
+      <strong>一句话总结：</strong>当前条件不满足实施前提（无 Halcon 授权预算 / 无 Halcon 训练环境 / ONNX 导出能力未验证），建议持续关注 Halcon ONNX 导出能力官方确认。
+    </p>
+    <div class="metrics">
+      <span class="metric"><strong>触发条件：</strong>D2=否 且 D1=是（需原生推理但无授权预算）</span>
+      <span class="metric"><strong>动作：</strong>持续关注官方文档与版本更新</span>
+    </div>
+    <a class="report-link" href="./Halcon模型集成方案评估报告.md#10-结论与建议">→ 主报告：Halcon模型集成方案评估报告.md §10 结论与建议</a>
+  </div>
+</section>
+
+<!-- ========== 图例 ========== -->
+<div class="legend">
+  <h3>图例</h3>
+  <div class="legend-items">
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: var(--color-root);"></span>
+      <span>根节点</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: var(--color-decision);"></span>
+      <span>决策节点（5 维度）</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: var(--color-leaf-a);"></span>
+      <span>叶子 A · 原生 SDK</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch recommend" style="background: var(--color-leaf-b);"></span>
+      <span>叶子 B · 离线 ONNX（推荐首期）</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch recommend" style="background: var(--color-leaf-c);"></span>
+      <span>叶子 C · 运行时桥接（推荐二期）</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: var(--color-leaf-d);"></span>
+      <span>叶子 D · 暂不实施</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: transparent; border: 3px solid var(--color-recommend);"></span>
+      <span>金色边框 = 推荐路径</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-swatch" style="background: transparent; border-top: 3px solid var(--color-line-recommend); height: 0;"></span>
+      <span>金色连线 = 推荐路径分支</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ========== 交互：节点点击增强 ==========
+  // 叶子节点本身已用 <a> 包裹，点击即跳转主报告对应章节锚点
+  // 此处仅为决策节点添加轻微交互反馈（点击高亮所属分支线）
+  (function() {
+    var decisions = document.querySelectorAll('.node-decision');
+    decisions.forEach(function(node) {
+      node.addEventListener('click', function() {
+        // 简单视觉反馈：短暂高亮
+        node.style.outline = '3px solid #fbbf24';
+        node.style.outlineOffset = '2px';
+        setTimeout(function() {
+          node.style.outline = '';
+            node.style.outlineOffset = '';
+        }, 600);
+      });
+    });
+
+    // 滚动到画布中央，方便首次查看完整树
+    var canvas = document.getElementById('treeCanvas');
+    if (canvas && canvas.scrollWidth > canvas.parentElement.clientWidth) {
+      // 默认让最左根节点可见即可，不强制滚动
+    }
+  })();
+</script>
+
+</body>
+</html>

@@ -44,6 +44,9 @@ Item {
     /// v5.4.0：模型库列表（由外部传入，用于 modelPath 参数的下拉选择）
     /// 调用方需绑定：通过 bridge.getRegisteredModels() 获取并赋值
     property var modelList: []
+    /// v5.4.2：EditViewBridge（由外部传入，用于零样本检测算子 modelPath 下拉
+    /// 与 modelType 联动过滤，见 getZeroShotModelsByType）
+    property var bridge: null
     /// 任意值变化时回传（外部用于 updateOperatorParams）
     signal valuesChanged(var newValues)
     /// 校验错误信号（bridge.validateParam 失败时）
@@ -603,6 +606,8 @@ Item {
     // 模型列表由 root.modelList 提供（外部通过 bridge.getRegisteredModels() 绑定）
     // v5.4.1 修复：采用与 enum ComboBox 相同的显式同步策略，避免 modelList 异步
     // 填充或 currentValues 变化时 currentIndex 绑定不刷新，导致保存值丢失。
+    // v5.4.2：ZeroShotDetect 算子模型路径与模型类型联动，使用 bridge.getZeroShotModelsByType
+    // 过滤，ComboBox 设为 editable 以支持手动输入路径。
     Component {
         id: modelPathComp
         RowLayout {
@@ -613,6 +618,21 @@ Item {
             spacing: 6
             Layout.fillWidth: true
             height: 32
+
+            // v5.4.2：零样本模型候选列表（按模型类型过滤）
+            property var _zeroShotModels: root.modelList || []
+
+            // v5.4.2：刷新零样本模型列表（根据当前 modelType 重新过滤）
+            function _refreshZeroShotModels() {
+                if (root.operatorType === "ZeroShotDetect" && root.bridge) {
+                    var mt = root.getValue("modelType") || ""
+                    _zeroShotModels = root.bridge.getZeroShotModelsByType(mt)
+                    console.log("[modelPathComp] ZeroShotDetect: modelType=" + mt
+                                + " candidates=" + _zeroShotModels.length)
+                } else {
+                    _zeroShotModels = root.modelList || []
+                }
+            }
 
             // spec 注入完成后延迟同步一次，防止 ComboBox 创建时 modelList 尚未就绪
             onSpecChanged: {
@@ -632,10 +652,12 @@ Item {
                 Layout.fillWidth: true
                 Accessible.name: spec.cnName + " 模型选择"
                 Accessible.description: spec.help || "从模型库中选择已注册的模型"
-                // 模型列表由外部 bridge 提供通过 modelList 属性传入
-                model: root.modelList || []
+                // v5.4.2：ZeroShotDetect 使用按类型过滤的零样本列表，其他算子使用通用模型列表
+                model: modelItem._zeroShotModels || []
                 textRole: "displayName"
                 valueRole: "filePath"
+                // v5.4.2：支持手动输入路径（用户需求：路径始终支持自定义修改）
+                editable: true
                 // v5.4.1：去掉 currentIndex 绑定表达式，改命令式同步
                 // 关键：syncIndexFromValue 读 root.getValue()（最新内部值），
                 // 而非 modelItem.currentValue（可能为过时值），避免闪回/丢失。
@@ -647,7 +669,7 @@ Item {
                         if (currentIndex !== -1) currentIndex = -1
                         return
                     }
-                    var list = root.modelList || []
+                    var list = modelItem._zeroShotModels || []
                     for (var i = 0; i < list.length; ++i) {
                         if (list[i].filePath === cv) {
                             if (currentIndex !== i) currentIndex = i
@@ -659,34 +681,51 @@ Item {
                 }
 
                 Component.onCompleted: {
-                    console.log("[modelPathComp] modelList.length = " + (root.modelList ? root.modelList.length : 0))
+                    console.log("[modelPathComp] modelList.length = " + (modelItem._zeroShotModels ? modelItem._zeroShotModels.length : 0))
+                    _refreshZeroShotModels()
                     syncIndexFromValue()
                 }
                 // v5.4.1：响应 _linkageTrigger / operatorType / modelList 变化，
                 // 在快照/重置/模型库刷新后重新同步 currentIndex。
+                // v5.4.2：ZeroShotDetect 在 modelType 变化时刷新候选列表。
                 Connections {
                     target: root
                     function on_linkageTriggerChanged() {
+                        // v5.4.2：modelType 变化时刷新候选（setValue 触发 _linkageTrigger++）
+                        if (root.operatorType === "ZeroShotDetect") {
+                            modelItem._refreshZeroShotModels()
+                        }
                         if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
                     }
                     function onOperatorTypeChanged() {
+                        modelItem._refreshZeroShotModels()
                         if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
                     }
                     function onModelListChanged() {
+                        modelItem._refreshZeroShotModels()
                         if (!modelCombo._userEditing) modelCombo.syncIndexFromValue()
                     }
                 }
 
-                displayText: currentIndex >= 0 ? currentText : (modelItem.currentValue || "（选择模型）")
+                displayText: currentIndex >= 0 ? currentText : (modelItem.currentValue || editText || "（选择模型）")
 
+                // v5.4.2 下拉选择 → 设置 filePath
                 onActivated: function(index) {
                     modelCombo._userEditing = true
-                    if (index >= 0 && root.modelList && index < root.modelList.length) {
-                        var path = root.modelList[index].filePath
+                    var list = modelItem._zeroShotModels || []
+                    if (index >= 0 && index < list.length) {
+                        var path = list[index].filePath
                         root.setValue(modelItem.paramName, path)
                     }
                     syncIndexFromValue()
                     Qt.callLater(function() { modelCombo._userEditing = false })
+                }
+
+                // v5.4.2 手动输入 → 使用输入文本作为路径
+                onAccepted: {
+                    if (editable && currentIndex === -1 && text.trim() !== "") {
+                        root.setValue(modelItem.paramName, text.trim())
+                    }
                 }
 
                 background: Rectangle {
@@ -695,12 +734,35 @@ Item {
                     border.width: 1
                     radius: Tok.DesignTokens.radiusSm
                 }
-                contentItem: Label {
-                    text: modelCombo.displayText
-                    color: Tok.DesignTokens.textPrimary
-                    font.pixelSize: 12
+                // v5.4.2：editable 模式下需用可编辑的 TextField 作为 contentItem，
+                // 否则无法真正输入文字（Qt Basic 样式实现）。
+                contentItem: TextField {
                     leftPadding: 8
+                    topPadding: 0
+                    bottomPadding: 0
                     verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 12
+                    color: Tok.DesignTokens.textPrimary
+                    selectionColor: Tok.DesignTokens.accent
+                    selectedTextColor: Tok.DesignTokens.textPrimary
+                    selectByMouse: true
+                    persistentSelection: true
+                    placeholderText: "（选择模型）"
+                    placeholderTextColor: Tok.DesignTokens.textPlaceholder
+                    background: Item {}
+                    // editable：显示编辑文本（为空时回退显示已保存路径）；
+                    // 非 editable：显示 displayText（含已保存路径）
+                    text: modelCombo.editable
+                          ? (modelCombo.editText !== "" ? modelCombo.editText : (modelItem.currentValue || ""))
+                          : modelCombo.displayText
+                    enabled: modelCombo.editable
+                    readOnly: modelCombo.down
+                    onTextChanged: {
+                        if (modelCombo.editable) modelCombo.editText = text
+                    }
+                    onAccepted: {
+                        if (modelCombo.editable) modelCombo.accept()
+                    }
                 }
             }
             // v2.8.0 参数帮助 tooltip：hover "?" 显示 getParamHelp 内容

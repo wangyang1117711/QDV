@@ -34,6 +34,27 @@ bool ImagePreprocessTool::configure(const QJsonObject& params) {
         }
         m_kernelSize = ks;
     }
+    // P 优化：bilateralFilter 参数可配（默认 d=9 / sigmaColor=75 / sigmaSpace=75）
+    // 软边场景（金属件/纹理件）建议 sigmaColor=50~80，sigmaSpace 同步
+    if (params.contains("bilateralD")) {
+        int d = params["bilateralD"].toInt();
+        if (d < 1) d = 1;
+        if (d % 2 == 0) d += 1;       // bilateral d 要求正奇数
+        if (d > 31) d = 31;
+        m_bilateralD = d;
+    }
+    if (params.contains("bilateralSigmaColor")) {
+        double s = params["bilateralSigmaColor"].toDouble();
+        if (s < 1.0) s = 1.0;
+        if (s > 200.0) s = 200.0;
+        m_bilateralSigmaColor = s;
+    }
+    if (params.contains("bilateralSigmaSpace")) {
+        double s = params["bilateralSigmaSpace"].toDouble();
+        if (s < 1.0) s = 1.0;
+        if (s > 200.0) s = 200.0;
+        m_bilateralSigmaSpace = s;
+    }
     return true;
 }
 
@@ -42,13 +63,15 @@ bool ImagePreprocessTool::execute(const cv::Mat& input, ToolResult& result) {
         result.ok = false;
         return false;
     }
-    
+
     cv::Mat output = input.clone();
-    
+
     if (m_denoise) {
-        cv::bilateralFilter(output, output, 9, 75, 75);
+        // P 优化：bilateral 参数可配置（默认 d=9/σc=75/σs=75，向后兼容）
+        cv::bilateralFilter(output, output, m_bilateralD,
+                            m_bilateralSigmaColor, m_bilateralSigmaSpace);
     }
-    
+
     if (m_morphology != "none") {
         // v2.5.0 修复：运行时双保险，确保 kernelSize >= 1（即使 configure 被绕过也安全）
         int ks = m_kernelSize < 1 ? 1 : m_kernelSize;
@@ -65,15 +88,19 @@ bool ImagePreprocessTool::execute(const cv::Mat& input, ToolResult& result) {
             cv::dilate(output, output, kernel);
         }
     }
-    
+
     result.ok = true;
     result.score = 1.0;
     result.overlayImage = output;
-    
+
     result.data["denoise"] = m_denoise;
     result.data["morphology"] = m_morphology;
     result.data["kernelSize"] = m_kernelSize;
-    
+    // 输出实际使用的 bilateral 参数，便于追溯
+    result.data["bilateralD"] = m_bilateralD;
+    result.data["bilateralSigmaColor"] = m_bilateralSigmaColor;
+    result.data["bilateralSigmaSpace"] = m_bilateralSigmaSpace;
+
     return true;
 }
 
@@ -85,6 +112,10 @@ QJsonObject ImagePreprocessTool::serialize() const {
     obj["denoise"] = m_denoise;
     obj["morphology"] = m_morphology;
     obj["kernelSize"] = m_kernelSize;
+    // P 优化：序列化 bilateral 参数（往返一致）
+    obj["bilateralD"] = m_bilateralD;
+    obj["bilateralSigmaColor"] = m_bilateralSigmaColor;
+    obj["bilateralSigmaSpace"] = m_bilateralSigmaSpace;
     return obj;
 }
 
@@ -96,6 +127,9 @@ bool ImagePreprocessTool::deserialize(const QJsonObject& data) {
     // v2.5.0 修复：反序列化也走防御性校验（避免旧方案文件 kernelSize=0）
     QJsonObject params;
     params["kernelSize"] = data["kernelSize"].toInt();
+    if (data.contains("bilateralD"))             params["bilateralD"]             = data["bilateralD"];
+    if (data.contains("bilateralSigmaColor"))    params["bilateralSigmaColor"]    = data["bilateralSigmaColor"];
+    if (data.contains("bilateralSigmaSpace"))    params["bilateralSigmaSpace"]    = data["bilateralSigmaSpace"];
     configure(params);
     return true;
 }

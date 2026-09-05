@@ -72,6 +72,9 @@ bool DetectObjectsDlTool::loadModel() {
 }
 
 bool DetectObjectsDlTool::execute(const cv::Mat& input, ToolResult& result) {
+    // 线程安全：防止 m_modelLoaded 检查-设置竞态与 m_net 并发推理冲突
+    QMutexLocker locker(&m_execMutex);
+
     if (input.empty()) {
         Logger::warn("DetectObjectsDlTool: empty input");
         result.ok = false;
@@ -170,6 +173,9 @@ bool DetectObjectsDlTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data["backend"] = metrics.backend;
         result.score = maxConfidence;
         result.ok = true;
+
+        // typed ports 填充（与 operators.json outputs: detections 保持一致）
+        result.ports["detections"] = detections.toVariantList();
 
         m_results["lastDetectionCount"] = numDetections;
         m_results["lastMaxConfidence"] = maxConfidence;
@@ -270,6 +276,9 @@ bool DetectObjectsDlTool::execute(const cv::Mat& input, ToolResult& result) {
     result.score = boxes.empty() ? 0.0 : (double)confidences[0];
     result.ok = true;
 
+    // typed ports 填充（与 operators.json outputs: detections 保持一致）
+    result.ports["detections"] = detectionsArray.toVariantList();
+
     m_results["lastDetectionCount"] = (int)boxes.size();
     m_results["lastMaxConfidence"] = result.score;
 
@@ -365,6 +374,30 @@ void DetectObjectsDlTool::postprocess(const cv::Mat& output, const cv::Size& ori
     classIds = std::move(filteredClassIds);
     confidences = std::move(filteredConfidences);
     boxes = std::move(filteredBoxes);
+}
+
+QList<PortDescriptor> DetectObjectsDlTool::outputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor det;
+    det.name   = "detections";
+    det.cnName = QStringLiteral("检测结果");
+    det.type   = PortType::Points;
+    det.dir    = PortDirection::Out;
+    det.desc   = QStringLiteral("目标检测结果列表（每项含 classId/className/confidence/bbox）");
+    ports << det;
+    return ports;
+}
+
+QList<PortDescriptor> DetectObjectsDlTool::inputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor img;
+    img.name   = "image";
+    img.cnName = QStringLiteral("输入图像");
+    img.type   = PortType::Image;
+    img.dir    = PortDirection::In;
+    img.desc   = QStringLiteral("待检测的输入图像（可由上游算子提供）");
+    ports << img;
+    return ports;
 }
 
 QJsonObject DetectObjectsDlTool::serialize() const {

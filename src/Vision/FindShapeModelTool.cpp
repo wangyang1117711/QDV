@@ -242,6 +242,34 @@ bool FindShapeModelTool::execute(const cv::Mat& input, ToolResult& result) {
                 cv::Mat score;
                 cv::matchTemplate(grayInput, rotated, score, cv::TM_CCOEFF_NORMED);
 
+                // P 优化：早停——若当前角度已找到非常高的分（接近 1.0），
+                // 后续角度大概率仍由该角度胜出，可提前 break 省时。
+                // 仅在 m_angleExtent > 0 时启用（避免与"退化为 0° 单次匹配"冲突）。
+                double curMax = 0.0;
+                if (m_angleExtent > 0.0 && !score.empty()) {
+                    cv::minMaxLoc(score, nullptr, &curMax);
+                    if (curMax >= 0.97) {
+                        if (bestScoreMap.empty()) {
+                            bestScoreMap = score.clone();
+                            bestAngleMap = cv::Mat(score.size(), CV_32FC1, cv::Scalar(static_cast<float>(ang)));
+                        } else {
+                            for (int y = 0; y < score.rows; ++y) {
+                                const float* sRow = score.ptr<float>(y);
+                                float* bRow = bestScoreMap.ptr<float>(y);
+                                float* angRow = bestAngleMap.ptr<float>(y);
+                                for (int x = 0; x < score.cols; ++x) {
+                                    if (sRow[x] > bRow[x]) {
+                                        bRow[x] = sRow[x];
+                                        angRow[x] = static_cast<float>(ang);
+                                    }
+                                }
+                            }
+                        }
+                        // 已在当前角度锁定高分，后续角度大概率不更新 → break
+                        break;
+                    }
+                }
+
                 if (bestScoreMap.empty()) {
                     bestScoreMap = score.clone();
                     bestAngleMap = cv::Mat(score.size(), CV_32FC1, cv::Scalar(static_cast<float>(ang)));

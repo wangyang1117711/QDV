@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "comment": "QDVAnnotator 能力注册表 —— 形状/导出/训练 统一配置文件（可插拔，改此文件即可扩展能力，无需改代码）",
+  "shapes": [
+    {
+      "key": "rect",
+      "label": "矩形",
+      "geo": "box",
+      "overlayType": "rect",
+      "props": [
+        {"name": "x", "type": "int"},
+        {"name": "y", "type": "int"},
+        {"name": "w", "type": "int"},
+        {"name": "h", "type": "int"}
+      ],
+      "tasks": ["detection", "ocr"],
+      "enabled": true
+    },
+    {
+      "key": "vec_rect",
+      "label": "方向矩形",
+      "geo": "rotated_box",
+      "overlayType": "vec_rect",
+      "props": [
+        {"name": "x", "type": "int"},
+        {"name": "y", "type": "int"},
+        {"name": "angle", "type": "float"},
+        {"name": "length1", "type": "float"},
+        {"name": "length2", "type": "float"},
+        {"name": "count", "type": "int"}
+      ],
+      "tasks": ["obb"],
+      "enabled": true
+    },
+    {
+      "key": "polygon",
+      "label": "多边形",
+      "geo": "polygon",
+      "overlayType": "polygon",
+      "props": [
+        {"name": "points", "type": "points"}
+      ],
+      "tasks": ["segmentation"],
+      "enabled": true
+    },
+    {
+      "key": "freeform",
+      "label": "自由形状",
+      "geo": "polygon",
+      "overlayType": "polygon",
+      "props": [
+        {"name": "points", "type": "points"}
+      ],
+      "tasks": ["segmentation"],
+      "enabled": true,
+      "comment": "自由形状（几何上复用 polygon 绘制族），enabled=true 即启用，改配置即可"
+    }
+  ],
+  "exports": [
+    {"key": "yolo_detect", "label": "YOLO 检测 (yolo_detect) → YoloDetect/DetectObjectsDl", "needsShape": ["rect"], "norm": "xywh", "tasks": ["detection"]},
+    {"key": "yolo_obb", "label": "YOLO 有向矩形 OBB (yolo_obb) → 旋转矩形/RotatedDetectDl", "needsShape": ["vec_rect"], "norm": "ccw8", "tasks": ["obb"]},
+    {"key": "yolo_seg", "label": "YOLO 分割 (yolo_seg) → SegmentDl", "needsShape": ["polygon", "freeform"], "norm": "poly_px", "tasks": ["segmentation"]},
+    {"key": "classification", "label": "图像分类 (classification) → AiClassify", "needsShape": [], "norm": "class", "tasks": ["classification"]},
+    {"key": "ocr", "label": "OCR 文字 (ocr) → DLOCR/Ocr", "needsShape": ["rect"], "norm": "ocr", "tasks": ["ocr"]},
+    {"key": "coco", "label": "COCO (coco) → Label Studio/CVAT 互通", "needsShape": ["rect", "vec_rect", "polygon"], "norm": "coco", "tasks": ["detection", "obb", "segmentation"]},
+    {"key": "qdvann", "label": "QDV 原生工程 (qdvann) → 闭环复用", "needsShape": [], "norm": "qdvann", "tasks": []}
+  ],
+  "tasks": [
+    {"key": "detection", "label": "目标检测", "defaultShape": "rect", "models": ["yolov8n", "yolov8s", "yolov8m", "yolov5n", "yolov5s"]},
+    {"key": "obb", "label": "旋转矩形(OBB)", "defaultShape": "vec_rect", "models": ["yolov8n-obb", "yolov8s-obb", "yolov11n-obb"]},
+    {"key": "segmentation", "label": "实例分割", "defaultShape": "polygon", "models": ["yolov8n-seg"]},
+    {"key": "classification", "label": "图像分类", "defaultShape": "", "models": ["resnet18", "resnet50"]},
+    {"key": "ocr", "label": "OCR 文字", "defaultShape": "rect", "models": []}
+  ]
+}

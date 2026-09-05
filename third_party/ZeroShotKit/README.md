@@ -222,6 +222,9 @@ TODO: 在此填写许可证信息（如 MIT / Apache-2.0 / 商业许可等）。
 
 ## 相关文档
 
+- [新手操作手册（操作人员必读）](docs/UserGuide.md)
+- [常见问题与错误处理（FAQ）](docs/FAQ.md)
+- [测试与验证操作指导（改动验收必读）](docs/TestVerificationGuide.md)
 - [API 参考](docs/API.md)
 - [集成指南](docs/IntegrationGuide.md)
 - [示例代码](docs/Examples.md)

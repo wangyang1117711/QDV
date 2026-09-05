@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "app": "QDV Annotator",
+  "taskType": "detection",
+  "labels": [
+    "defect",
+    "good"
+  ],
+  "labelColors": [
+    "#FFB74D",
+    "#7986CB"
+  ],
+  "images": [
+    {
+      "id": "u2",
+      "path": "E:\\anchor\\Trae\\QDV\\测试图\\Image__2019-07-05__11-12-13.bmp",
+      "fileName": "Image__2019-07-05__11-12-13.bmp",
+      "width": 1200,
+      "height": 1200,
+      "subset": "train",
+      "annotations": [
+        {
+          "shape": "rect",
+          "labelId": 0,
+          "x": 500,
+          "y": 520,
+          "w": 180,
+          "h": 160
+        }
+      ],
+      "classLabels": []
+    },
+    {
+      "id": "u2",
+      "path": "E:\\anchor\\Trae\\QDV\\测试图\\Image__2019-07-05__11-12-31.bmp",
+      "fileName": "Image__2019-07-05__11-12-31.bmp",
+      "width": 1200,
+      "height": 1200,
+      "subset": "val",
+      "annotations": [
+        {
+          "shape": "polygon",
+          "labelId": 0,
+          "points": [
+            {
+              "x": 600,
+              "y": 600
+            },
+            {
+              "x": 760,
+              "y": 640
+            },
+            {
+              "x": 700,
+              "y": 780
+            }
+          ]
+        }
+      ],
+      "classLabels": []
+    },
+    {
+      "id": "u2",
+      "path": "E:\\anchor\\Trae\\QDV\\测试图\\Image__2019-07-05__11-12-39.bmp",
+      "fileName": "Image__2019-07-05__11-12-39.bmp",
+      "width": 1200,
+      "height": 1200,
+      "subset": "train",
+      "annotations": [
+        {
+          "shape": "rect",
+          "labelId": 1,
+          "x": 100,
+          "y": 100,
+          "w": 300,
+          "h": 300
+        }
+      ],
+      "classLabels": [
+        1
+      ]
+    }
+  ]
+}

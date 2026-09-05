@@ -8,6 +8,8 @@
 #include <QVariantMap>
 #include <QSet>      // v2.2.0：收藏集合
 #include <QMap>      // v2.2.0：使用频次
+#include <QHash>     // v6.x：运行后节点输出值缓存
+#include <QMutex>    // v6.x：节点输出值缓存线程安全
 #include <QFutureWatcher>  // 异步部署执行
 
 class QUndoStack;
@@ -197,6 +199,11 @@ public slots:
     /// QML 端调用：返回指定 type 的算子元数据（OperatorMeta.toMap()）
     QVariantMap getOperatorMeta(const QString& type) const;
 
+    /// v6.x：返回节点最近一次运行后的输出值（ToolResult.ports），供变量管理面板显示
+    Q_INVOKABLE QVariantMap getNodeOutputValues(const QString& nodeId) const;
+    /// v6.x：写入节点运行后的输出值（SchemeRunController 回调，线程安全）
+    void setNodeOutputValues(const QString& nodeId, const QVariantMap& ports);
+
     // === v2.8.0 算子帮助内容提供器（转发至 OperatorHelpProvider 单例） ===
     /// QML 端调用：返回算子短描述（coreMeaning 优先，回退 description/cnName，≤100 字符）
     Q_INVOKABLE QString getShortDesc(const QString& type) const;
@@ -369,6 +376,14 @@ public slots:
     /// v5.4.0：获取模型库中已注册的模型列表（用于算子参数编辑器的模型下拉选择）
     /// 返回 [{modelId, displayName, filePath, type, inputSize}, ...]
     Q_INVOKABLE QVariantList getRegisteredModels() const;
+    /// v5.4.2：获取指定零样本模型类型下的可用模型列表（用于 ZeroShotDetect 算子
+    /// modelPath 下拉，与 modelType 联动过滤）。
+    /// 扫描专门零样本目录（models/clip、models/grounding_sam、models/mobile_sam、
+    /// models/patch_core、models/zero_shot 等），按模型类型对应的关键文件过滤，
+    /// 返回 [{displayName, filePath, type}, ...]，filePath 为模型目录路径。
+    /// 未支持的类型（如 LocateAnything）返回空列表。
+    /// @param modelType 模型类型字符串（AnomalyCLIP/GroundingDINO/MobileSAM/PatchCore）
+    Q_INVOKABLE QVariantList getZeroShotModelsByType(const QString& modelType);
     /// 当前用户是否拥有模型删除权限（可扩展为读取角色配置；当前默认允许）
     Q_INVOKABLE bool canDeleteModel() const;
     /// 删除指定模型（事务性：rename .trash + manifest 记录）
@@ -442,6 +457,9 @@ signals:
     /// 异步单算子执行完成，result 同 runSingleOperator 返回值
     void singleOperatorFinished(const QVariantMap& result);
 
+    /// v6.x：节点运行后输出值（ports）已更新（QML 变量管理面板据此刷新输出参数值）
+    void nodeOutputsUpdated();
+
     // === 算子流程导出信号 ===
     /// 导出进度更新（0-100）
     void exportProgress(int percent);
@@ -500,6 +518,10 @@ private:
     PortBindingManager*    m_portBindingManager = nullptr;    ///< 端口绑定数据模型
     OutputConflictDetector* m_conflictDetector = nullptr;     ///< 输入/输出项冲突检测引擎（Task 6）
     OperatorRecommender*   m_recommender = nullptr;           ///< 智能算子推荐引擎（spec Task 9）
+
+    // v6.x：节点最近一次运行后的输出值缓存（nodeId → ToolResult.ports）
+    QHash<QString, QVariantMap> m_nodeOutputs;
+    mutable QMutex              m_nodeOutputsMutex;           ///< 保护 m_nodeOutputs（工作线程写入）
 
     // 算子流程导出编排器
     SchemeExporter* m_exporter = nullptr;

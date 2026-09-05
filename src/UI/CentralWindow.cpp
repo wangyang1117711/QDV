@@ -22,6 +22,8 @@
 #include <QPropertyAnimation>
 #include <QResizeEvent>
 #include <QLayout>
+#include <exception>
+#include "Core/Logger.h"
 
 CentralWindow::CentralWindow(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -37,7 +39,19 @@ CentralWindow::CentralWindow(QWidget* parent) : QWidget(parent) {
     m_commView = new CommView();
     m_monitorView = new MonitorView();
     m_trainingView = new TrainingInferenceView();
-    m_zeroShotView = new ZeroShotDetectView();  // [零样本检测模块] 索引 8
+    // [零样本检测模块] 索引 8
+    // 用 try/catch 包裹构造：若运行环境缺少模型源 / 单例未就绪导致构造抛异常，
+    // 不让它拖垮整个 CentralWindow 构造（否则主界面直接打不开）。
+    // 构造失败时退化为占位页，并在界面与日志中明确提示，便于定位"界面未打开"根因。
+    try {
+        m_zeroShotView = new ZeroShotDetectView();
+    } catch (const std::exception& e) {
+        m_zeroShotView = nullptr;
+        QDV::Logger::error(QStringLiteral("[CentralWindow] 零样本检测视图构造失败: %1").arg(e.what()));
+    } catch (...) {
+        m_zeroShotView = nullptr;
+        QDV::Logger::error(QStringLiteral("[CentralWindow] 零样本检测视图构造失败（未知异常）"));
+    }
 
     createContentViews();
 
@@ -189,7 +203,23 @@ void CentralWindow::createContentViews() {
     m_contentStack->addWidget(m_commView);
     m_contentStack->addWidget(m_monitorView);
     m_contentStack->addWidget(m_trainingView);
-    m_contentStack->addWidget(m_zeroShotView);  // [零样本检测模块] 索引 8
+    // [零样本检测模块] 索引 8
+    if (m_zeroShotView) {
+        m_contentStack->addWidget(m_zeroShotView);
+    } else {
+        // 构造失败时的占位页：明确告知用户模块未加载，并引导查看日志
+        QWidget* placeholder = new QWidget();
+        QVBoxLayout* ph = new QVBoxLayout(placeholder);
+        QLabel* tip = new QLabel(QStringLiteral(
+            "⚠ 零样本检测模块未能加载\n\n"
+            "可能原因：运行环境缺少模型源（LM Studio / 本地模型目录）或单例未就绪。\n"
+            "请查看 logs 目录中的错误日志以定位根因。"), placeholder);
+        tip->setAlignment(Qt::AlignCenter);
+        tip->setWordWrap(true);
+        tip->setStyleSheet("color:#ffb74d; font-size:13px; background-color:#1e1e1e; padding:24px;");
+        ph->addWidget(tip);
+        m_contentStack->addWidget(placeholder);
+    }
 }
 
 QWidget* CentralWindow::createHomeView() {

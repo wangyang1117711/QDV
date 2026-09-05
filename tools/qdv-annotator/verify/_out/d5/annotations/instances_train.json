@@ -1,0 +1,20 @@
+{
+  "info": {
+    "description": "QDV Annotator export",
+    "version": "1.0"
+  },
+  "categories": [
+    {
+      "id": 1,
+      "name": "defect",
+      "supercategory": "none"
+    },
+    {
+      "id": 2,
+      "name": "good",
+      "supercategory": "none"
+    }
+  ],
+  "images": [],
+  "annotations": []
+}

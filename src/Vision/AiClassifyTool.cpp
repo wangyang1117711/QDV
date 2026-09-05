@@ -261,6 +261,12 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
         result.data.remove("confidence");
     }
 
+    // typed ports 填充（与 operators.json outputs 保持一致）
+    // 输出开关仅控制属性面板显示，运行时值始终填充，供端口绑定/变量管理取用
+    result.ports["classId"]    = classId;
+    result.ports["className"]  = className;
+    result.ports["confidence"] = confidence;
+
     // 解析 topK 数组：优先使用引擎返回的 topK / predictions，否则构造单元素 topK
     QJsonArray topKArray;
     if (inferResult.contains("topK") && inferResult["topK"].isArray()) {
@@ -334,6 +340,9 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
             if (m_outputConfig.value("confidenceArray", false)) {
                 result.data["confidenceArray"] = confArray;
             }
+            // typed ports 同步填充（运行时值，供端口绑定/变量管理取用）
+            result.ports["classArray"]       = classArray.toVariantList();
+            result.ports["confidenceArray"]  = confArray.toVariantList();
             // 同时更新内部缓存（不受开关影响，供调试/状态查询使用）
             m_results["lastClassArray"] = QVariant(classArray.toVariantList());
             m_results["lastConfidenceArray"] = QVariant(confArray.toVariantList());
@@ -400,6 +409,62 @@ bool AiClassifyTool::execute(const cv::Mat& input, ToolResult& result) {
     m_results["lastPass"] = result.ok;
 
     return true;
+}
+
+QList<PortDescriptor> AiClassifyTool::outputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor cid;
+    cid.name   = "classId";
+    cid.cnName = QStringLiteral("分类ID");
+    cid.type   = PortType::Number;
+    cid.dir    = PortDirection::Out;
+    cid.desc   = QStringLiteral("分类标签的数值ID");
+    ports << cid;
+
+    PortDescriptor cname;
+    cname.name   = "className";
+    cname.cnName = QStringLiteral("分类类别");
+    cname.type   = PortType::String;
+    cname.dir    = PortDirection::Out;
+    cname.desc   = QStringLiteral("分类类别名称（单目标为字符串，多目标为数组）");
+    ports << cname;
+
+    PortDescriptor conf;
+    conf.name   = "confidence";
+    conf.cnName = QStringLiteral("分类置信度");
+    conf.type   = PortType::Number;
+    conf.dir    = PortDirection::Out;
+    conf.desc   = QStringLiteral("分类置信度（单目标为数值，多目标为数组）");
+    ports << conf;
+
+    PortDescriptor clsArr;
+    clsArr.name   = "classArray";
+    clsArr.cnName = QStringLiteral("类别数组");
+    clsArr.type   = PortType::String;
+    clsArr.dir    = PortDirection::Out;
+    clsArr.desc   = QStringLiteral("多目标场景下按检测顺序输出的类别名数组");
+    ports << clsArr;
+
+    PortDescriptor confArr;
+    confArr.name   = "confidenceArray";
+    confArr.cnName = QStringLiteral("置信度数组");
+    confArr.type   = PortType::Number;
+    confArr.dir    = PortDirection::Out;
+    confArr.desc   = QStringLiteral("多目标场景下按检测顺序输出的置信度数组");
+    ports << confArr;
+    return ports;
+}
+
+QList<PortDescriptor> AiClassifyTool::inputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor img;
+    img.name   = "image";
+    img.cnName = QStringLiteral("输入图像");
+    img.type   = PortType::Image;
+    img.dir    = PortDirection::In;
+    img.desc   = QStringLiteral("待分类的输入图像（可由上游算子提供）");
+    ports << img;
+    return ports;
 }
 
 QJsonObject AiClassifyTool::serialize() const {

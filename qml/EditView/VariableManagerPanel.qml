@@ -79,6 +79,10 @@ Rectangle {
         function onCurrentNodesChanged() {
             operatorParamList.model = root.buildOperatorParamsList()
         }
+        // v6.x：节点运行完成后刷新算子参数列表（同步运行计算出的输出值）
+        function onNodeOutputsUpdated() {
+            operatorParamList.model = root.buildOperatorParamsList()
+        }
     }
 
     Component.onCompleted: {
@@ -99,8 +103,19 @@ Rectangle {
         return bridge.variableManager.variables()
     }
 
+    // === 参数值友好格式化（数组/对象/普通标量）===
+    function formatParamValue(v) {
+        if (v === undefined || v === null) return ""
+        if (Array.isArray(v)) return "[" + v.length + " 项]"
+        if (typeof v === "object") return "[对象]"
+        var s = String(v)
+        return s.length > 20 ? s.substring(0, 18) + "..." : s
+    }
+
     // === 构建算子参数列表（v5.3：列出所有算子节点的参数，按节点分组）===
-    // 返回扁平列表，每项含 {nodeId, nodeType, cnName, paramName, paramCnName, paramType, value}
+    // v6.x：统一列出输入参数与输出参数，direction 区分 in/out
+    // 返回扁平列表，每项含 {nodeId, nodeType, cnName, paramName, paramCnName,
+    //                        paramType, typeText, direction, directionLabel, value}
     // ListView 用 section.property = "nodeId" 实现分组显示
     function buildOperatorParamsList() {
         if (!bridge || !bridge.currentNodes) return []
@@ -110,17 +125,65 @@ Rectangle {
             var node = nodes[i]
             var meta = bridge.getOperatorMeta(node.type)
             var params = node.params || ({})
+            var nodeCnName = meta ? meta.cnName : node.type
+
+            // --- 输入参数 ---
             var paramList = meta ? meta.params : []
             for (var j = 0; j < paramList.length; ++j) {
                 var p = paramList[j]
                 result.push({
                     nodeId: node.id,
                     nodeType: node.type,
-                    cnName: meta ? meta.cnName : node.type,
+                    cnName: nodeCnName,
                     paramName: p.name,
                     paramCnName: p.cnName || p.name,
                     paramType: p.type,        // 0=Int 1=Float 2=Enum 3=Bool 4=String 5=ROI 6=Vector
+                    typeText: root.paramTypeText(p.type),
+                    direction: "in",
+                    directionLabel: "输入",
                     value: params[p.name] !== undefined ? params[p.name] : p.defaultValue
+                })
+            }
+
+            // --- 输出参数（v6.x：统一输入输出管理）---
+            var outputList = meta ? meta.outputs : []
+            var outputConfig = bridge ? bridge.getOutputConfig(node.id) : ({})
+            for (var k = 0; k < outputList.length; ++k) {
+                var out = outputList[k]
+                // 只显示用户勾选过的输出（与 PropertyPreviewPanel.filteredOutputs 保持一致）
+                // 未配置时回退到 out.defaultEnabled，默认 true 显示
+                var item = outputConfig[out.name]
+                var enabled = item ? (item.enabled === true) : (out.defaultEnabled !== false)
+                if (!enabled) {
+                    continue
+                }
+
+                // 尝试获取实际运行结果（优先读桥接层缓存，其次 VariableManager）
+                // 算子输出变量名：nodeId.outputName
+                var val = ""
+                if (bridge) {
+                    var nodeOut = bridge.getNodeOutputValues(node.id) || ({})
+                    if (nodeOut[out.name] !== undefined) {
+                        val = nodeOut[out.name]
+                    } else if (bridge.variableManager) {
+                        var varName = node.id + "." + out.name
+                        if (bridge.variableManager.exists(varName)) {
+                            val = bridge.variableManager.value(varName)
+                        }
+                    }
+                }
+
+                result.push({
+                    nodeId: node.id,
+                    nodeType: node.type,
+                    cnName: nodeCnName,
+                    paramName: out.name,
+                    paramCnName: out.cnName || out.name,
+                    paramType: -1,             // 输出参数无输入型编码，typeText 直接用 typeName
+                    typeText: out.typeName || "?",
+                    direction: "out",
+                    directionLabel: "输出",
+                    value: val                  // 运行后同步实际值
                 })
             }
         }
@@ -621,6 +684,27 @@ Rectangle {
                         anchors.rightMargin: Tok.DesignTokens.space2
                         spacing: Tok.DesignTokens.space2
 
+                        // 方向标签（输入/输出）
+                        Rectangle {
+                            Layout.preferredWidth: 36
+                            Layout.preferredHeight: 20
+                            color: modelData.direction === "out"
+                                ? Tok.DesignTokens.accentSuccess
+                                : Tok.DesignTokens.bgCanvas
+                            border.color: Tok.DesignTokens.borderDefault
+                            border.width: 1
+                            radius: 2
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: modelData.directionLabel || "?"
+                                color: modelData.direction === "out"
+                                    ? "#ffffff"
+                                    : Tok.DesignTokens.textSecondary
+                                font.pixelSize: Tok.DesignTokens.fontSizeXs
+                            }
+                        }
+
                         // 参数中文名
                         Label {
                             text: modelData.paramCnName
@@ -642,7 +726,7 @@ Rectangle {
 
                             Label {
                                 anchors.centerIn: parent
-                                text: root.paramTypeText(modelData.paramType)
+                                text: modelData.typeText
                                 color: Tok.DesignTokens.textSecondary
                                 font.pixelSize: Tok.DesignTokens.fontSizeXs
                             }
@@ -650,12 +734,10 @@ Rectangle {
 
                         // 参数值（只读显示）
                         Label {
-                            text: modelData.value !== undefined
-                                  ? (String(modelData.value).length > 20
-                                     ? String(modelData.value).substring(0, 18) + "..."
-                                     : String(modelData.value))
-                                  : ""
-                            color: Tok.DesignTokens.accentPrimary
+                            text: root.formatParamValue(modelData.value)
+                            color: modelData.direction === "out"
+                                ? Tok.DesignTokens.accentSuccess
+                                : Tok.DesignTokens.accentPrimary
                             font.pixelSize: Tok.DesignTokens.fontSizeSm
                             font.family: Tok.DesignTokens.fontMono
                             Layout.preferredWidth: 120

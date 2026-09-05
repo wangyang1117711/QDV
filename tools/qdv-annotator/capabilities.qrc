@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/capabilities">
+        <file alias="capabilities.json">capabilities.json</file>
+    </qresource>
+</RCC>

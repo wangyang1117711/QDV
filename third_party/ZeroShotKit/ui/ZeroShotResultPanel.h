@@ -52,6 +52,14 @@ public:
     void setReviewMode(bool enabled);
     bool reviewMode() const { return m_reviewMode; }
 
+    // --- 空状态引导（依赖注入，保持 ZeroShotKit 独立于主项目） ---
+    /// 设置空状态页的引导提示文本（多行纯文本）
+    /// 由主项目 ZeroShotDetectView 注入新手分步指引；默认显示"暂无零样本推理结果"
+    void setEmptyHint(const QString& hint);
+
+    /// 当前是否已有可展示的推理结果（供外部引导条判断"步骤④完成"）
+    bool hasResults() const { return !m_results.isEmpty(); }
+
 signals:
     void resultNavigationChanged(int index);  // 上一张/下一张导航
     void reviewResultConfirmed(int index, const zsu::ZeroShotResult& result);
@@ -72,6 +80,8 @@ private:
     void updateThumbnailList();    // 更新左侧缩略图列表
     QPixmap matToPixmap(const cv::Mat& mat);  // cv::Mat 转 QPixmap
     QPixmap applyColormap(const cv::Mat& anomalyMap);  // 热力图伪彩色
+    QPixmap buildEffectImage(const zsu::ZeroShotResult& result);  // 检测效果图（原图+检测框/掩码叠加）
+    cv::Mat computeHeatOverlay(const cv::Mat& source, const cv::Mat& anomalyMap);  // 热力图叠加到原图
 
     // 数据
     QList<zsu::ZeroShotResult> m_results;
@@ -123,8 +133,12 @@ private:
     QLabel* m_summaryLabel = nullptr;     // 顶部汇总条
     QListWidget* m_thumbnailList = nullptr; // 左侧缩略图列表
 
+    // 检测效果图（原图 + 检测框/掩码叠加）
+    QLabel* m_effectImageLabel = nullptr;   // 效果图 QPixmap
+
     // 空状态提示
     QLabel* m_emptyLabel = nullptr;
+    QString m_emptyHint;            // 外部注入的空状态引导文本（默认空 = 显示默认文案）
     QStackedWidget* m_stack = nullptr;  // 0=空状态, 1=结果展示
 };
 

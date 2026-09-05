@@ -83,6 +83,9 @@ bool OcrTool::execute(const cv::Mat& input, ToolResult& result) {
         return false;
     }
 
+    // typed ports 初始化：text 输出（所有路径均填充，保证变量管理取到值）
+    result.ports["text"] = QString();
+
     // 模型未配置或文件不存在：优雅降级
     if (m_modelPath.isEmpty() || !QFileInfo::exists(m_modelPath)) {
         gracefulFallback(input, result.overlayImage, "model not configured");
@@ -208,7 +211,33 @@ bool OcrTool::execute(const cv::Mat& input, ToolResult& result) {
     result.ok = true;
     result.data["text"] = QString::fromStdString(decoded);
     result.data["confidence"] = confidence;
+    // typed ports 填充识别文本
+    result.ports["text"] = QString::fromStdString(decoded);
     return true;
+}
+
+QList<PortDescriptor> OcrTool::outputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor text;
+    text.name   = "text";
+    text.cnName = QStringLiteral("识别文本");
+    text.type   = PortType::String;
+    text.dir    = PortDirection::Out;
+    text.desc   = QStringLiteral("OCR 识别结果字符串");
+    ports << text;
+    return ports;
+}
+
+QList<PortDescriptor> OcrTool::inputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor img;
+    img.name   = "image";
+    img.cnName = QStringLiteral("输入图像");
+    img.type   = PortType::Image;
+    img.dir    = PortDirection::In;
+    img.desc   = QStringLiteral("待识别的输入图像（可由上游算子提供）");
+    ports << img;
+    return ports;
 }
 
 QJsonObject OcrTool::serialize() const {

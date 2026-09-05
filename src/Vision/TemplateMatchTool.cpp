@@ -47,9 +47,26 @@ bool TemplateMatchTool::loadTemplate() {
         m_template.release();
         return false;
     }
-    
-    m_template = cv::imread(m_templatePath.toStdString(), cv::IMREAD_GRAYSCALE);
-    
+
+    // P 优化：用 QFile 读取字节流 + cv::imdecode 解码，
+    // 绕过 cv::imread 对 Windows GBK 中文路径的兼容性问题
+    // （FindShapeModelTool 等已统一使用此模式）
+    QFile f(m_templatePath);
+    if (!f.open(QIODevice::ReadOnly)) {
+        Logger::error("TemplateMatchTool: cannot open template: " + m_templatePath);
+        m_template.release();
+        return false;
+    }
+    QByteArray bytes = f.readAll();
+    f.close();
+    if (bytes.isEmpty()) {
+        Logger::error("TemplateMatchTool: template file is empty: " + m_templatePath);
+        m_template.release();
+        return false;
+    }
+    m_template = cv::imdecode(
+        cv::Mat(1, bytes.size(), CV_8UC1, const_cast<char*>(bytes.constData())),
+        cv::IMREAD_GRAYSCALE);
     if (m_template.empty()) {
         Logger::error("Failed to load template image: " + m_templatePath);
         return false;

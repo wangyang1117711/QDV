@@ -1,0 +1,51 @@
+{
+  "info": {
+    "description": "QDV Annotator export",
+    "version": "1.0"
+  },
+  "categories": [
+    {
+      "id": 1,
+      "name": "defect",
+      "supercategory": "none"
+    },
+    {
+      "id": 2,
+      "name": "good",
+      "supercategory": "none"
+    }
+  ],
+  "images": [
+    {
+      "id": 1,
+      "file_name": "Image__2019-07-05__11-12-31.bmp",
+      "width": 1200,
+      "height": 1200
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "iscrowd": 0,
+      "segmentation": [
+        [
+          600,
+          600,
+          760,
+          640,
+          700,
+          780
+        ]
+      ],
+      "bbox": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "area": 12400.0
+    }
+  ]
+}

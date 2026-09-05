@@ -459,6 +459,8 @@ Rectangle {
                     operatorType: root.selectedNode ? root.selectedNode.type : ""
                     // v5.4.0：模型库列表（用于 modelPath 参数的下拉选择）
                     modelList: root.bridge ? root.bridge.getRegisteredModels() : []
+                    // v5.4.2：桥接器（ZeroShotDetect 模型路径与模型类型联动）
+                    bridge: root.bridge
                     onValuesChanged: function(newValues) {
                         if (root.bridge && root.selectedNodeId) {
                             root.bridge.updateOperatorParams(root.selectedNodeId, newValues)

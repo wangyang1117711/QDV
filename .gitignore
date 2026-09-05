@@ -115,3 +115,9 @@ training/
 *.pb
 *.weights
 *.tflite
+QDV/
+tools/tools/
+tools/qdv-annotator/build/
+tools/qdv-annotator/smoke_err.log
+tools/qdv-annotator/smoke_out.log
+cache_test_msmask.png

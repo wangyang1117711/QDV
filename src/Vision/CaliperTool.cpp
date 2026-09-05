@@ -35,6 +35,14 @@ bool CaliperTool::configure(const QJsonObject& params) {
         // sigma 负值无意义，0 表示不平滑
         m_smoothSigma = (s < 0.0) ? 0.0 : s;
     }
+    // P 优化：Sobel/中心差分切换（默认 Sobel，更适合工业软边）
+    if (params.contains("useSobel")) {
+        m_useSobel = params["useSobel"].toBool(true);
+    }
+    // P 优化：自适应阈值降级开关
+    if (params.contains("autoThreshold")) {
+        m_autoThreshold = params["autoThreshold"].toBool(true);
+    }
 
     // 钳制尺寸下限，避免退化
     if (m_roiW < 1) m_roiW = 1;
@@ -162,54 +170,115 @@ bool CaliperTool::execute(const cv::Mat& input, ToolResult& result) {
             }
         }
 
-        // 中心差分求梯度
+        // P 优化：用 Sobel 算子替代中心差分，更适合工业软边（金属件/纹理件）
+        // 软边的圆周通常是高斯型渐变带，单像素中心差分会把梯度分散到很多像素，
+        // 单点梯度 max 很小（典型 1~5），导致传统中心差分+固定阈值失效。
+        // Sobel 算子（3x3）通过二维高斯加权差分，能在更大尺度上捕捉软边的整体跃迁。
+        // 等价实现：profile 上的 Sobel 一维展开 = [1,2,1]/4 - [-1,0,1]/2
+        //        = [-1, -2, 0, 2, 1] / 4
+        // 这里直接按 Sobel 模板逐位置卷积。
         std::vector<double> grad(profileLen, 0.0);
-        for (int i = 1; i + 1 < profileLen; ++i) {
-            grad[i] = (profile[i + 1] - profile[i - 1]) / 2.0;
-        }
-
-        // 找局部极值且超过阈值的边缘点（按极性筛选）
-        // pol: +1 暗到亮（梯度正），-1 亮到暗（梯度负）
-        struct EdgePt { double pos; double gradVal; int pol; };
-        std::vector<EdgePt> edges;
-        for (int i = 1; i + 1 < profileLen; ++i) {
-            const double g = grad[i];
-            int pol = 0;
-            bool match = false;
-            if (m_polarity == "dark_to_bright") {
-                if (g > m_edgeThreshold) { match = true; pol = 1; }
-            } else if (m_polarity == "bright_to_dark") {
-                if (g < -m_edgeThreshold) { match = true; pol = -1; }
-            } else { // any
-                if (std::fabs(g) > m_edgeThreshold) {
-                    match = true;
-                    pol = (g > 0.0) ? 1 : -1;
+        if (m_useSobel) {
+            // Sobel 一维核（沿 profile 方向，对应测量方向）
+            // 水平测量 → 沿 X 求导 → Sobel X = [-1,0,1; -2,0,2; -1,0,1]
+            //   profile 是 band 沿 Y 的平均，已是 1D 信号，等价于对 band 做了 Y 均值后再 X 求导
+            //   由于 Y 均值会平滑边缘梯度，这里额外使用 cv::Sobel 在 2D 上算（更准）
+            cv::Mat g32;
+            // 对 2D band 直接 Sobel 取 X 或 Y 方向
+            int dx = horizontal ? 1 : 0;
+            int dy = horizontal ? 0 : 1;
+            cv::Sobel(smoothed, g32, CV_32F, dx, dy, 3, 1.0/8.0);  // scale 1/8 = Sobel 归一化
+            // 再投影到 1D
+            if (horizontal) {
+                for (int x = 0; x < band.width; ++x) {
+                    double sum = 0.0;
+                    for (int y = 0; y < band.height; ++y) {
+                        sum += g32.at<float>(y, x);
+                    }
+                    grad[x] = sum / std::max(1, band.height);
+                }
+            } else {
+                for (int y = 0; y < band.height; ++y) {
+                    double sum = 0.0;
+                    for (int x = 0; x < band.width; ++x) {
+                        sum += g32.at<float>(y, x);
+                    }
+                    grad[y] = sum / std::max(1, band.width);
                 }
             }
-            if (!match) continue;
-
-            // 局部极值检测：正极性取局部最大，负极性取局部最小
-            // 避免一个边缘平台产生多个点
-            bool isPeak = true;
-            if (pol > 0) {
-                if (grad[i - 1] > g) isPeak = false;
-                if (grad[i + 1] > g) isPeak = false;
-            } else {
-                if (grad[i - 1] < g) isPeak = false;
-                if (grad[i + 1] < g) isPeak = false;
+        } else {
+            // 原中心差分实现（保留兼容，硬边场景仍可用）
+            for (int i = 1; i + 1 < profileLen; ++i) {
+                grad[i] = (profile[i + 1] - profile[i - 1]) / 2.0;
             }
-            if (!isPeak) continue;
+        }
 
-            // 抛物线亚像素插值：d = 0.5*(gPrev - gNext) / (gPrev - 2*gCurr + gNext)
-            double subOffset = 0.0;
-            const double gPrev = grad[i - 1];
-            const double gNext = grad[i + 1];
-            const double denom = gPrev - 2.0 * g + gNext;
-            if (std::fabs(denom) > 1e-9) {
-                subOffset = 0.5 * (gPrev - gNext) / denom;
-                subOffset = std::clamp(subOffset, -1.0, 1.0);
+        // P 优化：自适应阈值降级（仅当用户给的高阈值找不到边缘时启用）
+        // 软边场景（如金属件渐变圆周）单点梯度可能仅 1~5，用户预设阈值 30 会失败。
+        // 此机制自动降阈值到 mean(|grad|)*1.5（至少 2.0）保证能识别软边。
+        // 触发条件：用户初始阈值 ≥ 5 且边缘数不足 2。
+        struct EdgePt { double pos; double gradVal; int pol; };
+        double usedThr = m_edgeThreshold;
+        double initialThr = m_edgeThreshold;
+        std::vector<EdgePt> edges;
+        // 提取"在给定阈值下找边缘"为 lambda，便于自适应降阈值
+        auto findEdges = [&](double thr) -> std::vector<EdgePt> {
+            std::vector<EdgePt> es;
+            for (int i = 1; i + 1 < profileLen; ++i) {
+                const double g = grad[i];
+                int pol = 0;
+                bool match = false;
+                if (m_polarity == "dark_to_bright") {
+                    if (g > thr) { match = true; pol = 1; }
+                } else if (m_polarity == "bright_to_dark") {
+                    if (g < -thr) { match = true; pol = -1; }
+                } else { // any
+                    if (std::fabs(g) > thr) {
+                        match = true;
+                        pol = (g > 0.0) ? 1 : -1;
+                    }
+                }
+                if (!match) continue;
+
+                // 局部极值检测：正极性取局部最大，负极性取局部最小
+                // 避免一个边缘平台产生多个点
+                bool isPeak = true;
+                if (pol > 0) {
+                    if (grad[i - 1] > g) isPeak = false;
+                    if (grad[i + 1] > g) isPeak = false;
+                } else {
+                    if (grad[i - 1] < g) isPeak = false;
+                    if (grad[i + 1] < g) isPeak = false;
+                }
+                if (!isPeak) continue;
+
+                // 抛物线亚像素插值：d = 0.5*(gPrev - gNext) / (gPrev - 2*gCurr + gNext)
+                double subOffset = 0.0;
+                const double gPrev = grad[i - 1];
+                const double gNext = grad[i + 1];
+                const double denom = gPrev - 2.0 * g + gNext;
+                if (std::fabs(denom) > 1e-9) {
+                    subOffset = 0.5 * (gPrev - gNext) / denom;
+                    subOffset = std::clamp(subOffset, -1.0, 1.0);
+                }
+                es.push_back({static_cast<double>(i) + subOffset, g, pol});
             }
-            edges.push_back({static_cast<double>(i) + subOffset, g, pol});
+            return es;
+        };
+
+        edges = findEdges(usedThr);
+        // 自适应降阈值（仅当启用时）
+        if (m_autoThreshold && edges.size() < 2 && initialThr >= 5.0) {
+            double meanAG = 0.0;
+            for (int i = 0; i < profileLen; ++i) meanAG += std::fabs(grad[i]);
+            meanAG /= std::max(1, profileLen);
+            double dynamicThr = std::max(2.0, meanAG * 1.5);
+            if (dynamicThr < initialThr) {
+                usedThr = dynamicThr;
+                edges = findEdges(usedThr);
+                Logger::info(QString("CaliperTool: 自适应阈值降级 %1 → %2 (找到 %3 个边缘)")
+                                  .arg(initialThr, 0, 'f', 1).arg(usedThr, 0, 'f', 1).arg(edges.size()));
+            }
         }
 
         if (edges.size() < 2) {
@@ -337,6 +406,9 @@ QJsonObject CaliperTool::serialize() const {
     obj["edgeThreshold"] = m_edgeThreshold;
     obj["polarity"] = m_polarity;
     obj["smoothSigma"] = m_smoothSigma;
+    // P 优化：序列化新参数
+    obj["useSobel"] = m_useSobel;
+    obj["autoThreshold"] = m_autoThreshold;
     return obj;
 }
 
@@ -360,6 +432,9 @@ bool CaliperTool::deserialize(const QJsonObject& data) {
         const double s = data["smoothSigma"].toDouble();
         m_smoothSigma = (s < 0.0) ? 0.0 : s;
     }
+    // P 优化：反序列化新参数（缺省走默认值，向后兼容）
+    if (data.contains("useSobel"))       m_useSobel       = data["useSobel"].toBool(true);
+    if (data.contains("autoThreshold"))  m_autoThreshold  = data["autoThreshold"].toBool(true);
 
     // 反序列化后同样钳制尺寸下限
     if (m_roiW < 1) m_roiW = 1;

@@ -254,6 +254,8 @@ Popup {
                     operatorType: dlg.meta ? dlg.meta.type : ""
                     // v5.4.0：模型库列表（用于 modelPath 参数的下拉选择）
                     modelList: dlg.bridge ? dlg.bridge.getRegisteredModels() : []
+                    // v5.4.2：桥接器（ZeroShotDetect 模型路径与模型类型联动）
+                    bridge: dlg.bridge
                     onValuesChanged: function(newValues) {
                         dlg.workingValues = JSON.parse(JSON.stringify(newValues))
                     }

@@ -4,6 +4,7 @@
 #include "Core/VisionTool.h"
 #include "OperatorSDK/IInferenceEngine.h"
 #include <QJsonArray>
+#include <QMutex>
 
 class YoloDetectTool : public QDV::VisionTool {
 public:
@@ -17,6 +18,10 @@ public:
 
     QJsonObject serialize() const override;
     bool deserialize(const QJsonObject& data) override;
+
+    // 端口声明（与 config/operators.json 的 outputs 保持一致）
+    QList<QDV::PortDescriptor> outputPorts() const override;
+    QList<QDV::PortDescriptor> inputPorts() const override;
 
     // 参数设置器
     void setModelPath(const QString& path) { m_modelPath = path; }
@@ -48,6 +53,9 @@ private:
     int m_inputWidth = 640;          // YOLO 默认输入尺寸
     int m_inputHeight = 640;
     bool m_warmedUp = false;
+
+    // 线程安全：防止 m_warmedUp 检查-设置竞态（多线程重复 loadModel/warmUp）
+    mutable QMutex m_execMutex;
 
     // 绘制检测框到 overlayImage
     void drawDetections(cv::Mat& overlay, const QJsonArray& detections,

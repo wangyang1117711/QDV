@@ -11,6 +11,7 @@
 #include "ModelNotesManager.h"
 
 #include <QtConcurrent>
+#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QMetaObject>
@@ -30,6 +31,17 @@ Kit::Kit(QObject* parent)
     m_evaluator       = new EvaluationEngine(this);
     m_badCaseRecorder = new BadCaseRecorder(this);
     m_notesManager    = new ModelNotesManager(this);
+
+    // BUG修复：加载模型注意事项默认配置
+    // model_notes.json 由构建分发到 <appDir>/resources/models/（未编译进 qrc）。
+    // 之前从未调用 loadDefaultNotes()，导致右栏"模型注意事项"始终为空。
+    {
+        const QString notesPath = QCoreApplication::applicationDirPath()
+            + QStringLiteral("/resources/models/model_notes.json");
+        if (!m_notesManager->loadDefaultNotes(notesPath)) {
+            ZSU_LOG_WARN(QString("Kit: 加载模型注意事项失败，请检查 %1").arg(notesPath));
+        }
+    }
 
     // 绑定流水线引擎到零样本引擎（三个阶段共用同一引擎实例）
     m_pipeline->setAnomalyEngine(m_engine);
@@ -163,6 +175,7 @@ void Kit::inferAsync(const QString& imagePath)
             ZeroShotResult result;
             result.success = false;
             result.errorMessage = QString::fromUtf8("无法读取图像: %1").arg(imagePath);
+            result.imageName = QFileInfo(imagePath).fileName();
 
             // 在主线程发射错误信号
             QMetaObject::invokeMethod(this, [this, msg = result.errorMessage]() {
@@ -170,7 +183,11 @@ void Kit::inferAsync(const QString& imagePath)
             }, Qt::QueuedConnection);
             return result;
         }
-        return infer(img);
+        ZeroShotResult result = infer(img);
+        // 记录原图与文件名，供"检测效果图"展示与缩略图列表显示
+        result.sourceImage = img;
+        result.imageName = QFileInfo(imagePath).fileName();
+        return result;
     }));
 }
 
@@ -193,9 +210,14 @@ void Kit::inferBatchAsync(const QStringList& imagePaths)
                 ZeroShotResult result;
                 result.success = false;
                 result.errorMessage = QString::fromUtf8("无法读取图像: %1").arg(imagePaths[i]);
+                result.imageName = QFileInfo(imagePaths[i]).fileName();
                 results.append(result);
             } else {
-                results.append(infer(img));
+                ZeroShotResult result = infer(img);
+                // 记录原图与文件名，供"检测效果图"展示与缩略图列表显示
+                result.sourceImage = img;
+                result.imageName = QFileInfo(imagePaths[i]).fileName();
+                results.append(result);
             }
 
             // 在主线程发射进度信号

@@ -460,6 +460,8 @@ QVariantMap SchemeRunController::runScheme(const QString& inputImagePath) {
             trMap["toolId"] = toolId;
             trMap["ok"] = tr.ok;
             trMap["elapsedMs"] = tr.elapsedMs;
+            // v6.x：把运行时输出值（ports）同步到桥接层缓存，供变量管理面板展示
+            m_bridge->setNodeOutputValues(toolId, tr.ports);
             if (!tr.overlayImage.empty()) {
                 const QString path = saveMatToTempPng(tr.overlayImage, "qdv_deploy");
                 trMap["outputImagePath"] = path;
@@ -638,6 +640,8 @@ QVariantMap SchemeRunController::runSingleOperator(const QString& nodeId, const 
             trMap["toolId"] = toolId;
             trMap["ok"] = tr.ok;
             trMap["elapsedMs"] = tr.elapsedMs;
+            // v6.x：把运行时输出值（ports）同步到桥接层缓存，供变量管理面板展示
+            m_bridge->setNodeOutputValues(toolId, tr.ports);
             if (!tr.overlayImage.empty()) {
                 const QString path = saveMatToTempPng(tr.overlayImage, "qdv_single");
                 trMap["outputImagePath"] = path;

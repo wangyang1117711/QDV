@@ -20,6 +20,10 @@ public:
     QJsonObject serialize() const override;
     bool deserialize(const QJsonObject& data) override;
 
+    // 端口声明（与 config/operators.json 的 outputs 保持一致）
+    QList<QDV::PortDescriptor> outputPorts() const override;
+    QList<QDV::PortDescriptor> inputPorts() const override;
+
     void setModelPath(const QString& path) { m_modelPath = path; }
     QString modelPath() const { return m_modelPath; }
 

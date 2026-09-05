@@ -94,6 +94,10 @@ struct ZeroShotResult {
     // 异常热力图（AnomalyCLIP / PatchCore）
     cv::Mat anomalyMap;         // 像素级异常分数图
 
+    // --- 效果图展示（原图 + 检测框/掩码叠加） ---
+    cv::Mat sourceImage;        // 输入原图（供"检测效果图"叠加绘制）
+    QString imageName;          // 原图像文件名（批量/单张推理时记录，供列表显示）
+
     // 转为 JSON（与主项目 InferenceEngine 结果格式兼容）
     QJsonObject toJson() const {
         QJsonObject obj;

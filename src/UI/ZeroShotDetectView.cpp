@@ -17,6 +17,7 @@
 #include "AI/TrainingBridge.h"              // v2.0 阶段五 Task 13：训练桥接
 #include "UI/DataCollectionWizard.h"        // v2.0 阶段五 Task 13：数据收集向导
 #include "UI/ResultExportDialog.h"          // v2.0 阶段六 Task 14：结果导出对话框
+#include "UI/ZeroShotGuide.h"               // 新手引导纯逻辑模块（步骤状态 / 通俗文案）
 #include "OperatorLibrary/OperatorLibraryController.h"  // 推断专用模型算子 type
 #include "Core/Logger.h"                    // QDV::Logger
 
@@ -76,6 +77,9 @@ ZeroShotDetectView::ZeroShotDetectView(QWidget* parent) : QWidget(parent) {
     connectSignals();
     updateModelStatus();
     updateNotesView();
+    // 结果面板空状态显示新手分步引导（替代笼统的"暂无结果"）
+    m_resultPanel->setEmptyHint(QDVMini::buildEmptyStateHint());
+    updateGuideHint();  // 新手引导：初始状态（步骤 ① → ②）
 
     // v2.0 阶段二 Task 7：初始化共享提示词库 → ZeroShotPanel 目标类型下拉
     refreshTargetTypeEntries();
@@ -114,6 +118,22 @@ void ZeroShotDetectView::setupUI() {
         "}"));
     m_banner->setWordWrap(true);
     root->addWidget(m_banner);
+
+    // --- 新手引导条：分步指示（①选模型 → ②加载模型 → ③加载图像 → ④推理） ---
+    // 状态由 updateGuideHint() 根据模型/图像/结果就绪情况实时刷新
+    m_guideLabel = new QLabel(this);
+    m_guideLabel->setWordWrap(true);
+    m_guideLabel->setTextFormat(Qt::RichText);
+    m_guideLabel->setStyleSheet(QStringLiteral(
+        "QLabel {"
+        "  background-color: #1e2a24;"       // 深绿色底，与深色主题一致
+        "  color: #dcdcdc;"
+        "  padding: 6px 12px;"
+        "  font-size: 12px;"
+        "  border-bottom: 1px solid #3a5a3a;"
+        "}"));
+    m_guideLabel->setMinimumHeight(34);
+    root->addWidget(m_guideLabel);
 
     // --- 顶部工具栏：[加载图像][批量目录][停止] [进度条] [状态标签] ---
     QHBoxLayout* toolbar = new QHBoxLayout();
@@ -298,15 +318,17 @@ void ZeroShotDetectView::onModelLoadRequested(zsu::ZeroShotModelType type, const
                 QStringLiteral("%1\n\n（详细日志见终端及 logs 目录）").arg(detail));
         }
     }
+    updateGuideHint();  // 引导条：步骤 ② 状态随加载结果刷新
 }
 
 void ZeroShotDetectView::onInferenceRequested() {
-    if (m_currentImagePath.isEmpty()) {
-        m_statusLabel->setText(QStringLiteral("请先加载图像"));
-        return;
-    }
-    if (!m_kit->isModelLoaded()) {
-        m_statusLabel->setText(QStringLiteral("请先加载模型"));
+    // 新手友好：缺少前置条件时给出明确的分步指引（状态栏 + 弹窗）
+    const QString hint = QDVMini::missingPrerequisiteHint(
+        m_kit ? m_kit->isModelLoaded() : false,
+        !m_currentImagePath.isEmpty());
+    if (!hint.isEmpty()) {
+        m_statusLabel->setText(hint.split('\n').first());
+        QMessageBox::information(this, QStringLiteral("还差一步准备"), hint);
         return;
     }
     m_resultPanel->clearResults();
@@ -316,12 +338,13 @@ void ZeroShotDetectView::onInferenceRequested() {
 }
 
 void ZeroShotDetectView::onInferenceAllRequested() {
-    if (m_batchImagePaths.isEmpty()) {
-        m_statusLabel->setText(QStringLiteral("请先加载批量目录"));
-        return;
-    }
-    if (!m_kit->isModelLoaded()) {
-        m_statusLabel->setText(QStringLiteral("请先加载模型"));
+    // 新手友好：缺少前置条件时给出明确的分步指引（状态栏 + 弹窗）
+    const QString hint = QDVMini::missingPrerequisiteHint(
+        m_kit ? m_kit->isModelLoaded() : false,
+        !m_batchImagePaths.isEmpty());
+    if (!hint.isEmpty()) {
+        m_statusLabel->setText(hint.split('\n').first());
+        QMessageBox::information(this, QStringLiteral("还差一步准备"), hint);
         return;
     }
     m_resultPanel->clearResults();
@@ -418,6 +441,7 @@ void ZeroShotDetectView::onInferenceCompleted(const zsu::ZeroShotResult& result)
     } else {
         m_hasLastResult = false;
     }
+    updateGuideHint();  // 引导条：步骤 ④ 完成状态刷新
 }
 
 void ZeroShotDetectView::onBatchCompleted(const QList<zsu::ZeroShotResult>& results) {
@@ -431,6 +455,7 @@ void ZeroShotDetectView::onBatchCompleted(const QList<zsu::ZeroShotResult>& resu
     m_statusLabel->setText(
         QStringLiteral("批量完成: %1/%2 成功").arg(okCount).arg(results.size()));
     emit zeroShotResultReady(okCount);
+    updateGuideHint();  // 引导条：步骤 ④ 完成状态刷新
 }
 
 void ZeroShotDetectView::onProgressUpdated(int current, int total) {
@@ -456,6 +481,7 @@ void ZeroShotDetectView::loadImageForInference() {
     if (path.isEmpty()) return;
     m_currentImagePath = path;
     m_statusLabel->setText(QStringLiteral("已加载: ") + QFileInfo(path).fileName());
+    updateGuideHint();  // 引导条：步骤 ③ 完成状态刷新
 }
 
 void ZeroShotDetectView::loadBatchImages() {
@@ -471,6 +497,7 @@ void ZeroShotDetectView::loadBatchImages() {
     }
     m_statusLabel->setText(
         QStringLiteral("批量目录: %1 张图像").arg(m_batchImagePaths.size()));
+    updateGuideHint();  // 引导条：步骤 ③ 完成状态刷新
 }
 
 // ============================================================================
@@ -512,6 +539,21 @@ void ZeroShotDetectView::updateNotesView() {
 }
 
 // ============================================================================
+// 新手引导：根据当前状态刷新顶部"分步引导条"
+// 步骤状态：① 选择模型类型（恒完成）→ ② 加载模型 → ③ 加载图像 → ④ 开始推理
+// ============================================================================
+void ZeroShotDetectView::updateGuideHint() {
+    if (!m_guideLabel) return;
+
+    QDVMini::ZeroShotGuideState state;
+    state.modelLoaded = m_kit ? m_kit->isModelLoaded() : false;
+    state.imageLoaded = !m_currentImagePath.isEmpty() || !m_batchImagePaths.isEmpty();
+    state.hasResult   = m_resultPanel ? m_resultPanel->hasResults() : false;
+
+    m_guideLabel->setText(QDVMini::buildGuideHintHtml(state));
+}
+
+// ============================================================================
 // 中文路径安全读取图像
 // cv::imread 在 Windows 下不支持中文路径，使用 QFile + cv::imdecode 规避。
 // 参考：third_party/ZeroShotKit/docs/IntegrationGuide.md
@@ -545,7 +587,16 @@ void ZeroShotDetectView::showEvent(QShowEvent* event) {
 void ZeroShotDetectView::refreshSplitterSizes() {
     if (!m_splitter) return;
     const int total = m_splitter->width();
-    if (total <= 0) return;
+    if (total <= 0) {
+        // 首次布局尚未完成（QStackedWidget 隐藏页 width 可能为 0），延迟重试，
+        // 但有上限，避免极端情况下无限递归导致界面空白。
+        if (m_splitterRetry < 5) {
+            ++m_splitterRetry;
+            QTimer::singleShot(0, this, &ZeroShotDetectView::refreshSplitterSizes);
+        }
+        return;
+    }
+    m_splitterRetry = 0;
 
     // 按面板最小宽度比例分配；中间结果面板获得剩余空间。
     const int leftMin   = m_panel ? m_panel->minimumWidth() : 360;

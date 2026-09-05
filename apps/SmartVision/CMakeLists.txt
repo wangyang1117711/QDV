@@ -128,3 +128,18 @@ foreach(MODEL_FILE ${DEFAULT_MODEL_FILES})
         COMMENT "Deploying default model file: ${FILE_NAME}"
     )
 endforeach()
+
+# BUG修复：部署模型注意事项默认配置 resources/models/model_notes.json 到 exe 同级。
+# ZeroShotKit 从文件系统读取（未编译进 qrc），缺失时右栏"模型注意事项"为空。
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/ZeroShotKit/resources/models/model_notes.json")
+    add_custom_command(TARGET QDetectVision POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:QDetectVision>/resources/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/third_party/ZeroShotKit/resources/models/model_notes.json"
+            "$<TARGET_FILE_DIR:QDetectVision>/resources/models/model_notes.json"
+        COMMENT "Deploying resources/models/model_notes.json (zero-shot model notes)"
+    )
+else()
+    message(WARNING "model_notes.json not found - zero-shot model notes will be empty")
+endif()

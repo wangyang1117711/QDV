@@ -1,0 +1,1 @@
+{"model_type": "yolov8n", "num_epochs": 1, "batch_size": 2, "image_size": 320, "learning_rate": 0.01, "data_yaml": "E:\\anchor\\Trae\\QDV\\tools\\qdv-annotator\\verify\\_out\\e2e_train3\\dataset.yaml", "output_dir": "E:\\anchor\\Trae\\QDV\\tools\\qdv-annotator\\verify\\_out\\e2e_train3\\runs"}

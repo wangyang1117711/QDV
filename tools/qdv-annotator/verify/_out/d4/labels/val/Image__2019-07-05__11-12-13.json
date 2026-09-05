@@ -1,0 +1,16 @@
+{
+  "image_width": 1200,
+  "image_height": 1200,
+  "annotations": [
+    {
+      "bbox": [
+        500,
+        520,
+        180,
+        160
+      ],
+      "text": "",
+      "label": "defect"
+    }
+  ]
+}

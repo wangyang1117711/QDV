@@ -1,0 +1,6 @@
+path: E:\anchor\Trae\QDV\tools\qdv-annotator\verify\_out\d1
+train: images/train
+val: images/val
+
+nc: 2
+names: [defect, good]

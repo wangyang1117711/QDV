@@ -83,6 +83,8 @@ private:
     void loadBatchImages();               // QFileDialog 选批量
     void updateModelStatus();             // 同步面板状态
     void updateNotesView();               // 刷新右栏模型注意事项
+    // 新手引导：根据当前状态刷新顶部"分步引导条"
+    void updateGuideHint();
     // 中文路径安全读取图像（cv::imread 不支持中文路径，用 QFile + cv::imdecode）
     cv::Mat readImageChineseSafe(const QString& path);
 
@@ -103,6 +105,7 @@ private:
     void showEvent(QShowEvent* event) override;
     void refreshSplitterSizes();
     bool m_firstShow = true;              // 标记首次显示
+    int  m_splitterRetry = 0;            // 首次布局未完成时的最大重试次数（防空白）
 
     zsu::Kit*                          m_kit          = nullptr;
     QDVMini::ZeroShotPanel*            m_panel        = nullptr;
@@ -110,6 +113,7 @@ private:
 
     QSplitter*    m_splitter     = nullptr;
     QLabel*       m_statusLabel  = nullptr;
+    QLabel*       m_guideLabel   = nullptr;   // 新手引导条（步骤指示）
     QProgressBar* m_progressBar  = nullptr;
     QPushButton*  m_loadImageBtn = nullptr;
     QPushButton*  m_batchBtn     = nullptr;

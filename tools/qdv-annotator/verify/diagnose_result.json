@@ -1,0 +1,119 @@
+{
+  "dir": "测试图",
+  "threshold": {
+    "stddev": 28.0,
+    "edgeDensity": 0.06
+  },
+  "summary": {
+    "total": 7,
+    "lowContrast": 0,
+    "weakEdge": 7
+  },
+  "images": [
+    {
+      "file": "Image__2019-07-05__11-12-13.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 34.002239583333335,
+        "stddev": 39.520689182628395,
+        "min": 0,
+        "max": 229,
+        "edgeDensity": 0.005935432776626249,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-12-31.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 35.21885972222222,
+        "stddev": 42.577288225555634,
+        "min": 0,
+        "max": 255,
+        "edgeDensity": 0.006142298224079752,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-12-39.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 38.790615277777775,
+        "stddev": 46.70102391197569,
+        "min": 0,
+        "max": 255,
+        "edgeDensity": 0.0063138089927067004,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-12-48.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 33.55255138888889,
+        "stddev": 38.496140330388656,
+        "min": 0,
+        "max": 242,
+        "edgeDensity": 0.005890932714846413,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-12-53.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 34.43307986111111,
+        "stddev": 39.311435970769416,
+        "min": 0,
+        "max": 222,
+        "edgeDensity": 0.005898739215921262,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-13-06.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 31.780347916666667,
+        "stddev": 33.52314993297729,
+        "min": 0,
+        "max": 205,
+        "edgeDensity": 0.0058232727289817265,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    },
+    {
+      "file": "Image__2019-07-05__11-13-20.bmp",
+      "stats": {
+        "width": 1200,
+        "height": 1200,
+        "mean": 35.660352083333336,
+        "stddev": 41.18784776937665,
+        "min": 0,
+        "max": 246,
+        "edgeDensity": 0.006102142697374824,
+        "lowContrast": false,
+        "weakEdge": true
+      },
+      "recommend": "clahe (tile=150, clipLimit=2.0)"
+    }
+  ]
+}

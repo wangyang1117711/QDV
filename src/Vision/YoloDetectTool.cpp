@@ -60,6 +60,9 @@ bool YoloDetectTool::configure(const QJsonObject& params) {
 }
 
 bool YoloDetectTool::execute(const cv::Mat& input, ToolResult& result) {
+    // 线程安全：防止 m_warmedUp 检查-设置竞态（与 AiClassifyTool RT-010 同源问题）
+    QMutexLocker locker(&m_execMutex);
+
     if (input.empty()) {
         Logger::warn("YoloDetectTool: empty input");
         result.ok = false;
@@ -129,6 +132,10 @@ bool YoloDetectTool::execute(const cv::Mat& input, ToolResult& result) {
     result.data["confidence_threshold"] = m_confThreshold;
     result.data["iou_threshold"] = m_iouThreshold;
     result.data["pass"] = numDetections > 0;
+
+    // typed ports 填充（与 operators.json outputs: detections/numDetections 保持一致）
+    result.ports["detections"]   = detections.toVariantList();
+    result.ports["numDetections"] = numDetections;
 
     // 指标
     InferenceMetricsLite metrics = m_engine->lastMetrics();
@@ -269,6 +276,38 @@ void YoloDetectTool::drawDetections(cv::Mat& overlay, const QJsonArray& detectio
         cv::putText(overlay, labelStr, cv::Point(x1 + 2, textY + textSize.height),
                     cv::FONT_HERSHEY_SIMPLEX, fontScale, cv::Scalar(0, 0, 0), thickness);
     }
+}
+
+QList<PortDescriptor> YoloDetectTool::outputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor det;
+    det.name   = "detections";
+    det.cnName = QStringLiteral("检测结果");
+    det.type   = PortType::Points;
+    det.dir    = PortDirection::Out;
+    det.desc   = QStringLiteral("检测框数组（每项含 classId/className/confidence/bbox[x,y,w,h]）");
+    ports << det;
+
+    PortDescriptor num;
+    num.name   = "numDetections";
+    num.cnName = QStringLiteral("检测数量");
+    num.type   = PortType::Number;
+    num.dir    = PortDirection::Out;
+    num.desc   = QStringLiteral("检测到的目标数量");
+    ports << num;
+    return ports;
+}
+
+QList<PortDescriptor> YoloDetectTool::inputPorts() const {
+    QList<PortDescriptor> ports;
+    PortDescriptor img;
+    img.name   = "image";
+    img.cnName = QStringLiteral("输入图像");
+    img.type   = PortType::Image;
+    img.dir    = PortDirection::In;
+    img.desc   = QStringLiteral("待检测的输入图像（可由上游算子提供）");
+    ports << img;
+    return ports;
 }
 
 QJsonObject YoloDetectTool::serialize() const {
