@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QDV 优化说明 · 2026-09-06</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#161a23; --panel2:#1c212e; --line:#2a3042;
+    --txt:#d7dce6; --dim:#8b93a7; --accent:#7c4dff; --accent2:#4dc9ff;
+    --ok:#3ddc97; --warn:#ffb84d; --bad:#ff6b6b;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--txt);font-family:"Microsoft YaHei","PingFang SC",sans-serif;line-height:1.7;padding:0 0 80px}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+
+  header{background:linear-gradient(135deg,#1a1440 0%,#141a2e 55%,#0f1117 100%);border-bottom:1px solid var(--line);padding:48px 0 40px}
+  header h1{font-size:30px;letter-spacing:1px;color:#fff}
+  header h1 span{color:var(--accent)}
+  header p.sub{color:var(--dim);margin-top:10px;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .meta div{background:rgba(124,77,255,.12);border:1px solid rgba(124,77,255,.35);border-radius:20px;padding:5px 14px;font-size:13px;color:#cbb8ff}
+
+  nav.toc{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 0}
+  nav.toc .wrap{display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{color:var(--dim);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:8px;transition:.2s}
+  nav.toc a:hover{color:#fff;background:rgba(124,77,255,.2)}
+
+  section{margin-top:56px}
+  h2{font-size:23px;color:#fff;border-left:5px solid var(--accent);padding-left:14px;margin-bottom:22px}
+  h3{font-size:17px;color:#cbb8ff;margin:26px 0 12px}
+  p{margin:10px 0;color:var(--txt)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin:14px 0}
+  .card.tip{border-left:4px solid var(--ok)}
+  .card.warn{border-left:4px solid var(--warn)}
+  .card.bad{border-left:4px solid var(--bad)}
+  b{color:#fff}
+  code{background:#232a3b;color:var(--accent2);padding:2px 7px;border-radius:6px;font-size:13.5px;font-family:Consolas,"JetBrains Mono",monospace}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th{background:var(--panel2);color:#fff;text-align:left;padding:10px 12px;border:1px solid var(--line);font-size:13.5px}
+  td{padding:9px 12px;border:1px solid var(--line);color:var(--txt);vertical-align:top}
+  tr:hover td{background:rgba(124,77,255,.06)}
+
+  .score{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:18px 0}
+  .score .s{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;text-align:center}
+  .score .s .name{font-size:14px;color:var(--dim)}
+  .score .s .stars{font-size:22px;margin:6px 0 2px;letter-spacing:2px}
+  .score .s .why{font-size:12.5px;color:var(--dim)}
+
+  .flow{background:#12151f;border:1px solid var(--line);border-radius:12px;padding:18px 20px;font-family:Consolas,monospace;font-size:12.8px;line-height:1.85;overflow-x:auto;color:#aeb6c9;white-space:pre}
+  .flow .hot{color:var(--bad);font-weight:bold}
+  .flow .warm{color:var(--warn)}
+  .flow .cool{color:var(--ok)}
+
+  .root{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin:16px 0}
+  .root .r{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .root .r h4{font-size:15.5px;color:#fff;margin-bottom:8px}
+  .root .r .sev{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:10px;margin-left:8px;vertical-align:2px}
+  .sev.hi{background:rgba(255,107,107,.18);color:var(--bad);border:1px solid rgba(255,107,107,.4)}
+  .sev.mid{background:rgba(255,184,77,.15);color:var(--warn);border:1px solid rgba(255,184,77,.4)}
+  .root .r p{font-size:13.5px;color:var(--dim)}
+  .root .r .fix{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px;color:var(--ok)}
+
+  .prio{border-radius:12px;overflow:hidden;margin:14px 0;border:1px solid var(--line)}
+  .prio .head{padding:13px 20px;font-weight:bold;color:#fff;font-size:15.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .prio .head .eta{font-weight:normal;font-size:12.5px;opacity:.85}
+  .prio .body{background:var(--panel);padding:16px 20px}
+  .prio .item{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed rgba(42,48,66,.6);font-size:14px}
+  .prio .item:last-child{border-bottom:none}
+  .prio .num{flex:0 0 auto;width:52px;text-align:center;font-weight:bold;font-size:12.5px;padding-top:2px}
+  .prio.p0 .head{background:linear-gradient(90deg,#5b1f2e,#3d2233)}
+  .prio.p1 .head{background:linear-gradient(90deg,#5b4522,#3a3222)}
+  .prio.p2 .head{background:linear-gradient(90deg,#22434d,#20363d)}
+  .prio.p0 .num{color:var(--bad)} .prio.p1 .num{color:var(--warn)} .prio.p2 .num{color:var(--accent2)}
+  .prio .item .gain{color:var(--ok);font-size:12.5px;display:block;margin-top:2px}
+
+  .roadmap{background:#12151f;border:1px solid var(--line);border-radius:14px;padding:22px;margin:16px 0}
+  .roadmap .row{display:flex;gap:10px;margin:8px 0;align-items:stretch}
+  .roadmap .d{flex:0 0 92px;color:var(--accent2);font-size:12.5px;padding-top:3px;text-align:right}
+  .roadmap .t{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:13.5px;flex:1}
+  .roadmap .t em{color:var(--warn);font-style:normal;font-size:12px}
+
+  .verdict{background:linear-gradient(135deg,rgba(61,220,151,.1),rgba(124,77,255,.08));border:1px solid rgba(61,220,151,.35);border-radius:14px;padding:20px 24px;margin:18px 0}
+  .verdict h4{color:var(--ok);font-size:16px;margin-bottom:8px}
+
+  .num-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(124,77,255,.25);color:#cbb8ff;font-size:12px;margin-right:6px}
+  .small{font-size:12.5px;color:var(--dim)}
+  footer{margin-top:70px;text-align:center;color:var(--dim);font-size:12.5px;border-top:1px solid var(--line);padding-top:24px}
+  @media (max-width:760px){ .flow{font-size:11px} header h1{font-size:24px} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>QDV 全面评估与优化说明 <span>0906</span></h1>
+    <p class="sub">QDetectVision V2.0-0809 · 编辑模块卡顿根因定位 + 交互 / 流畅性 / 信息流 / 架构全面体检</p>
+    <div class="meta">
+      <div>📅 2026-09-06</div>
+      <div>🧠 GLM-5.3 分析</div>
+      <div>📄 详版：<b style="color:#fff">glm5.3优化建议0906.md</b></div>
+      <div>✅ Git 备份已同步（4c519b6d）</div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#s1">① 卡在哪</a>
+  <a href="#s2">② 六大根因</a>
+  <a href="#s3">③ 维度评分</a>
+  <a href="#s4">④ P0 立即做</a>
+  <a href="#s5">⑤ P1 本周做</a>
+  <a href="#s6">⑥ P2 择机做</a>
+  <a href="#s7">⑦ 路线图</a>
+  <a href="#s8">⑧ 验收标准</a>
+</div></nav>
+
+<div class="wrap">
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2>① 一句话：为什么每次操作算子都卡</h2>
+  <div class="card bad">
+    <p style="font-size:16px"><b>没有单一"元凶"，而是 9 个小税点串成一条链</b>——你在属性面板改一个阈值，程序在后台做了：<b>打 30 条同步磁盘日志 → 深拷贝整个节点表广播 → 销毁并重建画布上全部节点卡片 → 11 处面板级联刷新 → 300ms 后从源头重跑整条算子链（上游没变也重跑）→ 每个结果 PNG 编码写盘 → 界面再从磁盘同步解码显示</b>。每一步几毫秒到几十毫秒，叠起来就是你感到的"一顿"。</p>
+  </div>
+  <div class="flow">改一个参数，实际发生了什么（30 节点方案典型值）：
+
+输入阈值 30→35
+ ├─ <span class="hot">① 全参数表回传 QML→C++</span>（其实只改了 1 个键）
+ ├─ <span class="hot">② 同步磁盘日志 6~30 条</span>（Logger 每条立即落盘，含杀软扫描等待）
+ ├─ <span class="hot">③ emit currentNodesChanged 广播</span>（QVariantList 按值深拷贝 × 每个监听者）
+ │    ├─ <span class="hot">④ 节点卡片 Repeater 全量销毁重建 × 30 张</span>
+ │    │     每张卡片内部再调 2 次 getOperatorMeta()（O(n)查找+全量toMap转换）
+ │    ├─ 4 个分组 Canvas 重绘 + 连线 Canvas 重绘（重建 nodeMap 字典）
+ │    ├─ 11 处 onCurrentNodesChanged 级联（变量面板/连接面板/推荐面板…）
+ │    └─ ParamForm._maybeSnapshot：JSON.stringify 全表对比 × 2
+ ├─ markDirty → 300ms 防抖
+ └─ <span class="warm">⑤ 后台重跑整条上游算子链</span>（上游参数没变、图像没变，也全部重算）
+      ├─ 构链 O(n²) 线性扫描 + 全部工具对象 new/销毁
+      ├─ <span class="hot">⑥ 每个算子输出 PNG 编码写 %TEMP%</span>（UUID 命名，永不清理，无限累积）
+      └─ 完成回调 → 主线程读 2 张 PNG 建 Snapshot
+           └─ <span class="hot">⑦⑧⑨ UI 同步解码 + 不缓存 + 纹理重传</span>（×2 个显示面板）
+                <span class="cool">→ 这时你才会看到新预览图</span></div>
+  <p class="small">证据链与文件行号在详版报告第 2 章；此处为提炼版。</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2>② 六大根因（点开看药方）</h2>
+  <div class="root">
+    <div class="r"><h4>A · 热路径同步日志<span class="sev hi">高 · 最易修</span></h4>
+      <p>改 1 个参数打 6~30 条日志，每条都<b>立即写盘+flush</b>（100ms 批量机制被直调废掉）。全部是排查旧 bug 留下的诊断日志，bug 修了日志没删。</p>
+      <div class="fix">➜ 删/降级诊断日志；Logger 只留定时器批量落盘。预计单次省 3~15ms+，全模块受益。</div></div>
+    <div class="r"><h4>B · 全量重建风暴<span class="sev hi">高 · 卡顿主因</span></h4>
+      <p>节点数据用 QVariantList 值类型，任何改动 = "整个 model 换了" → Repeater 销毁重建所有卡片；30 节点 = 100 次 meta 全量转换 + 11 处面板级联。节点越多越卡的直接解释。</p>
+      <div class="fix">➜ 改 QAbstractListModel 角色化模型，参数修改发 dataChanged(单节点) 而非整体 reset，卡片只建一次。</div></div>
+    <div class="r"><h4>C · 无缓存全链重算<span class="sev hi">高 · 调参质变项</span></h4>
+      <p>改下游参数 → 上游算子全部重新执行（含 YOLO/模板匹配这种百毫秒~秒级算子）；执行还把 CPU 吃满，<b>你紧接着的下一次点击就被拖慢</b>——"连着操作越来越卡"的来源。执行完的结果也不缓存。</p>
+      <div class="fix">➜ 按（节点,参数哈希,输入图哈希）缓存算子结果，只重跑真正变化的节点。</div></div>
+    <div class="r"><h4>D · 图像绕磁盘三重税<span class="sev mid">中高</span></h4>
+      <p>内存里明明有图像，却要走"PNG 编码→写 %TEMP%→读盘→UI 线程同步解码→上传纹理"六步；且 <code>cache:false</code> + 全局禁纹理缓存，同一张图反复解码上传。1200×1200 图每次 50~200ms UI 线程占用。</p>
+      <div class="fix">➜ 先：临时文件复用+清理+恢复异步解码；后：QQuickImageProvider 内存直传，磁盘 IO 归零。</div></div>
+    <div class="r"><h4>E · 视图切换=推倒重来<span class="sev mid">中</span></h4>
+      <p>编辑↔运行切换时整个 4194 行的 Main.qml 场景销毁重建（为治 QRhi 纹理 bug 的猛药）。切回来白屏 0.5~2s，面板折叠/滚动位置全丢。</p>
+      <div class="fix">➜ QRhi 三件套修复已稳固的前提下，hide() 保活替代卸载，保留异常兜底路径。</div></div>
+    <div class="r"><h4>F · 交互细节税<span class="sev mid">中</span></h4>
+      <p>单击选中即跑该节点上游链（浏览方案也会触发执行）；搜索框每键全量重建 70 算子列表，无防抖；meta 查询无索引无缓存。</p>
+      <div class="fix">➜ 选中只切换+显示缓存图；搜索 200ms 防抖；OperatorDescriptors 加 QHash 索引+toMap 缓存。</div></div>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2>③ 五个维度的体检评分</h2>
+  <div class="score">
+    <div class="s"><div class="name">编辑流畅性</div><div class="stars">⭐⭐</div><div class="why">参数/增删/选中三条高频路<br>径全部全量刷新</div></div>
+    <div class="s"><div class="name">交互设计</div><div class="stars">⭐⭐⭐</div><div class="why">快捷键/三形态编辑/推荐<br>都好，选中即跑拖后腿</div></div>
+    <div class="s"><div class="name">信息流</div><div class="stars">⭐⭐⭐</div><div class="why">图像绕磁盘两圈；选中/参数<br>状态双源需同步</div></div>
+    <div class="s"><div class="name">架构健康</div><div class="stars">⭐⭐⭐</div><div class="why">分层清晰拆分到位，但<br>QVariantList 模型是温床</div></div>
+    <div class="s"><div class="name">工程质量</div><div class="stars">⭐⭐⭐⭐</div><div class="why">文档测试俱佳；无性能<br>门槛测试，日志失控</div></div>
+  </div>
+  <div class="card tip"><p><b>亮点也说一句</b>：拖拽路径（moveNodeLive 不广播 + 单 Canvas 连线）和 v2.6.1 预览异步化证明团队有性能意识且方法论正确——只是只治了拖拽一条路。本报告的方案就是把同样的治理复制到参数修改、增删节点、选中三条路径上。</p></div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2>④ P0 · 立即做（预计消除 60%+ 卡顿感）</h2>
+  <div class="prio p0"><div class="head">🔴 P0 清单 <span class="eta">1~2 天 · 低风险高收益 · 建议今天开始</span></div>
+    <div class="body">
+      <div class="item"><div class="num">P0-1</div><div><b>日志静音 + 异步批量落盘</b>（EditViewBridge.cpp:655 等四处 + Logger.cpp:36）
+        <span class="gain">✦ 每次操作省 3~15ms 磁盘等待 · 全模块受益 · 风险最低，可单独今天就改</span></div></div>
+      <div class="item"><div class="num">P0-2</div><div><b>节点列表角色化模型</b>（新建 NodeListModel，Repeater 只建一次卡片，参数修改发单节点 dataChanged）
+        <span class="gain">✦ 30 节点方案每次操作省 50~200ms · 消灭"节点越多越卡"</span></div></div>
+      <div class="item"><div class="num">P0-3</div><div><b>参数增量回传</b>（setValue 只传变化的键；TunerDialog 去掉全表 JSON 深拷贝）
+        <span class="gain">✦ 跨边界数据量从全表降到 1 键</span></div></div>
+      <div class="item"><div class="num">P0-4</div><div><b>临时文件治理 + 图像显示提速</b>（预览 PNG 单文件复用+7天清理；Image 恢复异步解码与缓存）
+        <span class="gain">✦ 预览刷新省 50~200ms UI 线程占用 · %TEMP% 不再膨胀</span></div></div>
+    </div>
+  </div>
+  <div class="card warn"><p><b>动手前 10 分钟</b>：先给 addOperator / updateOperatorParams / selectNode 加 QElapsedTimer 埋点，用你的真实方案（30 节点级别）记录基线耗时。之后每条优化都拿数字说话——<b>没有基线就没有验收</b>。</p></div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2>⑤ P1 · 本周做（结构性改造）</h2>
+  <div class="prio p1"><div class="head">🟡 P1 清单 <span class="eta">2~5 天/项 · 调参体验质变在这里</span></div>
+    <div class="body">
+      <div class="item"><div class="num">P1-1</div><div><b>上游链增量执行缓存</b> —— 按(节点,参数哈希,输入图哈希)缓存结果，只重跑变化节点
+        <span class="gain">✦ AI 算子方案调参预览从 1~3 秒降到几十毫秒，<b>这是体验质变项</b></span></div></div>
+      <div class="item"><div class="num">P1-2</div><div><b>构链去 O(n²)</b> —— 先建 QHash 索引再查；工具对象原型缓存
+        <span class="gain">✦ 链准备成本 O(n²)→O(n)</span></div></div>
+      <div class="item"><div class="num">P1-3</div><div><b>搜索防抖 + meta 索引缓存</b> —— 搜索 200ms 防抖；OperatorDescriptors 加 QHash 索引与 toMap 结果缓存
+        <span class="gain">✦ 中文输入法搜索不再逐键刷列表；卡片 meta 查询 O(1)</span></div></div>
+      <div class="item"><div class="num">P1-4</div><div><b>预览重入改"合并最新"</b> —— 执行中来的新请求不再被丢弃，跑完自动补跑
+        <span class="gain">✦ 修复"改完参数显示旧结果"的正确性体验问题</span></div></div>
+      <div class="item"><div class="num">P1-5</div><div><b>选中与预览解耦</b> —— 单击只切换并显示缓存图，仅目标从未执行过才排队跑
+        <span class="gain">✦ 浏览方案不再触发执行风暴</span></div></div>
+      <div class="item"><div class="num">P1-6</div><div><b>视图切换保活</b> —— hide() 替代整场景卸载（须带 QRhi 回归验证）
+        <span class="gain">✦ 编辑↔运行切换不再白屏，状态保留</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2>⑥ P2 · 择机做（增值与长期健康）</h2>
+  <div class="prio p2"><div class="head">🔵 P2 清单 <span class="eta">体验增值 · 长期健康</span></div>
+    <div class="body">
+      <div class="item"><div class="num">P2-1</div><div><b>性能门槛测试</b> —— Catch2 加"30 节点下单参数修改 &lt;30ms"类断言，CI 挡性能回归（现在 77 个用例全是功能向，性能退化无人发现）</div></div>
+      <div class="item"><div class="num">P2-2</div><div><b>渲染循环调优</b> —— QRhi 修复稳固后，A/B 试点去掉 basic 渲染循环与纹理缓存禁用</div></div>
+      <div class="item"><div class="num">P2-3</div><div><b>撤销体验</b> —— undoLimit 50→200（已有单参数合并，内存可控）+ 撤销历史下拉</div></div>
+      <div class="item"><div class="num">P2-4</div><div><b>执行中反馈</b> —— isRunning 显示骨架屏 + 当前执行到第几个上游算子（toolExecuted 信号现成）</div></div>
+      <div class="item"><div class="num">P2-5</div><div><b>状态单源化</b> —— 选中 ID 以 C++ 为唯一源，QML 信号跟随（含 undo/redo 后同步）</div></div>
+      <div class="item"><div class="num">P2-6</div><div><b>仓库卫生</b> —— 清 .bak / verify 产物；立"诊断日志随 bug 修复退役"规约（本次已顺手修：陈旧 git 锁、空 pre-commit 钩子、gitignore 缺项）</div></div>
+      <div class="item"><div class="num">P2-7</div><div><b>Snapshot 异步读</b> —— appendSnapshot 的 QImage 读盘挪子线程（可与 P0-4 进阶档合并）</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2>⑦ 建议节奏（10 天冲刺）</h2>
+  <div class="roadmap">
+    <div class="row"><div class="d">第 1 天</div><div class="t"><em>埋基线</em> + P0-1 日志静音 + P0-3 增量回传 —— 风险最低，当天见效</div></div>
+    <div class="row"><div class="d">第 2~3 天</div><div class="t">P0-4 临时文件治理 + Image 异步恢复 · P1-2 去 O(n²) · P1-3 搜索防抖与 meta 缓存</div></div>
+    <div class="row"><div class="d">第 4~6 天</div><div class="t">P0-2 NodeListModel 角色化改造（QML 分批迁移，保留兼容接口）</div></div>
+    <div class="row"><div class="d">第 7~9 天</div><div class="t">P1-1 增量执行缓存（先在你的 AI 算子方案上验证）· P1-4 重入合并 · P1-5 选中解耦</div></div>
+    <div class="row"><div class="d">第 10 天+</div><div class="t">P1-6 视图保活（带 QRhi 回归）→ 之后按需做 P2</div></div>
+    <div class="row"><div class="d">全程</div><div class="t"><em>每批改动</em>：跑 tests/（offscreen 模式）+ 30 节点方案手工回归 + 与基线对比</div></div>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2>⑧ 验收标准（防"自检全绿但没变快"）</h2>
+  <table>
+    <tr><th>验收项</th><th>量化门槛</th><th>当前估计</th></tr>
+    <tr><td>单参数修改（30 节点方案）主线程耗时</td><td><b>&lt; 30ms</b></td><td>80~250ms</td></tr>
+    <tr><td>增删节点主线程耗时</td><td><b>&lt; 60ms</b></td><td>重建全部卡片</td></tr>
+    <tr><td>预览刷新（上游5算子、仅当前参数变化）</td><td><b>&lt; 300ms 到首帧</b></td><td>全链重跑 1~3s</td></tr>
+    <tr><td>搜索框单键响应</td><td><b>&lt; 16ms（无感）</b></td><td>逐键全量重建</td></tr>
+    <tr><td>编辑↔运行视图切换</td><td><b>&lt; 300ms 无白屏</b></td><td>0.5~2s 整场景重建</td></tr>
+    <tr><td>%TEMP% 临时 PNG</td><td><b>复用 + 7 天清理 &lt;200MB</b></td><td>无限累积</td></tr>
+    <tr><td>崩溃 / QRhi 跨实例错误</td><td><b>0 复现</b>（tests/UI 探针 + 手工回归）</td><td>—</td></tr>
+  </table>
+  <div class="verdict">
+    <h4>VERDICT: PASS（评估完成度）· 优化落地遵循以下纪律</h4>
+    <p style="font-size:14px">① 每条改动先有基线数字；② 每批改动后重测对比；③ QRhi 相关改动必须带回归（当年 v5.3 是崩溃级教训）；④ 性能门槛进 CI。做到这四条，"卡顿"才会真正从用户字典里消失，而不是只在自检日志里变绿。</p>
+  </div>
+</section>
+
+<footer>
+  QDetectVision · 全面评估与优化说明 · 2026-09-06 ｜ GLM-5.3 生成 ｜ 量化数字为代码走查的工程估算，落地前以基线埋点实测校准<br>
+  详细版（含全部 文件:行号 证据、完整链路图、备份与 Git 同步记录）：同目录 <b>glm5.3优化建议0906.md</b>
+</footer>
+
+</div>
+</body>
+</html>

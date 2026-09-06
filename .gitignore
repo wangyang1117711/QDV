@@ -115,7 +115,8 @@ training/
 *.pb
 *.weights
 *.tflite
-QDV/
+# QDV/ 下的 EditView 是指向 qml/EditView 的符号链接（非真实代码），但 QDV/0906 等报告目录需入库
+QDV/EditView
 tools/tools/
 tools/qdv-annotator/build/
 tools/qdv-annotator/smoke_err.log
