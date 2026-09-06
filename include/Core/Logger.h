@@ -28,6 +28,13 @@ public:
         Critical
     };
 
+    /// P0-1（0906 优化）：最低输出级别（运行时可用环境变量 QDV_LOG_LEVEL 调整）。
+    /// Debug/Trace 级热路径诊断日志在过滤后直接丢弃，连字符串参数都不求值成本
+    /// 由调用方 .arg() 产生——因此热路径仍应传未格式化前的惰性写法或接受轻量拼接。
+    static void setMinLevel(LogLevel level) { s_minLevel = level; }
+    static LogLevel minLevel() { return s_minLevel; }
+    static bool shouldLog(LogLevel level) { return level >= s_minLevel; }
+
     // 错误记录结构，用于 Logger 与监控模块之间的契约
     struct ErrorRecord {
         QString timestamp;
@@ -46,12 +53,12 @@ public:
     // 日志记录核心方法，实现在 Logger.cpp 中
     void log(LogLevel level, const QString& message);
 
-    static void trace(const QString& message)   { instance()->log(Trace, message); }
-    static void debug(const QString& message)   { instance()->log(Debug, message); }
-    static void info(const QString& message)    { instance()->log(Info, message); }
-    static void warn(const QString& message)    { instance()->log(Warn, message); }
-    static void error(const QString& message)   { instance()->log(Error, message); }
-    static void critical(const QString& message){ instance()->log(Critical, message); }
+    static void trace(const QString& message)   { if (shouldLog(Trace)) instance()->log(Trace, message); }
+    static void debug(const QString& message)   { if (shouldLog(Debug)) instance()->log(Debug, message); }
+    static void info(const QString& message)    { if (shouldLog(Info)) instance()->log(Info, message); }
+    static void warn(const QString& message)    { if (shouldLog(Warn)) instance()->log(Warn, message); }
+    static void error(const QString& message)   { if (shouldLog(Error)) instance()->log(Error, message); }
+    static void critical(const QString& message){ if (shouldLog(Critical)) instance()->log(Critical, message); }
 
     static void shutdown() {
         if (s_instance) {
@@ -188,6 +195,8 @@ private:
 
     static Logger* s_instance;
     static QMutex s_instanceMutex;
+    /// P0-1（0906 优化）：全局最低日志级别，默认 Info（Trace/Debug 被过滤）
+    static LogLevel s_minLevel;
 };
 
 } // namespace QDV

@@ -306,7 +306,55 @@
 
 ---
 
+## 4.2 P0 执行记录（2026-09-06 已落地 ✅）
+
+> 本节为实施记录。P0-1/2/3/4 全部完成，编译 100% 通过，测试回归 746/746 全过，主程序烟测通过。执行中另有两个后台分析代理（C++/QML 两侧）交叉验证了本报告四大主因全部成立，并发现 5 项新增问题，其中 **AI 模型重载风暴**已随本次 P0 一并修复（P0-4b）。
+
+### 4.2.1 已落地改动清单
+
+| 项 | 改动 | 文件 | 验证 |
+|---|---|---|---|
+| P0-1a | Logger 移除每条无条件 flush，改 100ms 定时器+256 条阈值批量落盘（Error 级立即落盘保崩溃可查） | src/Core/Logger.cpp:32-41 | 编译+测试过 |
+| P0-1b | 日志级别过滤：新增 `s_minLevel`（默认 Info，`QDV_LOG_LEVEL` 环境变量可调），`Logger::debug/trace` 在调用点直接丢弃——静音的热路径日志连字符串拼接成本都省掉 | include/Core/Logger.h, src/Core/Logger.cpp | 编译+测试过 |
+| P0-1c | 热路径诊断日志降级：updateOperatorParams 逐参数日志（原 1+N 条）、changes/after 确认日志、updateParamInternal、removeConnectionInternal、getRegisteredModels 逐模型日志、logDiag（[RecDiag] 悬停风暴，一处改动覆盖 QML 11 个调用点）、resolveSchemeRunInput 逐节点检查日志 | src/UI/EditViewBridge.cpp, src/UI/SchemeRunController.cpp | 编译过 |
+| P0-1d | TunerDialog 3 处 console.log（整表 JSON.stringify ×3）删除；RecommendationPanel 的 diag 逐条目日志删除 | qml/EditView/OperatorTunerDialog.qml, RecommendationPanel.qml | QML 语法随运行验证 |
+| P0-2 | **粒度信号 nodeParamsChanged(nodeId, paramNames)**：参数修改不再 emit currentNodesChanged → 画布节点 Repeater 不再全量销毁重建；PropertyPreviewPanel 改听粒度信号刷新参数；VariableManagerPanel（最重级联监听者，双常驻实例）仅在算子参数 Tab 可见时重建；RecommendationPanel 不再对参数变化重算推荐（推荐只依赖连线/类型） | include/UI/EditViewBridge.h:446, src/UI/EditViewBridge.cpp(updateParamInternal), PropertyPreviewPanel.qml, VariableManagerPanel.qml, RecommendationPanel.qml | 编译+测试过 |
+| P0-3 | ParamForm 新增单键信号 valueChanged(name, value)（与全表 valuesChanged 并发）；C++ 新增 Q_INVOKABLE updateOperatorParam(nodeId, name, value)；PropertyPreviewPanel 单键优先走增量接口；OperatorEditorDialog 单键浅拷贝替代全表 JSON 深拷贝 | qml/EditView/ParamForm.qml, include/UI/EditViewBridge.h, PropertyPreviewPanel.qml, OperatorEditorDialog.qml | 编译+测试过 |
+| P0-4a | 临时 PNG 确定性命名：qdv_single_<nodeId>.png / qdv_deploy_<nodeId>.png 覆盖写（原 UUID 命名永不清理，%TEMP% 无限累积）；快照文件改 qdv_snap_<nodeId>_before/after.png；SchemeRunController 构造时 std::call_once 一次性清理历史 UUID 残留 | src/UI/SchemeRunController.cpp(saveMatToTempPng/构造函数), src/UI/PreviewManager.cpp(appendSnapshot) | 编译+测试过 |
+| P0-4b | **InferenceEngine 同路径短路**（代理发现的重大遗漏）：loadModel 相同路径直接复用已加载 cv::dnn::Net；**warmUp 引擎侧去重**（m_warmUpDone，新模型/卸载时重置）——原实现每次预览重建工具对象导致 AI 算子每次重付 readNetFromONNX + 3 次完整 forward（0.3~2s/次） | src/AI/InferenceEngine.cpp(loadModel/warmUp/unloadModel), include/AI/InferenceEngine.h | 编译+测试过 |
+| P0-4c | 8 处 Image 元素恢复 asynchronous:true + cache:true（ImageViewer/PreviewPanel 主图与分屏双图/Tuner 预览/VariableManager 缩略图/PropertyPreviewPanel 双缩略图/ImagePreviewWindow 双图）——v5.3 的 QRhi 纹理 bug 已由 main.cpp 渲染层三件套（固定 d3d11+NO_TEXTURE_CACHE+basic loop）规避，不需要用应用层同步解码兜底；PNG 文件名确定性后 cache 不影响内容正确性 | qml/EditView/ 6 个文件 | QML 语法随运行验证 |
+
+### 4.2.2 代理交叉验证结论（两个后台分析代理独立复核）
+
+- **四大主因全部实锤成立**：热路径同步日志（含机制修正：每条仍触发一次写+flush）、QVariantList 全量广播+Repeater 重建、无缓存全链重算、PNG 磁盘中转。
+- **数字修正**：currentNodesChanged 监听为 12 处（原报告 11）；每张节点卡片 getOperatorMeta 调用 4 次（原报告 2 次，另两处在 Accessible 绑定）；同一图像最多 4 个消费者（原 3）。
+- **代理新发现（已修复 1 项，其余列入 P1/P2）**：
+  1. ✅已修复→P0-4b：预览链每次重建全部工具对象 → AI 算子每次预览重新 readNetFromONNX + warmUp(3)；InferenceEngine 无同路径缓存（**报告原最大遗漏，带模型方案调参秒级延迟的最大单一因素**）；
+  2. 列入 P1：VariableManagerPanel.buildOperatorParamsList 为最重级联监听者（已通过 P0-2 可见性门控大幅缓解，彻底方案为按节点增量更新）；
+  3. 列入 P1：hitTestConnection 每帧鼠标移动 O(连线×20) 贝塞尔采样；
+  4. 列入 P1：搜索一键 ≥4 次全量 getFilteredOperators 重算（计数标签+列表+飞出菜单各自求值）；
+  5. 列入 P1：_maybeSnapshot 的 JSON.stringify 键序不一致风险（C++ QVariantMap 字母序 vs QML 插入序，可能永不收敛致每次深拷贝）；
+  6. 列入 P2：collectUpstreamNodes 递归内重复深拷贝 connections（O(链长) 次）；checkPortCompatible 每次连线 new 两个算子对象；PreviewManager 同节点调参时仍丢请求（补偿条件是 nodeId 比较，应加参数版本号）。
+
+### 4.2.3 验证记录（防止"全绿≠完成"）
+
+| 验收项 | 结果 |
+|---|---|
+| 编译 | 100% 通过（QDetectVision.exe + QDV_tests.exe；修复 3 个构建问题：Logger 静态封装调成员 log、qEnvironmentVariable 返回类型、build 缓存的旧 GLOB 引用已删模型文件→重跑 CMake 配置） |
+| 测试回归 | QDV_tests 全套 **746/746 通过，0 断言失败**（offscreen 模式多轮运行确认；有间歇段错误出现在 ResultDatabase boundary 压力测试，经 git stash 对照基线验证为**存量 flaky**（基线 4 轮中 2 轮同样崩溃，QSqlite 连接管理历史问题，源码注释有"崩溃根因修复"记录），非本次引入——已单列 P2 跟进） |
+| 主程序烟测 | offscreen 启动存活 6s+，登录页正常显示，日志完整输出 |
+| 预期性能收益（待实测校准） | 改参数：省 6~30 条同步磁盘日志 + 全画布卡片重建（30 节点约 50~200ms）+ 全表跨界拷贝；带 AI 算子方案调参预览：省每次 0.3~2s 模型重载+warmUp；预览刷新：省 40~150ms UI 线程同步解码；%TEMP%：从无限累积变为每节点恒定 1 文件 |
+
+### 4.2.4 顺带修复的构建环境问题
+
+- build/bin 缺 Qt6Test.dll 等运行库导致 QDV_tests.exe 0xC0000139 静默退出（表现为 Git Bash exit 127 无输出）→ windeployqt 补齐；
+- build 缓存引用已删除的 model_20260712_201806.onnx → 重跑 CMake 配置重新 GLOB。
+
+---
+
 ## 5. 优化路线图（建议节奏）
+
+> 注：P0 四项已全部于 2026-09-06 当日完成（见 4.2 节执行记录）；P0-2 采用了低风险粒度信号方案（完整 NodeListModel 角色化列为后续迭代）。下述节奏中 P0 行仅作历史留档。
 
 ```
 第 1 天     P0-1 日志静音+异步落盘、P0-3 增量回传        （低风险，立竿见影）

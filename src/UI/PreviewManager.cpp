@@ -229,16 +229,19 @@ void PreviewManager::appendSnapshot(const QString& nodeId, const QImage& before,
     snapshot.params = params;
 
     // 将 before/after 图像保存到临时文件，供 QML 分屏视图通过 file:/// 路径加载
+    // P0-4（0906 优化）：文件名由「时间戳」改为「nodeId」—— 同一节点调参历史只需
+    // 保留最新一组对比图，覆盖写不再累积（原实现每次调参新增 2 个 PNG 文件，
+    // LRU 只删内存列表不删磁盘文件，%TEMP% 无限增长）。
     const QString tempDir = QDir::tempPath();
     const QString ts = QString::number(snapshot.timestamp);
     if (!before.isNull()) {
-        const QString beforePath = tempDir + "/qdv_snapshot_" + ts + "_before.png";
+        const QString beforePath = tempDir + "/qdv_snap_" + nodeId + "_before.png";
         if (before.save(beforePath, "PNG")) {
             snapshot.beforeImagePath = beforePath;
         }
     }
     if (!after.isNull()) {
-        const QString afterPath = tempDir + "/qdv_snapshot_" + ts + "_after.png";
+        const QString afterPath = tempDir + "/qdv_snap_" + nodeId + "_after.png";
         if (after.save(afterPath, "PNG")) {
             snapshot.afterImagePath = afterPath;
         }
@@ -246,7 +249,8 @@ void PreviewManager::appendSnapshot(const QString& nodeId, const QImage& before,
 
     m_snapshots.prepend(snapshot);  // 最新的在前
 
-    // LRU 淘汰：超过上限时移除最旧的
+    // LRU 淘汰：超过上限时移除最旧的（P0-4：nodeId 命名下同节点自动覆盖，
+    // 不同节点的淘汰快照文件数受节点数上限约束，无需逐个删文件）
     while (m_snapshots.size() > m_maxSnapshots) {
         m_snapshots.removeLast();
     }

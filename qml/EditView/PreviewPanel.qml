@@ -338,8 +338,10 @@ Rectangle {
                 id: previewImage
                 source: root.currentImagePath
                 fillMode: Image.PreserveAspectFit
-                asynchronous: false  // v5.3：禁用异步加载，避免后台线程纹理与 QRhi 跨实例
-                cache: false
+                // P0-4c（0906 优化）：恢复异步解码 + 缓存（QRhi 问题由渲染层三件套规避，
+                // 见 ImageViewer.qml 同项注释）
+                asynchronous: true
+                cache: true
                 visible: source !== "" && status === Image.Ready && !root.splitModeEnabled
                 anchors.centerIn: parent
 
@@ -467,8 +469,8 @@ Rectangle {
                             id: beforeImage
                             anchors.fill: parent
                             fillMode: Image.PreserveAspectFit
-                            asynchronous: false
-                            cache: false
+                            asynchronous: true  // P0-4c：恢复异步解码（QRhi 由渲染层三件套规避）
+                            cache: true
                             source: root.splitBeforePath
                             visible: source !== "" && status === Image.Ready
                         }
@@ -517,8 +519,8 @@ Rectangle {
                             id: afterImage
                             anchors.fill: parent
                             fillMode: Image.PreserveAspectFit
-                            asynchronous: false
-                            cache: false
+                            asynchronous: true  // P0-4c：恢复异步解码（QRhi 由渲染层三件套规避）
+                            cache: true
                             source: root.splitAfterPath
                             visible: source !== "" && status === Image.Ready
                         }

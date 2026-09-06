@@ -53,8 +53,12 @@ Rectangle {
         height: root.imageHeight * root.zoom
         fillMode: Image.Stretch
         smooth: root.zoom < 2.0
-        asynchronous: false  // v5.3：禁用异步加载，避免后台线程纹理与 QRhi 跨实例
-        cache: false
+        // P0-4c（0906 优化）：恢复异步解码 + 纹理缓存。v5.3 的 QRhi 跨实例纹理 bug
+        // 由 main.cpp 的 QSG_RHI_BACKEND=d3d11 + QSG_NO_TEXTURE_CACHE=1 三件套在
+        // 渲染层规避，不需要用「UI 线程同步解码 + 禁缓存」这种应用层手段兜底。
+        // 同步解码曾使每次预览刷新在 GUI 线程阻塞 40~150ms。
+        asynchronous: true
+        cache: true
 
         onStatusChanged: {
             if (status === Image.Ready) {

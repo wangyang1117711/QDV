@@ -92,8 +92,7 @@ Popup {
         }
         meta = bridge.getOperatorMeta(found.type)
         workingValues = JSON.parse(JSON.stringify(found.params || ({})))
-        // v5.3.7 诊断日志：确认 load 时读取的参数值
-        console.log("Tuner load: type=" + found.type + " params=" + JSON.stringify(workingValues))
+        // P0-1（0906 优化）：移除 v5.3.7 加载确认 console.log（整表 JSON.stringify）
         snapshotValues = JSON.parse(JSON.stringify(workingValues))
         isReadImage = (found.type === "ReadImage")
         // v5.3.7：相机类算子和 ReadImage 不需要上游图像输入
@@ -228,12 +227,8 @@ Popup {
 
     function applyAndClose() {
         if (bridge && nodeId && tunableParams.length > 0) {
-            // v5.3.7 诊断日志：确认 applyAndClose 时传入的参数值
-            console.log("Tuner applyAndClose: workingValues=" + JSON.stringify(workingValues))
+            // P0-1（0906 优化）：移除 v5.3.7 确认用 console.log（整表 JSON.stringify ×2）
             bridge.updateOperatorParams(nodeId, workingValues)
-            // 立即读取确认参数是否被保存
-            var savedParams = bridge.getOperatorParams(nodeId)
-            console.log("Tuner applyAndClose: savedParams=" + JSON.stringify(savedParams))
         }
         tuner.close()
     }
@@ -520,8 +515,10 @@ Popup {
                             source: tuner.previewSource
                             fillMode: Image.PreserveAspectFit
                             smooth: true
-                            asynchronous: false  // v5.3：禁用异步加载，避免后台线程纹理与 QRhi 跨实例
-                            cache: false  // 同一 URL 频繁更新，禁用缓存确保刷新
+                            // P0-4c（0906 优化）：恢复异步解码+缓存；同 URL 刷新由
+                            // C++ 侧确定性文件名（每节点覆盖写）保证内容更新，cache 不影响正确性
+                            asynchronous: true
+                            cache: true
                         }
 
                         // 无图像占位

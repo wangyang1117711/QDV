@@ -256,6 +256,13 @@ Popup {
                     modelList: dlg.bridge ? dlg.bridge.getRegisteredModels() : []
                     // v5.4.2：桥接器（ZeroShotDetect 模型路径与模型类型联动）
                     bridge: dlg.bridge
+                    // P0-3（0906 优化）：单键更新走浅拷贝（workingValues 是对话框本地工作值，
+                    // 最终由 apply 时一次性写回；无需每键全表 JSON 深拷贝）
+                    onValueChanged: function(name, value) {
+                        var wv = dlg.workingValues || ({})
+                        wv[name] = value
+                        dlg.workingValues = wv
+                    }
                     onValuesChanged: function(newValues) {
                         dlg.workingValues = JSON.parse(JSON.stringify(newValues))
                     }

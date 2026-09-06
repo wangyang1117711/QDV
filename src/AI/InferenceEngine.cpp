@@ -41,6 +41,19 @@ bool InferenceEngine::loadModel(const QString& modelPath,
                                  const cv::Scalar& std) {
     m_lastError.clear();
 
+    // P0-4b（0906 优化）：同路径短路 —— 预览链每次执行都重建工具对象并重新
+    // configure → loadModel；若模型路径与预处理参数均未变化，直接复用已加载的
+    // cv::dnn::Net，避免每次预览重付 readNetFromONNX + warmUp（0.3~2s/次）。
+    // 注意：预处理参数变化仅影响推理时的 blob 构造，不必重载模型文件本身。
+    if (m_modelLoaded && m_modelPath == modelPath) {
+        m_inputSize = inputSize;
+        m_mean = mean;
+        m_scale = scale;
+        m_swapRB = swapRB;
+        m_std = std;
+        return true;
+    }
+
     if (!QFileInfo::exists(modelPath)) {
         m_lastError.set(4, "ModelNotFound", "Model file not found: " + modelPath);
         Logger::error("InferenceEngine: " + m_lastError.errorMessage);
@@ -68,6 +81,7 @@ bool InferenceEngine::loadModel(const QString& modelPath,
         m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
         m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
         m_modelLoaded = true;
+        m_warmUpDone = false;  // P0-4b：新模型需重新 warmUp
     } catch (const cv::Exception& e) {
         m_lastError.set(6, "ModelLoadException",
             QString("OpenCV exception loading model: %1").arg(e.what()));
@@ -91,6 +105,7 @@ bool InferenceEngine::loadModel(const QString& modelPath,
 bool InferenceEngine::unloadModel() {
     m_net = cv::dnn::Net();
     m_modelLoaded = false;
+    m_warmUpDone = false;  // P0-4b：卸载后重置 warmUp 状态
     m_modelPath.clear();
     m_lastError.clear();
     m_inferenceCache.clear();
@@ -372,6 +387,13 @@ bool InferenceEngine::warmUp(int iterations) {
         return false;
     }
 
+    // P0-4b（0906 优化）：当前模型已 warmUp 则直接返回成功 —— 预览链每次执行
+    // 重建工具对象导致 warmUp 请求风暴，这里在引擎侧去重（同模型只 warm 一次）。
+    // 模型重载（loadModel 不同路径）会重置 m_warmUpDone。
+    if (m_warmUpDone) {
+        return true;
+    }
+
     m_lastError.clear();
 
     cv::Mat dummy(m_inputSize.height(), m_inputSize.width(), CV_8UC3, cv::Scalar(128, 128, 128));
@@ -392,6 +414,7 @@ bool InferenceEngine::warmUp(int iterations) {
     }
 
     m_lastError.clear();
+    m_warmUpDone = true;
     Logger::info(QString("Model warm-up complete: %1 iterations, avg %2ms")
                   .arg(iterations)
                   .arg(m_lastMetrics.totalMs));

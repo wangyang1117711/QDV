@@ -131,7 +131,9 @@ public:
     void removeConnectionInternal(const QString& fromId, const QString& fromPort,
                                   const QString& toId,   const QString& toPort,
                                   bool emitSignals);
-    /// 内部：更新单个参数（不发信号）
+    /// 内部：更新单个参数
+    /// emitSignals=true 时：发 nodeParamsChanged 粒度信号（参数路径）或
+    /// currentNodesChanged（其他属性路径，保持旧行为）
     void updateParamInternal(const QString& nodeId, const QString& paramName,
                              const QVariant& value, bool emitSignals);
     /// 内部：返回 m_connections（M4 阶段为空，预留）
@@ -231,6 +233,11 @@ public slots:
     /// QML 端调用：更新节点参数（写入 m_currentNodes[i].params）
     /// 校验失败时 emit errorRaised
     void updateOperatorParams(const QString& nodeId, const QVariantMap& params);
+    /// P0-3（0906 优化）：单键增量更新 —— ParamForm 的 valueChanged(name, value)
+    /// 直接走这里，跳过全参数表跨界拷贝与 C++ 端全表 diff。内部复用
+    /// updateOperatorParams 的校验与 UndoCommand 框架（单参数路径）。
+    Q_INVOKABLE void updateOperatorParam(const QString& nodeId, const QString& paramName,
+                                         const QVariant& value);
     /// v5.4：返回指定节点的输出开关配置（{outputName: {enabled: bool}, ...}）
     /// 节点不存在时返回空 map
     Q_INVOKABLE QVariantMap getOutputConfig(const QString& nodeId) const;
@@ -439,6 +446,11 @@ signals:
     /// v2.5.0 修复：节点实时移动信号（拖拽中触发，不导致 currentNodesChanged 重建 delegate）
     /// QML 端 connectionsCanvas 监听此信号重绘连线，避免 Repeater 重建中断拖拽
     void nodePositionChanged(const QString& nodeId, qreal worldX, qreal worldY);
+    /// P0-2（0906 优化）：单节点参数粒度变化信号 —— 参数修改时 QML 只需刷新
+    /// 选中节点相关面板，不需要触发 currentNodesChanged 全量重建画布节点卡片。
+    /// 监听方约定：PropertyPreviewPanel 用它重读该节点参数；节点卡片视觉不依赖
+    /// params（只有连线/端口取值需要 currentNodesChanged），因此画布可安全跳过重建。
+    void nodeParamsChanged(const QString& nodeId, const QStringList& paramNames);
     /// v2.1.0 M4 引入：保存完成（QML 端 toast「已保存」）
     void saveFinished(const QString& filePath, bool success, const QString& message);
     /// v2.1.0 M4 引入：加载完成（QML 端 toast「已加载」；jsonText 由 QML 端读取，UI 层不再使用）

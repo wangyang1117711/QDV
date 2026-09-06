@@ -41,6 +41,12 @@ Rectangle {
     // === 当前 Tab ===
     // 0=图像变量, 1=控制变量, 2=算子参数
     property int currentTab: mode === 1 ? 1 : (mode === 3 ? 2 : 0)
+    // P0-2（0906 优化）：切到算子参数 Tab 时补一次刷新 —— 隐藏期间参数变更被跳过
+    onCurrentTabChanged: {
+        if (currentTab === 2) {
+            operatorParamList.model = root.buildOperatorParamsList()
+        }
+    }
 
     // === 监听变量变更 ===
     Connections {
@@ -76,12 +82,24 @@ Rectangle {
         target: bridge
         enabled: target !== null
 
+        // P0-2（0906 优化）：参数修改发粒度信号 nodeParamsChanged（不再触发画布全量重建）。
+        // 本面板的 buildOperatorParamsList 是最重的级联监听者（O(节点×参数) 次 C++ 调用），
+        // 且 Main.qml 常驻两个实例 —— 只在算子参数列表可见时才重建，隐藏时跳过。
+        function onNodeParamsChanged(nodeId, paramNames) {
+            if (operatorParamList.visible) {
+                operatorParamList.model = root.buildOperatorParamsList()
+            }
+        }
         function onCurrentNodesChanged() {
-            operatorParamList.model = root.buildOperatorParamsList()
+            if (operatorParamList.visible) {
+                operatorParamList.model = root.buildOperatorParamsList()
+            }
         }
         // v6.x：节点运行完成后刷新算子参数列表（同步运行计算出的输出值）
         function onNodeOutputsUpdated() {
-            operatorParamList.model = root.buildOperatorParamsList()
+            if (operatorParamList.visible) {
+                operatorParamList.model = root.buildOperatorParamsList()
+            }
         }
     }
 
@@ -424,8 +442,8 @@ Rectangle {
                                     ? "file:///" + modelData.outputImagePath.replace(/\\/g, "/")
                                     : ""
                                 fillMode: Image.PreserveAspectFit
-                                asynchronous: false  // v5.3：禁用异步加载，避免后台线程纹理与 QRhi 跨实例
-                                cache: false
+                                asynchronous: true  // P0-4c：恢复异步解码（QRhi 由渲染层三件套规避）
+                                cache: true
                                 visible: source !== ""
                             }
                         }

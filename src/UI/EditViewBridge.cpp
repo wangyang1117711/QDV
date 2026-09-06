@@ -588,7 +588,9 @@ QString EditViewBridge::getShortDesc(const QString& type) const {
 }
 
 void EditViewBridge::logDiag(const QString& msg) const {
-    QDV::Logger::info(QStringLiteral("[RecDiag] %1").arg(msg));
+    // P0-1（0906 优化）：[RecDiag] 算子库悬停/飞出菜单诊断降级为 debug ——
+    // 鼠标扫过算子库每个分类都会触发数条，原 INFO 级逐条落盘直接卡悬停动画
+    QDV::Logger::debug(QStringLiteral("[RecDiag] %1").arg(msg));
 }
 
 QVariantMap EditViewBridge::getOperatorDoc(const QString& type) const {
@@ -651,14 +653,10 @@ QVariantMap EditViewBridge::getNodeOutputValues(const QString& nodeId) const {
 }
 
 void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantMap& params) {
-    // v5.3.5 调试日志：排查 ComboBox 闪回
-    QDV::Logger::info(QString("updateOperatorParams: nodeId=%1 paramsCount=%2")
+    // P0-1（0906 优化）：静音逐参数诊断日志（v5.3.5 ComboBox 闪回排查遗留）。
+    // 改参数是最高频操作，原实现每次打 6~30 条立即落盘日志，直接造成输入卡顿。
+    QDV::Logger::debug(QString("updateOperatorParams: nodeId=%1 paramsCount=%2")
                      .arg(nodeId).arg(params.size()));
-    for (auto it = params.constBegin(); it != params.constEnd(); ++it) {
-        QDV::Logger::info(QString("  param %1 = %2 (type=%3)")
-                         .arg(it.key()).arg(it.value().toString())
-                         .arg(it.value().typeName()));
-    }
     int foundIdx = -1;
     for (int i = 0; i < m_currentNodes.size(); ++i) {
         if (m_currentNodes[i].toMap().value("id").toString() == nodeId) {
@@ -695,15 +693,8 @@ void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantM
         changes.append({paramName, {oldVal, newVal}});
     }
     if (changes.isEmpty()) {
-        QDV::Logger::info("updateOperatorParams: no changes detected, returning");
+        QDV::Logger::debug("updateOperatorParams: no changes detected, returning");
         return;
-    }
-    // v5.3.7 诊断日志：打印 changes 列表
-    for (const auto& ch : changes) {
-        QDV::Logger::info(QString("  change: %1 old=%2 new=%3")
-                         .arg(ch.first)
-                         .arg(ch.second.first.toString())
-                         .arg(ch.second.second.toString()));
     }
     if (m_undoStack) {
         // P1-A14 修复：单参数修改直接 push PropertyChangeCommand（利用 mergeWith 自动合并），
@@ -724,21 +715,13 @@ void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantM
         }
     } else {
         // fallback：直接修改
-        QDV::Logger::info("updateOperatorParams: using fallback (no undoStack)");
+        QDV::Logger::debug("updateOperatorParams: using fallback (no undoStack)");
         for (const auto& ch : changes) {
             updateParamInternal(nodeId, ch.first, ch.second.second, false);
         }
         emit currentNodesChanged();
     }
-    // v5.3.7 诊断日志：确认参数已写入
-    {
-        const QVariantMap after = m_currentNodes[foundIdx].toMap().value("params").toMap();
-        for (const auto& ch : changes) {
-            QDV::Logger::info(QString("  after: %1 = %2")
-                             .arg(ch.first)
-                             .arg(after.value(ch.first).toString()));
-        }
-    }
+    // P0-1（0906 优化）：移除 v5.3.7 写后确认日志（每条参数修改额外 M 条 INFO）
     markDirty();
 
     // v2.6.0：参数变更后通知 PreviewManager 触发实时预览（300ms 防抖）
@@ -751,6 +734,15 @@ void EditViewBridge::updateOperatorParams(const QString& nodeId, const QVariantM
 // 复用 PropertyChangeCommand，属性键为 "outputConfig"，updateParamInternal 内部据此写到 node["outputConfig"]
 void EditViewBridge::updateOutputConfig(const QString& nodeId, const QVariantMap& outputs) {
     m_outputConfigManager->updateOutputConfig(nodeId, outputs);
+}
+
+// P0-3（0906 优化）：单键增量更新 —— 复用 updateOperatorParams 的单参数路径
+// （校验 + 单 PropertyChangeCommand push + mergeWith 合并），只是免去全表 Map 构造。
+void EditViewBridge::updateOperatorParam(const QString& nodeId, const QString& paramName,
+                                         const QVariant& value) {
+    QVariantMap single;
+    single.insert(paramName, value);
+    updateOperatorParams(nodeId, single);
 }
 
 QStringList EditViewBridge::validateParam(const QString& type, const QString& paramName, const QVariant& value) const {
@@ -1079,7 +1071,7 @@ void EditViewBridge::removeConnectionInternal(const QString& fromId, const QStri
             c.value("toId").toString() == toId &&
             c.value("toPort").toString() == toPort) {
             m_connections.removeAt(i);
-            QDV::Logger::info(QStringLiteral("removeConnectionInternal: connection removed (%1:%2 -> %3:%4)")
+            QDV::Logger::debug(QStringLiteral("removeConnectionInternal: connection removed (%1:%2 -> %3:%4)")
                               .arg(fromId).arg(fromPort).arg(toId).arg(toPort));
             if (emitSignals) emit connectionsChanged();
             return;
@@ -1091,9 +1083,9 @@ void EditViewBridge::removeConnectionInternal(const QString& fromId, const QStri
 
 void EditViewBridge::updateParamInternal(const QString& nodeId, const QString& paramName,
                                          const QVariant& value, bool emitSignals) {
-    // v5.3.5 调试日志
-    QDV::Logger::info(QString("updateParamInternal: nodeId=%1 param=%2 value=%3 emitSignals=%4")
-                     .arg(nodeId).arg(paramName).arg(value.toString()).arg(emitSignals));
+    // P0-1（0906 优化）：静音 v5.3.5 调试日志 —— 每个参数写回都打 INFO 的落盘路径
+    QDV::Logger::debug(QString("updateParamInternal: nodeId=%1 param=%2 emitSignals=%3")
+                     .arg(nodeId).arg(paramName).arg(emitSignals));
     for (int i = 0; i < m_currentNodes.size(); ++i) {
         QVariantMap n = m_currentNodes[i].toMap();
         if (n.value("id").toString() == nodeId) {
@@ -1107,7 +1099,16 @@ void EditViewBridge::updateParamInternal(const QString& nodeId, const QString& p
                 n["params"] = params;
             }
             m_currentNodes[i] = n;
-            if (emitSignals) emit currentNodesChanged();
+            if (emitSignals) {
+                // P0-2（0906 优化）：参数键发粒度信号 —— QML 端只刷新选中节点相关面板，
+                // 画布节点卡片不重建（卡片视觉不依赖 params）。非参数键（outputConfig
+                // 等节点顶层结构）保持全量信号。
+                if (paramName != QStringLiteral("outputConfig")) {
+                    emit nodeParamsChanged(nodeId, QStringList{paramName});
+                } else {
+                    emit currentNodesChanged();
+                }
+            }
             return;
         }
     }
@@ -1527,17 +1528,15 @@ QVariantList EditViewBridge::getRegisteredModels() const {
         entry["loadableKnown"] = loadableKnown;
         entry["loadError"]  = loadError;
         models.append(entry);
-
-        // v2.7.2 诊断日志：逐条输出，便于排查下拉菜单数量不一致
-        QDV::Logger::info(QString("getRegisteredModels: entry[%1] fileName=%2 displayName=%3 filePath=%4 exists=%5")
+        // P0-1（0906 优化）：v2.7.2 逐模型诊断日志降级为 debug ——
+        // 本函数被 ParamForm 的 modelList 绑定调用，每次面板刷新 × 每模型一条落盘 INFO
+        QDV::Logger::debug(QString("getRegisteredModels: entry[%1] fileName=%2 exists=%3")
                          .arg(models.size() - 1)
                          .arg(fileName)
-                         .arg(displayName)
-                         .arg(filePath)
                          .arg(entry["fileExists"].toBool()));
     }
 
-    QDV::Logger::info(QString("getRegisteredModels: returning %1 models").arg(models.size()));
+    QDV::Logger::debug(QString("getRegisteredModels: returning %1 models").arg(models.size()));
     return models;
 }
 

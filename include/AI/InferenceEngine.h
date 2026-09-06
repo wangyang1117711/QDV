@@ -189,6 +189,10 @@ private:
 
     QString m_modelPath;
     bool m_modelLoaded = false;
+    // P0-4b（0906 优化）：当前模型是否已 warmUp —— 预览链每次执行都重建工具对象，
+    // 工具侧的 m_warmedUp 状态随之丢失；由引擎记住 warmUp 状态后，同模型的重复
+    // warmUp 请求直接跳过（每次 warmUp = 3 次完整 forward，0.1~1s 级）。
+    bool m_warmUpDone = false;
     Backend m_backend = BackendOpenCVDNN;
     InferenceMode m_inferenceMode = SingleMode;
 

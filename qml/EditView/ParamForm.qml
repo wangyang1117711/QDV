@@ -49,6 +49,10 @@ Item {
     property var bridge: null
     /// 任意值变化时回传（外部用于 updateOperatorParams）
     signal valuesChanged(var newValues)
+    /// P0-3（0906 优化）：单键增量形态 —— 携带 (键, 值) 的轻量信号，与全表
+    /// valuesChanged 同时发出；监听方可优先用它做单参数写回（updateOperatorParam），
+    /// 跳过全表跨界拷贝与 C++ 端全表 diff。不监听的旧调用方行为不变。
+    signal valueChanged(string name, var value)
     /// 校验错误信号（bridge.validateParam 失败时）
     signal validationError(string name, string message)
 
@@ -201,6 +205,7 @@ Item {
         v[name] = val;
         _internalValues = v;
         valuesChanged(v);
+        valueChanged(name, val);  // P0-3：单键增量信号（监听方可跳过全表回传）
         // P1-B4-H1 联动：触发 visible 绑定重算（因为 var 属性内部变化不触发信号）
         _linkageTrigger++
     }

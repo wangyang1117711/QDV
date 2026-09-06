@@ -57,8 +57,8 @@ Rectangle {
     // 刷新推荐列表
     function refresh() {
         if (!root.bridge) return
-        var diag = root.bridge.logDiag
-        if (diag) diag.call(root.bridge, "refresh entry selId=[" + root.selectedNodeId + "] selType=[" + root.findSelectedType() + "] tab=" + root.activeTab + " bridgeSet=" + (root.bridge ? "yes" : "no"))
+        // P0-1（0906 优化）：移除逐推荐条目的 [RecDiag] 诊断输出（logDiag 同步字符串
+        // 拼接 + qDebug 在推荐刷新热路径上，每次刷新 5~15 条）
         root.selectedNodeType = root.findSelectedType()
         recModel.clear()
 
@@ -71,7 +71,6 @@ Rectangle {
         var recEngine = root.bridge.recommender      // Q_PROPERTY 属性访问（同名 Q_INVOKABLE 方法被 Q_PROPERTY 遮蔽，QML 中应作为属性使用）
         if (!recEngine) {
             root.hintText = "推荐引擎不可用"
-            if (diag) diag.call(root.bridge, "recommender() is null")
             return
         }
 
@@ -82,25 +81,20 @@ Rectangle {
             }
             recs = recEngine.recommendRecent(root.selectedNodeType)
         } else {
-            // 诊断：确认推荐调用入参与结果
-            if (diag) diag.call(root.bridge, "recommend id=" + root.selectedNodeId + " type=" + root.selectedNodeType)
             recs = recEngine.recommend(root.selectedNodeId)
-            if (diag) diag.call(root.bridge, "recommend results=" + recs.length + " first=" + (recs.length > 0 ? recs[0].type : "(none)"))
         }
 
         // 按置信度降序
         try {
             recs.sort(function(a, b) { return b.confidence - a.confidence })
-            if (diag) diag.call(root.bridge, "after sort len=" + recs.length)
         } catch (e) {
-            if (diag) diag.call(root.bridge, "sort threw: " + e)
+            // 排序失败不阻断展示
         }
 
         for (var j = 0; j < recs.length; ++j) {
             var r = recs[j]
             var d = ""
             try { d = root.bridge.getShortDesc(r.type) } catch (e) { d = "" }
-            if (diag) diag.call(root.bridge, "append j=" + j + " type=" + r.type + " desc=[" + d + "] conf=" + r.confidence)
             recModel.append({
                 type: r.type,
                 confidence: r.confidence,
@@ -108,7 +102,6 @@ Rectangle {
                 desc: d
             })
         }
-        if (diag) diag.call(root.bridge, "after append recModel.count=" + recModel.count)
         root.hintText = recs.length === 0 ? "暂无推荐，试试调整权重" : ""
     }
 
@@ -146,11 +139,15 @@ Rectangle {
     Component.onCompleted: root.refresh()
 
     // 画布节点变化（新增/删除/移动/建连）后自动刷新推荐
+    // P0-2（0906 优化）：参数修改走粒度信号 nodeParamsChanged（不影响推荐依据的
+    // 连线/类型结构），推荐结果只依赖连线与节点类型 —— 参数变化不再触发全量
+    // 推荐重算（每次 refresh 遍历全部连线×算子类型，无缓存）
     Connections {
         target: root.bridge
         function onCurrentNodesChanged() { root.refresh() }
         function onConnectionsChanged() { root.refresh() }
     }
+    // 参数粒度信号：推荐不依赖参数值，跳过 refresh（保持推荐结果不变）
 
     // ============ 标题栏 ============
     Rectangle {

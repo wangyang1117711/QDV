@@ -338,7 +338,7 @@ Popup {
                             anchors.margins: 1
                             source: previewWindow.sourceImage
                             fillMode: Image.PreserveAspectFit
-                            cache: false
+                            cache: true   // P0-4c：恢复缓存
                             visible: sourceImage != ""
                         }
 
@@ -379,7 +379,7 @@ Popup {
                             anchors.margins: 1
                             source: previewWindow.processedImage
                             fillMode: Image.PreserveAspectFit
-                            cache: false
+                            cache: true   // P0-4c：恢复缓存
                             visible: processedImage != ""
                         }
 

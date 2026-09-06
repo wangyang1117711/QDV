@@ -32,6 +32,7 @@
 #include <QSet>
 #include <QRegularExpression>
 #include <QtConcurrent>
+#include <mutex>      // P0-4：std::once_flag 启动清理
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>
 
@@ -54,17 +55,51 @@ cv::Mat loadImageRobust(const QString& filePath, int flags = cv::IMREAD_COLOR) {
 }  // namespace
 
 SchemeRunController::SchemeRunController(EditViewBridge* bridge, QObject* parent)
-    : QObject(parent), m_bridge(bridge) {}
+    : QObject(parent), m_bridge(bridge)
+{
+    // P0-4（0906 优化）：一次性清理历史版本的 UUID 临时 PNG（qdv_single_XXXXXXXX /
+    // qdv_deploy_XXXXXXXX / qdv_snapshot_*_before|after.png），以及本次会话之外
+    // 不再被引用的快照文件。启动时执行一次，量级为 %TEMP% 中匹配文件数。
+    static std::once_flag s_cleanupOnce;
+    std::call_once(s_cleanupOnce, []() {
+        const QString tempDir = QDir::tempPath();
+        QDir dir(tempDir);
+        const QStringList patterns = {
+            QStringLiteral("qdv_single_*.png"),
+            QStringLiteral("qdv_deploy_*.png"),
+            QStringLiteral("qdv_snapshot_*.png"),
+        };
+        int removed = 0;
+        for (const QString& pattern : patterns) {
+            for (const QFileInfo& fi : dir.entryInfoList({pattern}, QDir::Files)) {
+                if (QFile::remove(fi.absoluteFilePath())) ++removed;
+            }
+        }
+        if (removed > 0) {
+            QDV::Logger::info(QString("SchemeRunController: cleaned %1 legacy temp preview PNGs").arg(removed));
+        }
+    });
+}
 
 SchemeRunController::~SchemeRunController() = default;
 
 // =====================================================================
 // 内部辅助：构建工具链 / 计算上游链 / 保存临时 PNG
 // =====================================================================
+// P0-4（0906 优化）：临时 PNG 从 UUID 命名改为「前缀_toolId」确定性命名 ——
+// 同一节点的每次执行覆盖写同一个文件，%TEMP% 不再无限累积（原实现每算子每
+// 次执行新建 UUID 文件永不清理，长期使用积累数 GB）。toolId 为节点 UUID（
+// hex 字符），直接可用作文件名；长度截断防爆路径。
+// 另：QML 端 Image 已恢复 cache:true，同 URL 重复显示不再重新解码。
 QString SchemeRunController::saveMatToTempPng(const cv::Mat& image, const QString& prefix) {
     if (image.empty()) return QString();
     const QString tempDir = QDir::tempPath();
-    const QString fileName = QString("%1_%2.png").arg(prefix).arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8));
+    // P0-4：调用方把 toolId 编入 prefix（"qdv_single_<id>"）以获得确定性文件名。
+    // 截断超长段并替换文件名非法字符，防路径越界。
+    QString safePrefix = prefix;
+    safePrefix.replace(QRegularExpression("[^A-Za-z0-9_\\-]"), "_");
+    if (safePrefix.size() > 80) safePrefix = safePrefix.left(80);
+    const QString fileName = QString("%1.png").arg(safePrefix);
     const QString filePath = QDir(tempDir).absoluteFilePath(fileName);
 
     // v5.2 修复：cv::imwrite 内部用 C 标准 fopen，在 Windows GBK 系统下对 UTF-8 中文路径
@@ -326,7 +361,7 @@ QVariantMap SchemeRunController::resolveSchemeRunInput() const {
     };
     for (const QVariant& v : nodes) {
         const QString type = v.toMap().value("type").toString();
-        QDV::Logger::info(QStringLiteral("[resolveSchemeRunInput] checking type=%1").arg(type));
+        QDV::Logger::debug(QStringLiteral("[resolveSchemeRunInput] checking type=%1").arg(type));
         if (kCameraSourceTypes.contains(type)) {
             result["required"] = false;
             result["hint"] = QStringLiteral("方案包含相机数据源，无需选择输入图像");
@@ -463,7 +498,8 @@ QVariantMap SchemeRunController::runScheme(const QString& inputImagePath) {
             // v6.x：把运行时输出值（ports）同步到桥接层缓存，供变量管理面板展示
             m_bridge->setNodeOutputValues(toolId, tr.ports);
             if (!tr.overlayImage.empty()) {
-                const QString path = saveMatToTempPng(tr.overlayImage, "qdv_deploy");
+                // P0-4：确定性文件名（同节点覆盖写），toolId 编入 prefix
+                const QString path = saveMatToTempPng(tr.overlayImage, QString("qdv_deploy_%1").arg(toolId));
                 trMap["outputImagePath"] = path;
                 if (!path.isEmpty()) lastOutputPath = path;
                 if (ivm && !path.isEmpty()) {
@@ -643,7 +679,8 @@ QVariantMap SchemeRunController::runSingleOperator(const QString& nodeId, const 
             // v6.x：把运行时输出值（ports）同步到桥接层缓存，供变量管理面板展示
             m_bridge->setNodeOutputValues(toolId, tr.ports);
             if (!tr.overlayImage.empty()) {
-                const QString path = saveMatToTempPng(tr.overlayImage, "qdv_single");
+                // P0-4：确定性文件名（同节点覆盖写），toolId 编入 prefix
+                const QString path = saveMatToTempPng(tr.overlayImage, QString("qdv_single_%1").arg(toolId));
                 trMap["outputImagePath"] = path;
                 if (!path.isEmpty()) lastOutputPath = path;
                 if (ivm && !path.isEmpty()) {

@@ -116,6 +116,19 @@ Rectangle {
                 root.outputConfig = bridge.getOutputConfig(root.selectedNode.id) || ({})
             }
         }
+        // P0-2（0906 优化）：参数修改不再走 currentNodesChanged（画布 Repeater 已不重建）。
+        // 本面板改听粒度信号，只同步选中节点的最新参数值。
+        function onNodeParamsChanged(nodeId, paramNames) {
+            if (nodeId === root.selectedNodeId) {
+                var nodes = bridge.currentNodes || []
+                for (var i = 0; i < nodes.length; ++i) {
+                    if (nodes[i].id === root.selectedNodeId) {
+                        root.currentParams = nodes[i].params || ({})
+                        break
+                    }
+                }
+            }
+        }
     }
 
     // v2.2.0 D：生成使用示例文本
@@ -461,6 +474,13 @@ Rectangle {
                     modelList: root.bridge ? root.bridge.getRegisteredModels() : []
                     // v5.4.2：桥接器（ZeroShotDetect 模型路径与模型类型联动）
                     bridge: root.bridge
+                    // P0-3（0906 优化）：单键增量写回 —— 优先于全表 onValuesChanged，
+                    // 跳过整参数 Map 的 QML→C++ 跨界拷贝与 C++ 端全表 diff
+                    onValueChanged: function(name, value) {
+                        if (root.bridge && root.selectedNodeId) {
+                            root.bridge.updateOperatorParam(root.selectedNodeId, name, value)
+                        }
+                    }
                     onValuesChanged: function(newValues) {
                         if (root.bridge && root.selectedNodeId) {
                             root.bridge.updateOperatorParams(root.selectedNodeId, newValues)
@@ -712,7 +732,7 @@ Rectangle {
                                     anchors.margins: 1
                                     fillMode: Image.PreserveAspectFit
                                     source: root.previewSourceImage || ""
-                                    cache: false
+                                    cache: true   // P0-4c：恢复缓存（文件名确定性，内容更新正确性不受影响）
                                 }
 
                                 Label {
@@ -768,7 +788,7 @@ Rectangle {
                                     anchors.margins: 1
                                     fillMode: Image.PreserveAspectFit
                                     source: root.previewProcessedImage || ""
-                                    cache: false
+                                    cache: true   // P0-4c：恢复缓存
                                 }
 
                                 Label {
